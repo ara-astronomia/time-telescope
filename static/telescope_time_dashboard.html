@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRaC — Dashboard Tempo Telescopio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0c10;
+    --surface:   #111318;
+    --surface2:  #161920;
+    --border:    #1e2230;
+    --border-hi: #2e3450;
+    --accent:    #4f7cff;
+    --accent-lo: rgba(79,124,255,0.12);
+    --green:     #2dce89;
+    --green-lo:  rgba(45,206,137,0.12);
+    --red:       #ff4d6d;
+    --red-lo:    rgba(255,77,109,0.12);
+    --amber:     #ffc107;
+    --amber-lo:  rgba(255,193,7,0.10);
+    --text:      #e2e8f0;
+    --text-dim:  #64748b;
+    --text-mid:  #94a3b8;
+    --mono:      'Space Mono', monospace;
+    --sans:      'Syne', sans-serif;
+    --radius:    10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 2rem 1rem 4rem;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 45%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 8%  85%, rgba(255,255,255,0.5) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    animation: fadeDown 0.5s ease both;
+  }
+  .header-left .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--amber);
+    background: var(--amber-lo);
+    border: 1px solid rgba(255,193,7,0.2);
+    border-radius: 999px;
+    padding: 0.25rem 0.9rem;
+    margin-bottom: 0.8rem;
+  }
+  .header-left h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .header-left h1 span { color: var(--amber); }
+  .header-actions { display: flex; gap: 0.6rem; align-items: center; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1.8rem;
+    animation: fadeUp 0.5s ease 0.1s both;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .stat-card .val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-family: var(--mono);
+    line-height: 1;
+  }
+  .stat-card .lbl {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    font-family: var(--mono);
+  }
+  .stat-card.attesa  .val { color: var(--amber); }
+  .stat-card.approv  .val { color: var(--green); }
+  .stat-card.rifiut  .val { color: var(--red); }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.4rem;
+    flex-wrap: wrap;
+    animation: fadeUp 0.5s ease 0.15s both;
+  }
+  .filter-btn {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-btn:hover { border-color: var(--border-hi); color: var(--text); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filter-btn.active.f-attesa  { background: var(--amber); border-color: var(--amber); }
+  .filter-btn.active.f-approv  { background: var(--green); border-color: var(--green); }
+  .filter-btn.active.f-rifiut  { background: var(--red);   border-color: var(--red); }
+
+  /* Richieste list */
+  .list { animation: fadeUp 0.5s ease 0.2s both; }
+
+  .richiesta-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 0.9rem;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .richiesta-card:hover { border-color: var(--border-hi); }
+
+  .richiesta-card.stato-in_attesa  { border-left: 3px solid var(--amber); }
+  .richiesta-card.stato-approvata  { border-left: 3px solid var(--green); }
+  .richiesta-card.stato-rifiutata  { border-left: 3px solid var(--red);   }
+
+  .rc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .rc-header:hover { background: rgba(255,255,255,0.02); }
+
+  .rc-left { display: flex; flex-direction: column; gap: 0.3rem; }
+  .rc-nome-ricerca {
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
+  }
+  .rc-meta {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-mid);
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .rc-meta span { display: flex; align-items: center; gap: 0.35rem; }
+
+  .stato-badge {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.8rem;
+    border-radius: 999px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .stato-in_attesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,0.25); }
+  .stato-approvata  { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
+  .stato-rifiutata  { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
+
+  /* Expand detail */
+  .rc-detail {
+    display: none;
+    padding: 0 1.2rem 1.2rem;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.25s ease both;
+  }
+  .rc-detail.open { display: block; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin: 1rem 0;
+  }
+  .detail-item {}
+  .detail-item .dl { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 0.2rem; }
+  .detail-item .dv { font-size: 0.9rem; color: var(--text); }
+
+  .descrizione-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-mid);
+    margin-bottom: 1rem;
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+
+  /* Action area */
+  .action-area {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .note-input {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    padding: 0.5rem 0.8rem;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+    height: 38px;
+  }
+  .note-input:focus { border-color: var(--accent); }
+
+  .btn-approve, .btn-reject {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    transition: opacity 0.2s, transform 0.15s;
+    height: 38px;
+  }
+  .btn-approve { background: var(--green); color: #0a1a12; }
+  .btn-reject  { background: var(--red);   color: #1a0a0e; }
+  .btn-approve:hover, .btn-reject:hover { opacity: 0.85; }
+  .btn-approve:active, .btn-reject:active { transform: scale(0.97); }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+  }
+  .empty .icon { font-size: 2.5rem; margin-bottom: 0.8rem; opacity: 0.4; }
+
+  /* Loading */
+  .loading-bar {
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--green), var(--accent));
+    background-size: 200%;
+    animation: slide 1.5s linear infinite;
+    border-radius: 2px;
+    margin-bottom: 1rem;
+  }
+  @keyframes slide { to { background-position: 200% } }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(6rem);
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: 999px;
+    padding: 0.7rem 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    z-index: 100;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: var(--red);   color: var(--red); }
+
+  /* Link */
+  .btn-link {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 8px;
+    padding: 0.45rem 1rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.2s;
+  }
+  .btn-link:hover { background: rgba(79,124,255,0.22); }
+
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-14px) } to { opacity:1; transform:none } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(14px)  } to { opacity:1; transform:none } }
+
+  @media (max-width: 600px) {
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header">
+    <div class="header-left">
+      <div class="badge">CRaC — Commissione Tempo Telescopio</div>
+      <h1>Dashboard <span>Responsabile</span></h1>
+    </div>
+    <div class="header-actions">
+      <a href="telescope_time_request.html" class="btn-link">
+        ← Modulo Richiesta
+      </a>
+      <button class="btn-link" onclick="caricaRichieste()">↻ Aggiorna</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card attesa">
+      <div class="val" id="stat-attesa">–</div>
+      <div class="lbl">IN ATTESA</div>
+    </div>
+    <div class="stat-card approv">
+      <div class="val" id="stat-approv">–</div>
+      <div class="lbl">APPROVATE</div>
+    </div>
+    <div class="stat-card rifiut">
+      <div class="val" id="stat-rifiut">–</div>
+      <div class="lbl">RIFIUTATE</div>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="tutte" onclick="setFilter(this)">Tutte</button>
+    <button class="filter-btn f-attesa" data-filter="in_attesa" onclick="setFilter(this)">In attesa</button>
+    <button class="filter-btn f-approv" data-filter="approvata" onclick="setFilter(this)">Approvate</button>
+    <button class="filter-btn f-rifiut" data-filter="rifiutata" onclick="setFilter(this)">Rifiutate</button>
+  </div>
+
+  <div id="loading-bar" class="loading-bar" style="display:none"></div>
+
+  <!-- Lista richieste -->
+  <div class="list" id="list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = '/telescope-time';
+
+let allRichieste = [];
+let currentFilter = 'tutte';
+let ricercheMap = {};
+
+// ─── Carica dati ──────────────────────────────────────────────────────────────
+async function caricaRichieste() {
+  document.getElementById('loading-bar').style.display = 'block';
+  try {
+    const [riRes, rcRes] = await Promise.all([
+      fetch(`${API_BASE}/richieste`),
+      fetch(`${API_BASE}/ricerche`)
+    ]);
+    allRichieste = await riRes.json();
+    const ricerche = await rcRes.json();
+    ricercheMap = Object.fromEntries(ricerche.map(r => [r.id, r]));
+
+    aggiornaStats();
+    renderList();
+  } catch(e) {
+    showToast('Errore caricamento dati.', 'error');
+  } finally {
+    document.getElementById('loading-bar').style.display = 'none';
+  }
+}
+
+function aggiornaStats() {
+  const conteggi = { in_attesa: 0, approvata: 0, rifiutata: 0 };
+  allRichieste.forEach(r => {
+    if (conteggi[r.stato] !== undefined) conteggi[r.stato]++;
+  });
+  document.getElementById('stat-attesa').textContent = conteggi.in_attesa;
+  document.getElementById('stat-approv').textContent = conteggi.approvata;
+  document.getElementById('stat-rifiut').textContent = conteggi.rifiutata;
+}
+
+// ─── Filtri ───────────────────────────────────────────────────────────────────
+function setFilter(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  renderList();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('list');
+  const filtered = currentFilter === 'tutte'
+    ? allRichieste
+    : allRichieste.filter(r => r.stato === currentFilter);
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty"><div class="icon">🔭</div>Nessuna richiesta${currentFilter !== 'tutte' ? ' con questo stato' : ''}.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(r => {
+    const ricerca = ricercheMap[r.ricerca_id] || {};
+    const data = new Date(r.giorno_richiesto).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const dataCreazione = new Date(r.creata_il).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const isAttesa = r.stato === 'in_attesa';
+    const statoLabel = { in_attesa: 'IN ATTESA', approvata: 'APPROVATA', rifiutata: 'RIFIUTATA' }[r.stato];
+
+    return `
+    <div class="richiesta-card stato-${r.stato}" id="card-${r.id}">
+      <div class="rc-header" onclick="toggleDetail(${r.id})">
+        <div class="rc-left">
+          <div class="rc-nome-ricerca">${escHtml(r.nome_ricerca)}</div>
+          <div class="rc-meta">
+            <span>👤 ${escHtml(r.osservatore)}</span>
+            <span>📅 ${data}</span>
+            <span>🕐 ${dataCreazione}</span>
+            ${r.co_osservatori ? `<span>👥 ${escHtml(r.co_osservatori)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem">
+          <span class="stato-badge stato-${r.stato}">${statoLabel}</span>
+          <svg id="chevron-${r.id}" width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--text-dim);transition:transform 0.2s">
+            <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="rc-detail" id="detail-${r.id}">
+        <div class="detail-grid">
+          <div class="detail-item">
+            <div class="dl">RICERCA</div>
+            <div class="dv">${escHtml(r.nome_ricerca)}</div>
+          </div>
+          <div class="detail-item">
+            <div class="dl">ID RICHIESTA</div>
+            <div class="dv" style="font-family:var(--mono)">#${r.id}</div>
+          </div>
+          ${ricerca.descrizione ? `
+          <div class="detail-item" style="grid-column:1/-1">
+            <div class="dl">DESCRIZIONE RICERCA</div>
+            <div class="descrizione-box">${escHtml(ricerca.descrizione)}</div>
+          </div>` : ''}
+          ${ricerca.specifiche ? `
+          <div class="detail-item" style="grid-column:1/-1">
+            <div class="dl">SPECIFICHE TECNICHE</div>
+            <div class="descrizione-box">${escHtml(ricerca.specifiche)}</div>
+          </div>` : ''}
+          ${r.note_responsabile ? `
+          <div class="detail-item" style="grid-column:1/-1">
+            <div class="dl">NOTE RESPONSABILE</div>
+            <div class="dv">${escHtml(r.note_responsabile)}</div>
+          </div>` : ''}
+        </div>
+
+        ${isAttesa ? `
+        <div class="action-area">
+          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…"></textarea>
+          <button class="btn-approve" onclick="aggiornaStato(${r.id}, 'approvata')">✓ Approva</button>
+          <button class="btn-reject"  onclick="aggiornaStato(${r.id}, 'rifiutata')">✗ Rifiuta</button>
+        </div>` : ''}
+      </div>
+    </div>
+    `;
+  }).join('');
+}
+
+function toggleDetail(id) {
+  const detail  = document.getElementById(`detail-${id}`);
+  const chevron = document.getElementById(`chevron-${id}`);
+  const isOpen  = detail.classList.toggle('open');
+  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+}
+
+// ─── Approva / Rifiuta ────────────────────────────────────────────────────────
+async function aggiornaStato(id, stato) {
+  const noteEl = document.getElementById(`note-${id}`);
+  const note   = noteEl ? noteEl.value.trim() : null;
+
+  const label = stato === 'approvata' ? 'approvare' : 'rifiutare';
+  if (!confirm(`Vuoi ${label} questa richiesta?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/richieste/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stato, note_responsabile: note || null })
+    });
+    if (!res.ok) throw new Error();
+
+    const emoji = stato === 'approvata' ? '✓' : '✗';
+    showToast(`${emoji} Richiesta ${stato} con successo.`, stato === 'approvata' ? 'success' : 'error');
+    await caricaRichieste();
+
+  } catch(e) {
+    showToast('Errore durante l\'aggiornamento.', 'error');
+  }
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer = null;
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+// ─── Auto-refresh ogni 60s ────────────────────────────────────────────────────
+caricaRichieste();
+setInterval(caricaRichieste, 60000);
+</script>
+</body>
+</html>

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRaC — Richiesta Tempo Telescopio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0c10;
+    --surface:   #111318;
+    --border:    #1e2230;
+    --border-hi: #2e3450;
+    --accent:    #4f7cff;
+    --accent-lo: rgba(79,124,255,0.12);
+    --accent-gl: rgba(79,124,255,0.04);
+    --green:     #2dce89;
+    --green-lo:  rgba(45,206,137,0.12);
+    --amber:     #ffc107;
+    --amber-lo:  rgba(255,193,7,0.10);
+    --text:      #e2e8f0;
+    --text-dim:  #64748b;
+    --text-mid:  #94a3b8;
+    --radius:    10px;
+    --mono:      'Space Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 72% 8%,  rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 40% 55%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 88% 42%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 5%  80%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 95% 65%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 30%, rgba(200,210,255,0.4) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 720px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    animation: fadeDown 0.6s ease both;
+  }
+  .header .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 999px;
+    padding: 0.3rem 1rem;
+    margin-bottom: 1.2rem;
+  }
+  .header .badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+  .header h1 {
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 0.6rem;
+  }
+  .header h1 span { color: var(--accent); }
+  .header p {
+    color: var(--text-mid);
+    font-size: 0.95rem;
+    font-family: var(--mono);
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    animation: fadeUp 0.6s ease 0.15s both;
+  }
+
+  /* Section label */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-label span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    background: var(--accent-lo);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+
+  .section { margin-bottom: 1.8rem; }
+
+  /* Form fields */
+  .field { margin-bottom: 1.2rem; }
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-mid);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.03em;
+  }
+  .field label .req { color: var(--accent); margin-left: 2px; }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    padding: 0.7rem 0.9rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    appearance: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-lo);
+    background: var(--accent-gl);
+  }
+  textarea { resize: vertical; min-height: 90px; }
+
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+    padding-right: 2.5rem;
+  }
+  select option { background: #1a1d27; }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.5) sepia(1) hue-rotate(200deg);
+    cursor: pointer;
+  }
+
+  /* Ricerca row — dropdown + new button */
+  .ricerca-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.6rem;
+    align-items: end;
+  }
+  .btn-new-ricerca {
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.3);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+    height: 40px;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .btn-new-ricerca:hover { background: rgba(79,124,255,0.22); }
+
+  .btn-link {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 8px;
+    padding: 0.45rem 1rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.2s;
+  }
+  .btn-link:hover { background: rgba(79,124,255,.22); }
+
+  /* Panel nuova ricerca */
+  .nuova-ricerca-panel {
+    display: none;
+    background: rgba(79,124,255,0.05);
+    border: 1px dashed rgba(79,124,255,0.3);
+    border-radius: var(--radius);
+    padding: 1.2rem;
+    margin-top: 0.8rem;
+    animation: fadeUp 0.3s ease both;
+  }
+  .nuova-ricerca-panel.visible { display: block; }
+  .nuova-ricerca-panel .panel-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+
+  /* Co-osservatori chips */
+  .chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 40px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.5rem;
+    cursor: text;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .chips-container:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-lo);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--accent);
+    animation: chipIn 0.2s ease both;
+  }
+  .chip button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+  .chip button:hover { opacity: 1; }
+  .chips-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    flex: 1;
+    min-width: 140px;
+    padding: 0.2rem 0.2rem;
+  }
+  .chips-hint {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  /* Submit */
+  .btn-submit {
+    width: 100%;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-family: var(--sans);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.9rem;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    margin-top: 0.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-submit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.4s;
+  }
+  .btn-submit:hover::after { transform: translateX(100%); }
+  .btn-submit:hover { opacity: 0.9; }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(6rem);
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: 999px;
+    padding: 0.7rem 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    z-index: 100;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: #ff4d6d; color: #ff4d6d; }
+
+  /* Loading spinner */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn-submit.loading .spinner { display: inline-block; }
+  .btn-submit.loading .btn-text { opacity: 0; }
+
+  /* Animations */
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-16px) } to { opacity:1; transform:none } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(16px)  } to { opacity:1; transform:none } }
+  @keyframes spin     { to { transform: rotate(360deg) } }
+  @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes chipIn   { from { opacity:0; transform:scale(0.8) } to { opacity:1; transform:none } }
+
+  @media (max-width: 480px) {
+    .card { padding: 1.4rem; }
+    .ricerca-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header">
+    <div class="badge">CRaC — Osservatorio</div>
+    <div class="header-actions">
+      <a href="telescope_time_calendario.html" class="btn-link">
+        ← Calendario
+      </a>
+    </div>
+    <h1>Richiesta <span>Tempo Telescopio</span></h1>
+    <p>Compila il modulo per richiedere una sessione osservativa</p>
+  </div>
+
+  <div class="card">
+
+    <!-- SEZIONE 1: Osservatori -->
+    <div class="section">
+      <div class="section-label"><span>01</span> Osservatori</div>
+
+      <div class="field">
+        <label>Nome e Cognome Osservatore Principale <span class="req">*</span></label>
+        <input type="text" id="osservatore" placeholder="es. Mario Rossi" autocomplete="name">
+      </div>
+
+      <div class="field">
+        <label>Co-Osservatori</label>
+        <div class="chips-container" id="chips-container" onclick="document.getElementById('co-input').focus()">
+          <input type="text" class="chips-input" id="co-input"
+                 placeholder="Scrivi un nome e premi Invio…">
+        </div>
+        <div class="chips-hint">Premi Invio o virgola dopo ogni nome</div>
+        <input type="hidden" id="co_osservatori">
+      </div>
+    </div>
+
+    <!-- SEZIONE 2: Ricerca -->
+    <div class="section">
+      <div class="section-label"><span>02</span> Programma di Ricerca</div>
+
+      <div class="field">
+        <label>Seleziona Ricerca <span class="req">*</span></label>
+        <div class="ricerca-row">
+          <select id="ricerca_id">
+            <option value="">— Scegli ricerca esistente —</option>
+          </select>
+          <button class="btn-new-ricerca" onclick="toggleNuovaRicerca()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            Nuova
+          </button>
+        </div>
+      </div>
+
+      <!-- Panel nuova ricerca -->
+      <div class="nuova-ricerca-panel" id="nuova-ricerca-panel">
+        <div class="panel-title">// NUOVA RICERCA</div>
+        <div class="field">
+          <label>Nome Ricerca <span class="req">*</span> <small style="color:var(--text-dim)">(deve essere univoco)</small></label>
+          <input type="text" id="nr-nome" placeholder="es. Survey variabili RR Lyrae">
+        </div>
+        <div class="field">
+          <label>Descrizione</label>
+          <textarea id="nr-descrizione" placeholder="Obiettivi scientifici, contesto…"></textarea>
+        </div>
+        <div class="field">
+          <label>Specifiche Tecniche</label>
+          <textarea id="nr-specifiche" placeholder="Strumentazione richiesta, filtri, tempi di posa, risoluzione…" style="min-height:70px"></textarea>
+        </div>
+        <button class="btn-new-ricerca" style="width:100%; justify-content:center; height:38px; margin-top:0.2rem"
+                onclick="salvaRicerca()">
+          ✓ Salva e seleziona questa ricerca
+        </button>
+      </div>
+    </div>
+
+    <!-- SEZIONE 3: Sessione -->
+    <div class="section">
+      <div class="section-label"><span>03</span> Sessione Richiesta</div>
+
+      <div class="field">
+        <label>Data Richiesta <span class="req">*</span></label>
+        <input type="date" id="giorno_richiesto">
+      </div>
+    </div>
+
+    <button class="btn-submit" id="btn-submit" onclick="inviaRichiesta()">
+      <span class="btn-text">Invia Richiesta</span>
+      <span class="spinner"></span>
+    </button>
+
+  </div><!-- /card -->
+</div><!-- /wrapper -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Config ──────────────────────────────────────────────────────────────────
+const API_BASE = '/telescope-time';
+
+// ─── Co-osservatori chips ─────────────────────────────────────────────────────
+const chipsContainer = document.getElementById('chips-container');
+const coInput = document.getElementById('co-input');
+const coHidden = document.getElementById('co_osservatori');
+let coOsservatori = [];
+
+function renderChips() {
+  // Rimuovi chip esistenti (non l'input)
+  chipsContainer.querySelectorAll('.chip').forEach(c => c.remove());
+
+  coOsservatori.forEach((name, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.innerHTML = `${name} <button onclick="removeChip(${i})" title="Rimuovi">×</button>`;
+    chipsContainer.insertBefore(chip, coInput);
+  });
+
+  coHidden.value = coOsservatori.join(', ');
+}
+
+function addChip(val) {
+  const name = val.trim().replace(/,$/, '');
+  if (name && !coOsservatori.includes(name)) {
+    coOsservatori.push(name);
+    renderChips();
+  }
+  coInput.value = '';
+}
+
+function removeChip(i) {
+  coOsservatori.splice(i, 1);
+  renderChips();
+}
+
+coInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addChip(coInput.value);
+  }
+  if (e.key === 'Backspace' && coInput.value === '' && coOsservatori.length) {
+    coOsservatori.pop();
+    renderChips();
+  }
+});
+coInput.addEventListener('blur', () => {
+  if (coInput.value.trim()) addChip(coInput.value);
+});
+
+// ─── Carica ricerche esistenti ────────────────────────────────────────────────
+async function caricaRicerche() {
+  try {
+    const res = await fetch(`${API_BASE}/ricerche`);
+    const data = await res.json();
+    const sel = document.getElementById('ricerca_id');
+    sel.innerHTML = '<option value="">— Scegli ricerca esistente —</option>';
+    data.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.id;
+      opt.textContent = r.nome;
+      opt.dataset.descrizione = r.descrizione || '';
+      opt.dataset.specifiche  = r.specifiche  || '';
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    console.error('Errore caricamento ricerche:', e);
+  }
+}
+
+// ─── Nuova ricerca panel ──────────────────────────────────────────────────────
+function toggleNuovaRicerca() {
+  const panel = document.getElementById('nuova-ricerca-panel');
+  panel.classList.toggle('visible');
+  if (panel.classList.contains('visible')) {
+    document.getElementById('nr-nome').focus();
+  }
+}
+
+async function salvaRicerca() {
+  const nome       = document.getElementById('nr-nome').value.trim();
+  const descrizione = document.getElementById('nr-descrizione').value.trim();
+  const specifiche  = document.getElementById('nr-specifiche').value.trim();
+
+  if (!nome) { showToast('Inserisci il nome della ricerca.', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/ricerche`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, descrizione, specifiche })
+    });
+
+    if (res.status === 409) {
+      showToast('Esiste già una ricerca con questo nome.', 'error'); return;
+    }
+    if (!res.ok) throw new Error();
+
+    const nuova = await res.json();
+    showToast(`Ricerca "${nuova.nome}" creata!`, 'success');
+
+    await caricaRicerche();
+    document.getElementById('ricerca_id').value = nuova.id;
+    document.getElementById('nuova-ricerca-panel').classList.remove('visible');
+
+    // Reset fields
+    ['nr-nome','nr-descrizione','nr-specifiche'].forEach(id => document.getElementById(id).value = '');
+
+  } catch(e) {
+    showToast('Errore durante il salvataggio della ricerca.', 'error');
+  }
+}
+
+// ─── Invia richiesta ──────────────────────────────────────────────────────────
+async function inviaRichiesta() {
+  const osservatore    = document.getElementById('osservatore').value.trim();
+  const ricercaId      = document.getElementById('ricerca_id').value;
+  const giornoRichiesto = document.getElementById('giorno_richiesto').value;
+
+  if (!osservatore)    { showToast('Inserisci il nome dell\'osservatore.', 'error'); return; }
+  if (!ricercaId)      { showToast('Seleziona una ricerca.', 'error'); return; }
+  if (!giornoRichiesto) { showToast('Seleziona la data richiesta.', 'error'); return; }
+
+  const btn = document.getElementById('btn-submit');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/richieste`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ricerca_id:       parseInt(ricercaId),
+        osservatore,
+        co_osservatori:  coHidden.value || null,
+        giorno_richiesto: giornoRichiesto
+      })
+    });
+
+    if (res.status === 409) {
+      showToast('Esiste già una richiesta per questa ricerca in quella data.', 'error');
+      return;
+    }
+    if (!res.ok) throw new Error();
+
+    showToast('✓ Richiesta inviata! Il responsabile riceverà notifica via email.', 'success');
+    resetForm();
+
+  } catch(e) {
+    showToast('Errore durante l\'invio della richiesta.', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function resetForm() {
+  document.getElementById('osservatore').value = '';
+  document.getElementById('ricerca_id').value = '';
+  document.getElementById('giorno_richiesto').value = '';
+  coOsservatori = [];
+  renderChips();
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+// ─── Data minima = oggi ───────────────────────────────────────────────────────
+document.getElementById('giorno_richiesto').min = new Date().toISOString().split('T')[0];
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+caricaRicerche();
+</script>
+</body>
+</html>

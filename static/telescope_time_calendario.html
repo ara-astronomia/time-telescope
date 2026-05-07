@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRaC — Calendario Telescopio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #0a0c10;
+    --surface:     #111318;
+    --surface2:    #161920;
+    --border:      #1e2230;
+    --border-hi:   #2e3450;
+
+    --accent:      #4f7cff;
+    --accent-lo:   rgba(79,124,255,0.13);
+    --accent-gl:   rgba(79,124,255,0.05);
+
+    --green:       #2dce89;
+    --green-lo:    rgba(45,206,137,0.13);
+    --green-gl:    rgba(45,206,137,0.05);
+
+    --amber:       #ffc107;
+    --amber-lo:    rgba(255,193,7,0.13);
+    --amber-gl:    rgba(255,193,7,0.05);
+
+    --red:         #ff4d6d;
+    --red-lo:      rgba(255,77,109,0.13);
+
+    --text:        #e2e8f0;
+    --text-dim:    #64748b;
+    --text-mid:    #94a3b8;
+
+    --mono:        'Space Mono', monospace;
+    --sans:        'Syne', sans-serif;
+    --radius:      10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 2rem 1rem 5rem;
+  }
+
+  /* starfield */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55) 0%, transparent 100%),
+      radial-gradient(1px 1px at 68% 7%,  rgba(255,255,255,0.35) 0%, transparent 100%),
+      radial-gradient(1px 1px at 38% 52%, rgba(255,255,255,0.45) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 85% 40%, rgba(255,255,255,0.45) 0%, transparent 100%),
+      radial-gradient(1px 1px at 5%  78%, rgba(255,255,255,0.40) 0%, transparent 100%),
+      radial-gradient(1px 1px at 55% 88%, rgba(255,255,255,0.30) 0%, transparent 100%),
+      radial-gradient(1px 1px at 92% 72%, rgba(200,210,255,0.40) 0%, transparent 100%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 1060px; margin: 0 auto;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    margin-bottom: 2rem;
+    animation: fadeDown .5s ease both;
+  }
+  .header-left .badge {
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-family: var(--mono); font-size: .65rem; letter-spacing: .15em;
+    color: var(--accent); background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,.22); border-radius: 999px;
+    padding: .25rem .9rem; margin-bottom: .8rem;
+  }
+  .header-left h1 {
+    font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .header-left h1 span { color: var(--accent); }
+  .header-actions { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+
+  .btn-link {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--accent);
+    background: var(--accent-lo);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 8px;
+    padding: 0.45rem 1rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.2s;
+  }
+  .btn-link:hover { background: rgba(79,124,255,.22); }
+
+  /* ── Navigazione mese ────────────────────────────────────────────────────── */
+  .month-nav {
+    display: flex; align-items: center; justify-content: center; gap: 1.2rem;
+    margin-bottom: 1.6rem;
+    animation: fadeUp .5s ease .1s both;
+  }
+  .month-nav button {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-mid); border-radius: 8px;
+    width: 36px; height: 36px; font-size: 1rem; cursor: pointer;
+    transition: border-color .2s, color .2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .month-nav button:hover { border-color: var(--border-hi); color: var(--text); }
+  .month-title {
+    font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em;
+    min-width: 220px; text-align: center; font-family: var(--mono);
+    text-transform: uppercase;
+  }
+
+  /* ── Legenda ─────────────────────────────────────────────────────────────── */
+  .legenda {
+    display: flex; gap: 1.2rem; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 1.4rem;
+    animation: fadeUp .5s ease .12s both;
+  }
+  .leg-item {
+    display: flex; align-items: center; gap: .4rem;
+    font-family: var(--mono); font-size: .68rem; color: var(--text-mid);
+  }
+  .leg-dot {
+    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  }
+  .leg-dot.libera   { background: var(--border-hi); }
+  .leg-dot.contesa  { background: var(--amber); }
+  .leg-dot.bloccata { background: var(--red); }
+  .leg-dot.approv   { background: var(--green); }
+
+  /* ── Griglia calendario ──────────────────────────────────────────────────── */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: .5rem;
+    animation: fadeUp .5s ease .18s both;
+  }
+
+  .day-header {
+    text-align: center;
+    font-family: var(--mono); font-size: .62rem;
+    letter-spacing: .1em; color: var(--text-dim);
+    padding: .4rem 0;
+    text-transform: uppercase;
+  }
+
+  .day-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    min-height: 86px;
+    padding: .5rem;
+    position: relative;
+    cursor: default;
+    transition: border-color .2s, transform .15s;
+    overflow: hidden;
+  }
+  .day-cell.other-month { opacity: .25; pointer-events: none; }
+  .day-cell.today { border-color: var(--accent) !important; }
+  .day-cell.today .day-num::after {
+    content: ''; position: absolute; inset: 0;
+    background: var(--accent); border-radius: 50%; z-index: -1;
+  }
+
+  /* stati giorno */
+  .day-cell.bloccata {
+    background: rgba(255,77,109,.07);
+    border-color: rgba(255,77,109,.3);
+    cursor: pointer;
+  }
+  .day-cell.contesa {
+    background: rgba(255,193,7,.06);
+    border-color: rgba(255,193,7,.28);
+    cursor: pointer;
+  }
+  .day-cell.has-richieste { cursor: pointer; }
+  .day-cell.has-richieste:hover,
+  .day-cell.bloccata:hover,
+  .day-cell.contesa:hover {
+    border-color: var(--border-hi);
+    transform: translateY(-2px);
+    z-index: 2;
+  }
+
+  .day-num {
+    font-family: var(--mono); font-size: .78rem; font-weight: 700;
+    color: var(--text-mid); position: relative;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; z-index: 1;
+  }
+  .day-cell.today .day-num { color: #fff; }
+
+  /* pill richieste nella cella */
+  .day-pills { margin-top: .35rem; display: flex; flex-direction: column; gap: .22rem; }
+  .pill {
+    font-family: var(--mono); font-size: .58rem;
+    border-radius: 4px; padding: .12rem .38rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .pill.approvata { background: var(--green-lo); color: var(--green); }
+  .pill.in_attesa { background: var(--amber-lo); color: var(--amber); }
+  .pill.more {
+    background: var(--surface2); color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* ── Pannello dettaglio ──────────────────────────────────────────────────── */
+  .detail-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    backdrop-filter: blur(4px); z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+  }
+  .detail-overlay.open { opacity: 1; pointer-events: all; }
+
+  .detail-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    border-radius: 16px;
+    width: 100%; max-width: 520px;
+    max-height: 80vh; overflow-y: auto;
+    padding: 1.6rem;
+    transform: translateY(20px);
+    transition: transform .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .detail-overlay.open .detail-panel { transform: none; }
+
+  .dp-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.2rem;
+  }
+  .dp-date {
+    font-family: var(--mono); font-size: .95rem; font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .dp-stato {
+    font-family: var(--mono); font-size: .65rem; letter-spacing: .1em;
+    padding: .25rem .8rem; border-radius: 999px; font-weight: 700;
+  }
+  .dp-stato.bloccata { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
+  .dp-stato.contesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+
+  .dp-close {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 1.4rem; cursor: pointer; line-height: 1;
+    padding: .2rem .4rem; border-radius: 6px;
+    transition: color .15s, background .15s;
+  }
+  .dp-close:hover { color: var(--text); background: var(--border); }
+
+  .dp-richiesta {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: .8rem;
+  }
+  .dp-richiesta:last-child { margin-bottom: 0; }
+
+  .dp-r-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: .6rem; flex-wrap: wrap; gap: .4rem;
+  }
+  .dp-r-ricerca { font-weight: 700; font-size: .95rem; }
+  .dp-stato-small {
+    font-family: var(--mono); font-size: .6rem; letter-spacing: .08em;
+    padding: .18rem .65rem; border-radius: 999px; font-weight: 700;
+  }
+  .dp-stato-small.approvata { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,.25); }
+  .dp-stato-small.in_attesa { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+
+  .dp-r-meta {
+    font-family: var(--mono); font-size: .71rem; color: var(--text-mid);
+    display: flex; flex-direction: column; gap: .25rem;
+  }
+  .dp-r-meta span { display: flex; gap: .4rem; align-items: flex-start; }
+  .dp-r-meta .lk { color: var(--text-dim); min-width: 90px; flex-shrink: 0; }
+
+  .dp-r-descrizione {
+    margin-top: .7rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: .6rem .8rem;
+    font-family: var(--mono); font-size: .72rem;
+    color: var(--text-mid); line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  /* ── Loading bar ─────────────────────────────────────────────────────────── */
+  .loading-bar {
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--green), var(--accent));
+    background-size: 200%;
+    animation: slide 1.5s linear infinite;
+    border-radius: 2px; margin-bottom: 1rem;
+  }
+  @keyframes slide { to { background-position: 200% } }
+
+  /* ── Animations ──────────────────────────────────────────────────────────── */
+  @keyframes fadeDown { from { opacity:0; transform:translateY(-14px) } to { opacity:1; transform:none } }
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(14px)  } to { opacity:1; transform:none } }
+
+  /* ── Responsive ──────────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .cal-grid { gap: .3rem; }
+    .day-cell { min-height: 60px; padding: .35rem; }
+    .day-num  { font-size: .7rem; }
+    .pill     { font-size: .52rem; }
+    .month-title { font-size: 1rem; min-width: 160px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="badge">CRaC — Osservatorio</div>
+      <h1>Calendario <span>Sessioni</span></h1>
+    </div>
+    <div class="header-actions">
+      <a href="telescope_time_request.html"   class="btn-link">+ Nuova Richiesta</a>
+      <a href="telescope_time_dashboard.html" class="btn-link">⊞ Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Navigazione mese -->
+  <div class="month-nav">
+    <button onclick="cambioMese(-1)" title="Mese precedente">‹</button>
+    <div class="month-title" id="month-title">—</div>
+    <button onclick="cambioMese(+1)" title="Mese successivo">›</button>
+  </div>
+
+  <!-- Legenda -->
+  <div class="legenda">
+    <div class="leg-item"><div class="leg-dot libera"></div>Libera</div>
+    <div class="leg-item"><div class="leg-dot contesa"></div>In attesa (contesa)</div>
+    <div class="leg-item"><div class="leg-dot bloccata"></div>Bloccata (approvata)</div>
+    <div class="leg-item"><div class="leg-dot approv"></div>Sessione approvata</div>
+  </div>
+
+  <div id="loading-bar" class="loading-bar" style="display:none"></div>
+
+  <!-- Griglia calendario -->
+  <div class="cal-grid" id="cal-grid"></div>
+
+</div><!-- /wrapper -->
+
+<!-- Pannello dettaglio giorno -->
+<div class="detail-overlay" id="overlay" onclick="chiudiOverlay(event)">
+  <div class="detail-panel" id="detail-panel">
+    <div class="dp-header">
+      <div>
+        <div class="dp-date" id="dp-date">—</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="dp-stato" id="dp-stato"></span>
+        <button class="dp-close" onclick="chiudiDettaglio()">×</button>
+      </div>
+    </div>
+    <div id="dp-content"></div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/telescope-time';
+
+const MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                 'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const GG_IT  = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+
+let oggi = new Date();
+let annoCorrente = oggi.getFullYear();
+let meseCorrente = oggi.getMonth() + 1; // 1-based
+
+let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, richieste[] } }
+
+// ─── Navigazione ─────────────────────────────────────────────────────────────
+function cambioMese(delta) {
+  meseCorrente += delta;
+  if (meseCorrente > 12) { meseCorrente = 1; annoCorrente++; }
+  if (meseCorrente < 1)  { meseCorrente = 12; annoCorrente--; }
+  caricaMese();
+}
+
+// ─── Fetch dati ───────────────────────────────────────────────────────────────
+async function caricaMese() {
+  document.getElementById('loading-bar').style.display = 'block';
+  document.getElementById('month-title').textContent =
+    `${MESI_IT[meseCorrente-1]} ${annoCorrente}`;
+
+  try {
+    const res = await fetch(`${API_BASE}/calendario?anno=${annoCorrente}&mese=${meseCorrente}`);
+    const data = await res.json();
+    datiGiorni = data.giorni || {};
+    renderCalendario();
+  } catch(e) {
+    console.error('Errore caricamento calendario:', e);
+  } finally {
+    document.getElementById('loading-bar').style.display = 'none';
+  }
+}
+
+// ─── Render griglia ───────────────────────────────────────────────────────────
+function renderCalendario() {
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  // Intestazioni giorni — settimana parte da Lunedì
+  const ordine = [1,2,3,4,5,6,0]; // Lun→Dom
+  ordine.forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'day-header';
+    h.textContent = GG_IT[d];
+    grid.appendChild(h);
+  });
+
+  // Primo giorno del mese (0=Dom … 6=Sab)
+  const primoGiorno = new Date(annoCorrente, meseCorrente - 1, 1).getDay();
+  // Offset per settimana Lun-Dom: Dom(0)→6, Lun(1)→0, …
+  const offset = (primoGiorno + 6) % 7;
+
+  const giorniNelMese = new Date(annoCorrente, meseCorrente, 0).getDate();
+  const totCelle = Math.ceil((offset + giorniNelMese) / 7) * 7;
+
+  const oggiStr = fmtDate(oggi.getFullYear(), oggi.getMonth()+1, oggi.getDate());
+
+  for (let i = 0; i < totCelle; i++) {
+    const giorno = i - offset + 1;
+    const cell = document.createElement('div');
+
+    if (giorno < 1 || giorno > giorniNelMese) {
+      cell.className = 'day-cell other-month';
+      const phantom = giorno < 1
+        ? new Date(annoCorrente, meseCorrente-1, giorno)
+        : new Date(annoCorrente, meseCorrente-1, giorno);
+      cell.innerHTML = `<div class="day-num">${phantom.getDate ? phantom.getDate() : ''}</div>`;
+      grid.appendChild(cell);
+      continue;
+    }
+
+    const dataStr = fmtDate(annoCorrente, meseCorrente, giorno);
+    const info = datiGiorni[dataStr];
+    const stato = info ? info.stato_giorno : 'libera';
+    const richieste = info ? info.richieste : [];
+
+    cell.className = `day-cell ${stato}${richieste.length ? ' has-richieste' : ''}`;
+    if (dataStr === oggiStr) cell.classList.add('today');
+
+    // Numero giorno
+    let html = `<div class="day-num">${giorno}</div>`;
+
+    // Pills (max 3 visibili)
+    if (richieste.length) {
+      html += '<div class="day-pills">';
+      const visibili = richieste.slice(0, 3);
+      visibili.forEach(r => {
+        const nome = escHtml(r.osservatore.split(' ')[0]); // solo nome
+        html += `<div class="pill ${r.stato}">${nome} · ${escHtml(r.nome_ricerca)}</div>`;
+      });
+      if (richieste.length > 3) {
+        html += `<div class="pill more">+${richieste.length - 3} altre</div>`;
+      }
+      html += '</div>';
+    }
+
+    cell.innerHTML = html;
+
+    if (richieste.length) {
+      cell.addEventListener('click', () => apriDettaglio(dataStr, stato, richieste));
+    }
+
+    grid.appendChild(cell);
+  }
+}
+
+// ─── Dettaglio giorno ─────────────────────────────────────────────────────────
+function apriDettaglio(dataStr, stato, richieste) {
+  const [a, m, g] = dataStr.split('-');
+  const dataLabel = `${parseInt(g)} ${MESI_IT[parseInt(m)-1]} ${a}`;
+
+  document.getElementById('dp-date').textContent = dataLabel;
+
+  const statoEl = document.getElementById('dp-stato');
+  const statoLabels = { bloccata: 'BLOCCATA', contesa: 'CONTESA', libera: '' };
+  statoEl.textContent = statoLabels[stato] || '';
+  statoEl.className = `dp-stato ${stato}`;
+
+  // Ordina: approvate prima, poi in attesa
+  const ordinate = [...richieste].sort((a, b) => {
+    if (a.stato === 'approvata' && b.stato !== 'approvata') return -1;
+    if (b.stato === 'approvata' && a.stato !== 'approvata') return 1;
+    return 0;
+  });
+
+  document.getElementById('dp-content').innerHTML = ordinate.map(r => `
+    <div class="dp-richiesta">
+      <div class="dp-r-top">
+        <div class="dp-r-ricerca">${escHtml(r.nome_ricerca)}</div>
+        <span class="dp-stato-small ${r.stato}">${r.stato === 'approvata' ? 'APPROVATA' : 'IN ATTESA'}</span>
+      </div>
+      <div class="dp-r-meta">
+        <span><span class="lk">Osservatore</span>${escHtml(r.osservatore)}</span>
+        ${r.co_osservatori ? `<span><span class="lk">Co-osservatori</span>${escHtml(r.co_osservatori)}</span>` : ''}
+        ${r.note_responsabile ? `<span><span class="lk">Note</span>${escHtml(r.note_responsabile)}</span>` : ''}
+      </div>
+      ${r.descrizione ? `<div class="dp-r-descrizione">${escHtml(r.descrizione)}</div>` : ''}
+    </div>
+  `).join('');
+
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function chiudiDettaglio() {
+  document.getElementById('overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function chiudiOverlay(e) {
+  if (e.target === document.getElementById('overlay')) chiudiDettaglio();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') chiudiDettaglio();
+});
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+function fmtDate(a, m, g) {
+  return `${a}-${String(m).padStart(2,'0')}-${String(g).padStart(2,'0')}`;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+caricaMese();
+</script>
+</body>
+</html>

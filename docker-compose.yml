@@ -1,0 +1,22 @@
+services:
+  telescope_time:
+    build: .
+    container_name: telescope_time
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    volumes:
+      - telescope_db:/data
+    environment:
+      - TELESCOPE_DB_PATH=/data/telescope_time.db
+      # SMTP — decommentare quando disponibile
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=crac@osservatorio.it
+      # - SMTP_PASSWORD=secret
+      # - EMAIL_FROM=crac@osservatorio.it
+      # - EMAIL_RESPONSABILE=responsabile@osservatorio.it
+
+volumes:
+  telescope_db:
+    driver: local
