@@ -1,0 +1,15 @@
+# Virtualenv
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Database SQLite (inclusi i collaterali WAL)
+*.db
+*.db-wal
+*.db-shm
+
+# Variabili d'ambiente
+.env
