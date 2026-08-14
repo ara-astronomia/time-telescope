@@ -7,14 +7,38 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+RESPONSABILE = {
+    "Remote-User": "anna",
+    "Remote-Groups": "soci,telescope-responsabili",
+    "Remote-Email": "anna@example.test",
+}
+SOCIO = {"Remote-User": "mario", "Remote-Groups": "soci"}
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """Client su un database temporaneo, ricreato da zero per ogni test.
 
     Il `with` è necessario: fa girare il lifespan dell'app, che è dove
     init_db() crea le tabelle.
+
+    AUTH_MODE=dev sintetizza l'identità, così i test che non riguardano
+    l'autorizzazione non devono passare header a ogni chiamata; quelli che
+    la riguardano usano `client_authelia`.
     """
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
+    monkeypatch.setenv("AUTH_MODE", "dev")
+    import main
+
+    with TestClient(main.app) as c:
+        yield c
+
+
+@pytest.fixture
+def client_authelia(tmp_path, monkeypatch):
+    """Client in modalità produzione: l'identità arriva solo dagli header."""
+    monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
+    monkeypatch.setenv("AUTH_MODE", "forward-auth")
     import main
 
     with TestClient(main.app) as c:

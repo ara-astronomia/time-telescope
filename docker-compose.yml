@@ -9,6 +9,11 @@ services:
       - telescope_db:/data
     environment:
       - TELESCOPE_DB_PATH=/data/telescope_time.db
+      # Autenticazione simulata: in sviluppo non serve Authelia.
+      # In produzione va lasciata a 'forward-auth' (il default).
+      - AUTH_MODE=dev
+      - DEV_USER=sviluppo
+      - DEV_GROUPS=telescope-responsabili
       # SMTP — decommentare quando disponibile
       # - SMTP_HOST=smtp.example.com
       # - SMTP_PORT=587

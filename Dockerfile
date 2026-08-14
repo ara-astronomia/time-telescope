@@ -17,6 +17,9 @@ COPY static/ ./static/
 VOLUME ["/data"]
 
 ENV TELESCOPE_DB_PATH=/data/telescope_time.db
+# Senza questo i print dell'applicazione restano nel buffer di stdout e non
+# compaiono in `docker compose logs` finché il processo non termina.
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8010
 
