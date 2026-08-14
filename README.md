@@ -56,6 +56,21 @@ sqlite3 telescope_time.db < seed.sql
 
 ---
 
+## Test
+
+```bash
+pip install -r requirements-dev.txt
+
+pytest                              # tutta la suite
+pytest tests/test_calendario.py     # un singolo file
+pytest -k rifiutate                 # un singolo test per nome
+```
+
+Ogni test gira su un database temporaneo creato da zero: la suite non
+tocca `telescope_time.db`.
+
+---
+
 ## Deploy con Docker
 
 ```bash

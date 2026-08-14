@@ -20,7 +20,13 @@ router = APIRouter(prefix="/telescope-time", tags=["Telescope Time"])
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
-DB_PATH = os.environ.get("TELESCOPE_DB_PATH", "telescope_time.db")
+def db_path() -> str:
+    """Percorso del database, letto a ogni chiamata.
+
+    Leggerlo qui e non a livello di modulo permette ai test di puntare a un
+    file temporaneo senza dover manipolare l'ambiente prima dell'import.
+    """
+    return os.environ.get("TELESCOPE_DB_PATH", "telescope_time.db")
 
 # Config SMTP — da impostare nelle variabili d'ambiente
 SMTP_HOST     = os.environ.get("SMTP_HOST", "")
@@ -36,7 +42,7 @@ def get_db():
     # timeout: quanto attendere se un'altra connessione sta scrivendo, prima
     # di sollevare "database is locked". Con WAL i lettori non aspettano mai,
     # ma le scritture restano serializzate.
-    conn = sqlite3.connect(DB_PATH, timeout=15)
+    conn = sqlite3.connect(db_path(), timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")  # va impostato su ogni connessione
     try:
@@ -45,7 +51,7 @@ def get_db():
         conn.close()
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path())
     # WAL: lettori e scrittore procedono in parallelo invece di bloccarsi a
     # vicenda. È persistente sul file, quindi basta impostarlo qui.
     conn.execute("PRAGMA journal_mode = WAL")
@@ -73,9 +79,6 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-
-# Inizializza DB al caricamento del modulo
-init_db()
 
 # ─── Modelli Pydantic ─────────────────────────────────────────────────────────
 
