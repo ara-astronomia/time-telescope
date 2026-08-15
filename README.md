@@ -6,10 +6,14 @@ Accessibile su `time_telescope.ara.roma.it`.
 ## Struttura
 
 ```
-telescope_time/
+time-telescope/
 ├── main.py                         ← FastAPI app
 ├── router.py                       ← endpoint API
-├── requirements.txt
+├── pyproject.toml                  ← dipendenze (uv)
+├── uv.lock                         ← versioni bloccate
+├── .python-version                 ← interprete richiesto
+├── seed.sql                        ← dati di esempio
+├── tests/                          ← suite pytest
 ├── Dockerfile
 ├── docker-compose.yml
 ├── nginx_time_telescope.conf       ← blocco Nginx da copiare
@@ -26,14 +30,23 @@ telescope_time/
 
 ## Installazione locale (test)
 
+Le dipendenze sono gestite con [uv](https://docs.astral.sh/uv/), che si
+occupa anche di scaricare l'interprete indicato in `.python-version`
+(Python 3.14): non serve installarlo a parte.
+
 ```bash
-cd telescope_time
+cd time-telescope
 
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+uv sync                             # crea .venv e installa dal lockfile
+uv run uvicorn main:app --reload --port 8010
+```
 
-uvicorn main:app --reload --port 8010
+Per aggiungere una dipendenza — `pyproject.toml` e `uv.lock` restano
+allineati da soli:
+
+```bash
+uv add <pacchetto>
+uv add --dev <pacchetto>            # solo per i test
 ```
 
 Apri il browser su:
@@ -59,12 +72,13 @@ sqlite3 telescope_time.db < seed.sql
 ## Test
 
 ```bash
-pip install -r requirements-dev.txt
-
-pytest                              # tutta la suite
-pytest tests/test_calendario.py     # un singolo file
-pytest -k rifiutate                 # un singolo test per nome
+uv run pytest                              # tutta la suite
+uv run pytest tests/test_calendario.py     # un singolo file
+uv run pytest -k rifiutate                 # un singolo test per nome
 ```
+
+`uv run` installa da solo quel che manca, incluse le dipendenze del
+gruppo `dev`: non serve un passo di installazione separato.
 
 Ogni test gira su un database temporaneo creato da zero: la suite non
 tocca `telescope_time.db`.

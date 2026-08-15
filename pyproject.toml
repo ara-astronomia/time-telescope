@@ -1,0 +1,26 @@
+[project]
+name = "telescope-time"
+version = "1.0.0"
+description = "Gestione richieste tempo telescopio — CRaC"
+readme = "README.md"
+requires-python = ">=3.14"
+
+dependencies = [
+    "fastapi>=0.136.1",
+    "uvicorn[standard]>=0.38.0",
+    "pydantic>=2.13.0",
+    "python-multipart>=0.0.27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
+
+[tool.uv]
+# Non è un pacchetto da installare: main.py e router.py sono moduli in root.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
