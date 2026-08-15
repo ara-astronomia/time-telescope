@@ -5,7 +5,7 @@ Da includere nel server CRaC principale con:
     app.include_router(telescope_router)
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
 from typing import Optional, List
@@ -15,8 +15,6 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-router = APIRouter(prefix="/telescope-time", tags=["Telescope Time"])
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +26,24 @@ def db_path() -> str:
     """
     return os.environ.get("TELESCOPE_DB_PATH", "telescope_time.db")
 
+# Autenticazione. In produzione l'identità arriva dagli header che Nginx
+# riceve da Authelia (ForwardAuth): l'app non gestisce login né sessioni.
+# In sviluppo 'dev' sintetizza quegli header, così non serve Authelia.
+# Come per db_path(), i valori sono letti a ogni chiamata: i test possono
+# così cambiare modalità senza dipendere dall'ordine degli import.
+
+def auth_mode() -> str:
+    return os.environ.get("AUTH_MODE", "forward-auth")   # 'forward-auth' | 'dev'
+
+def dev_user() -> str:
+    return os.environ.get("DEV_USER", "sviluppo")
+
+def dev_groups() -> str:
+    return os.environ.get("DEV_GROUPS", "telescope-responsabili")
+
+def gruppo_responsabili() -> str:
+    return os.environ.get("GRUPPO_RESPONSABILI", "telescope-responsabili")
+
 # Config SMTP — da impostare nelle variabili d'ambiente
 SMTP_HOST     = os.environ.get("SMTP_HOST", "")
 SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
@@ -35,6 +51,63 @@ SMTP_USER     = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 EMAIL_FROM    = os.environ.get("EMAIL_FROM", "crac@osservatorio.it")
 EMAIL_RESPONSABILE = os.environ.get("EMAIL_RESPONSABILE", "responsabile@osservatorio.it")
+
+# ─── Autenticazione ───────────────────────────────────────────────────────────
+
+class Utente(BaseModel):
+    nome: str
+    gruppi: List[str] = []
+    email: Optional[str] = None
+
+    @property
+    def e_responsabile(self) -> bool:
+        return gruppo_responsabili() in self.gruppi
+
+
+def utente_corrente(
+    remote_user:   Optional[str] = Header(None, alias="Remote-User"),
+    remote_groups: str           = Header("",   alias="Remote-Groups"),
+    remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
+) -> Utente:
+    """Identità dell'utente, dagli header impostati da Nginx via Authelia.
+
+    Gli header sono attendibili solo se il servizio non è raggiungibile
+    scavalcando Nginx: chi arriva diretto sulla porta 8010 può dichiarare
+    quel che vuole. Il container non deve quindi esporre la porta all'esterno.
+    """
+    if auth_mode() == "dev":
+        remote_user   = remote_user   or dev_user()
+        remote_groups = remote_groups or dev_groups()
+        remote_email  = remote_email  or f"{remote_user}@example.test"
+
+    if not remote_user:
+        # Nessun fallback in forward-auth: header assente significa che la
+        # richiesta non è passata da Authelia.
+        raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
+
+    return Utente(
+        nome=remote_user,
+        gruppi=[g.strip() for g in remote_groups.split(",") if g.strip()],
+        email=remote_email,
+    )
+
+
+def solo_responsabili(utente: Utente = Depends(utente_corrente)) -> Utente:
+    if not utente.e_responsabile:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Operazione riservata al gruppo '{gruppo_responsabili()}'.",
+        )
+    return utente
+
+
+# Ogni endpoint richiede un utente autenticato; l'approvazione richiede in più
+# l'appartenenza al gruppo dei responsabili.
+router = APIRouter(
+    prefix="/telescope-time",
+    tags=["Telescope Time"],
+    dependencies=[Depends(utente_corrente)],
+)
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
@@ -188,6 +261,14 @@ Note responsabile: {richiesta.get('note_responsabile') or '—'}
     except Exception as e:
         print(f"[Errore invio email esito] {e}")
 
+# ─── Endpoint Utente ──────────────────────────────────────────────────────────
+
+@router.get("/me", response_model=Utente)
+def me(utente: Utente = Depends(utente_corrente)):
+    """Identità dell'utente collegato: serve alle pagine per sapere se
+    mostrare i comandi di approvazione."""
+    return utente
+
 # ─── Endpoint Ricerche ────────────────────────────────────────────────────────
 
 @router.get("/ricerche", response_model=List[RicercaOut])
@@ -279,7 +360,8 @@ def invia_richiesta(body: RichiestaCreate, db: sqlite3.Connection = Depends(get_
 def aggiorna_stato(
     richiesta_id: int,
     body: AggiornamentoStato,
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db),
+    utente: Utente = Depends(solo_responsabili),
 ):
     if body.stato not in ("approvata", "rifiutata"):
         raise HTTPException(status_code=400, detail="Stato non valido. Usare 'approvata' o 'rifiutata'.")

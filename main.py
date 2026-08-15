@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-from router import router, init_db
+from router import router, init_db, auth_mode, dev_user, dev_groups
 import os
 
 
@@ -19,6 +19,17 @@ async def lifespan(app: FastAPI):
     # Il database viene creato all'avvio dell'app, non all'import di router:
     # così importare il modulo non ha effetti collaterali sul filesystem.
     init_db()
+
+    if auth_mode() == "dev":
+        print(
+            "\n" + "=" * 70 +
+            f"\n  ATTENZIONE: autenticazione simulata (AUTH_MODE=dev)."
+            f"\n  Ogni richiesta senza header vale come utente '{dev_user()}'"
+            f"\n  nei gruppi '{dev_groups()}'. Da non usare in produzione.\n" +
+            "=" * 70 + "\n",
+            flush=True,   # stdout è bufferizzato quando non è un terminale
+        )
+
     yield
 
 
