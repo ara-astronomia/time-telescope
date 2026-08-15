@@ -44,6 +44,16 @@ Apri il browser su:
 Il database SQLite viene creato in `./telescope_time.db`
 se TELESCOPE_DB_PATH non è impostata.
 
+### Dati di esempio
+
+Il database non è versionato: parte vuoto. Per popolarlo con qualche
+ricerca e richiesta di prova — date relative a oggi, così il calendario
+mostra sempre un giorno bloccato e uno conteso:
+
+```bash
+sqlite3 telescope_time.db < seed.sql
+```
+
 ---
 
 ## Deploy con Docker
