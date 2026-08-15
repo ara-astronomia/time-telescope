@@ -14,8 +14,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.10.0",
     "pytest>=8.0.0",
-    "httpx>=0.27.0",
 ]
 
 [tool.uv]
@@ -24,3 +24,9 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Il TestClient di starlette avvisa quando usa httpx invece di httpx2:
+# trattarlo come errore impedisce di tornare indietro senza accorgersene.
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::UserWarning",
+]
