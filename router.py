@@ -33,8 +33,12 @@ EMAIL_RESPONSABILE = os.environ.get("EMAIL_RESPONSABILE", "responsabile@osservat
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    # timeout: quanto attendere se un'altra connessione sta scrivendo, prima
+    # di sollevare "database is locked". Con WAL i lettori non aspettano mai,
+    # ma le scritture restano serializzate.
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")  # va impostato su ogni connessione
     try:
         yield conn
     finally:
@@ -42,6 +46,9 @@ def get_db():
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
+    # WAL: lettori e scrittore procedono in parallelo invece di bloccarsi a
+    # vicenda. È persistente sul file, quindi basta impostarlo qui.
+    conn.execute("PRAGMA journal_mode = WAL")
     cursor = conn.cursor()
     cursor.executescript("""
         CREATE TABLE IF NOT EXISTS ricerche (
