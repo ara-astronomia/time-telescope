@@ -1,0 +1,21 @@
+# Ambiente e cache locali
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Database e collaterali WAL: nell'immagine non ci vanno mai
+*.db
+*.db-wal
+*.db-shm
+
+# Segreti e configurazione locale
+.env
+
+# Non serve nel build context
+.git/
+.github/
+README.md
+CLAUDE.md
+nginx_time_telescope.conf
+docker-compose.yml
