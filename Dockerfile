@@ -16,6 +16,17 @@ COPY router.py .
 # Pagine HTML statiche
 COPY static/ ./static/
 
+# Utente non privilegiato. L'UID 1000 coincide con quello dell'utente sulle
+# macchine di sviluppo: con il bind mount del compose, i file che il container
+# scrive in /app restano di proprietà dell'utente host invece che di root.
+# /data va reso scrivibile qui: Docker inizializza un volume vuoto copiando
+# permessi e proprietario dal mountpoint dell'immagine.
+RUN useradd --create-home --uid 1000 app \
+ && mkdir -p /data \
+ && chown -R app:app /app /data
+
+USER app
+
 # Volume per il database SQLite
 VOLUME ["/data"]
 
