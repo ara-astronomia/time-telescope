@@ -1,3 +1,5 @@
+import pytest
+
 from conftest import approva, crea_richiesta
 
 
@@ -43,8 +45,19 @@ def test_approvazione(client, ricerca):
 
 
 def test_stato_non_valido_rifiutato(client, ricerca):
+    """Con lo stato tipizzato la validazione la fa Pydantic: 422, non 400."""
     richiesta = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
-    assert approva(client, richiesta["id"], stato="forse").status_code == 400
+    res = approva(client, richiesta["id"], stato="forse")
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"] == ["body", "stato"]
+
+
+def test_stato_non_valido_non_modifica_la_richiesta(client, ricerca):
+    richiesta = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+    approva(client, richiesta["id"], stato="forse")
+    dopo = client.get("/telescope-time/richieste").json()[0]
+    assert dopo["stato"] == "in_attesa"
+    assert dopo["aggiornata_il"] is None
 
 
 def test_patch_su_richiesta_inesistente_da_404(client):
@@ -72,3 +85,25 @@ def test_statistiche(client, ricerca):
         "in_attesa": 1,
     }
     assert stats["per_ricerca"][0] == {"nome": "Supernovae", "richieste": 2, "approvate": 1}
+
+
+# ─── Validazione della data (#6) ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("giorno", ["domani", "12/09/2026", "2026-13-45", "", "2026-02-30"])
+def test_data_non_valida_rifiutata(client, ricerca, giorno):
+    res = crea_richiesta(client, ricerca["id"], giorno)
+    assert res.status_code == 422
+    assert res.headers["content-type"] == "application/json"
+    dettaglio = res.json()["detail"][0]
+    assert dettaglio["loc"] == ["body", "giorno_richiesto"]
+
+
+def test_data_non_valida_non_scrive_sul_database(client, ricerca):
+    crea_richiesta(client, ricerca["id"], "domani")
+    assert client.get("/telescope-time/richieste").json() == []
+
+
+def test_data_valida_normalizzata(client, ricerca):
+    res = crea_richiesta(client, ricerca["id"], "2026-09-12")
+    assert res.status_code == 201
+    assert res.json()["giorno_richiesto"] == "2026-09-12"

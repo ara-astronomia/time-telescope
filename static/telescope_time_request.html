@@ -408,7 +408,7 @@
 
       <div class="field">
         <label>Nome e Cognome Osservatore Principale <span class="req">*</span></label>
-        <input type="text" id="osservatore" placeholder="es. Mario Rossi" autocomplete="name">
+        <input type="text" id="osservatore" required placeholder="es. Mario Rossi" autocomplete="name">
       </div>
 
       <div class="field">
@@ -429,7 +429,7 @@
       <div class="field">
         <label>Seleziona Ricerca <span class="req">*</span></label>
         <div class="ricerca-row">
-          <select id="ricerca_id">
+          <select id="ricerca_id" required>
             <option value="">— Scegli ricerca esistente —</option>
           </select>
           <button class="btn-new-ricerca" onclick="toggleNuovaRicerca()">
@@ -469,7 +469,7 @@
 
       <div class="field">
         <label>Data Richiesta <span class="req">*</span></label>
-        <input type="date" id="giorno_richiesto">
+        <input type="date" id="giorno_richiesto" required>
       </div>
     </div>
 
@@ -604,9 +604,13 @@ async function inviaRichiesta() {
   const ricercaId      = document.getElementById('ricerca_id').value;
   const giornoRichiesto = document.getElementById('giorno_richiesto').value;
 
-  if (!osservatore)    { showToast('Inserisci il nome dell\'osservatore.', 'error'); return; }
-  if (!ricercaId)      { showToast('Seleziona una ricerca.', 'error'); return; }
-  if (!giornoRichiesto) { showToast('Seleziona la data richiesta.', 'error'); return; }
+  // Validazione nativa del browser: copre campi vuoti, formato della data e
+  // il vincolo `min` (nessuna data nel passato). L'invio avviene via fetch,
+  // quindi va invocata a mano: senza, `min` e `required` sono decorativi.
+  for (const id of ['osservatore', 'ricerca_id', 'giorno_richiesto']) {
+    const campo = document.getElementById(id);
+    if (!campo.reportValidity()) return;
+  }
 
   const btn = document.getElementById('btn-submit');
   btn.classList.add('loading');
@@ -626,6 +630,13 @@ async function inviaRichiesta() {
 
     if (res.status === 409) {
       showToast('Esiste già una richiesta per questa ricerca in quella data.', 'error');
+      return;
+    }
+    if (res.status === 422) {
+      // Il server ha rifiutato un campo: mostrarlo invece di un errore generico.
+      const dettaglio = (await res.json()).detail?.[0];
+      const campo = dettaglio?.loc?.slice(-1)[0] === 'giorno_richiesto' ? 'la data' : 'i dati inseriti';
+      showToast(`Il server ha rifiutato ${campo}: controlla e riprova.`, 'error');
       return;
     }
     if (!res.ok) throw new Error();
