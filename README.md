@@ -54,8 +54,31 @@ Apri il browser su:
 - http://localhost:8010/telescope_time_dashboard.html
 - http://localhost:8010/telescope_time_calendario.html
 
+> La root `/` risponde `404`: non esiste un `index.html`, le pagine vanno
+> chiamate con il loro nome.
+
 Il database SQLite viene creato in `./telescope_time.db`
 se TELESCOPE_DB_PATH non è impostata.
+
+### Raggiungerlo dalla LAN
+
+Di default uvicorn ascolta solo su localhost. Per provarlo da un altro
+dispositivo — tablet in cupola, telefono — serve `--host 0.0.0.0`:
+
+```bash
+AUTH_MODE=dev uv run uvicorn main:app --reload --host 0.0.0.0 --port 8010
+```
+
+Poi `http://<ip-della-macchina>:8010/telescope_time_request.html`.
+Serve `AUTH_MODE=dev`: senza Nginx e Authelia davanti, ogni richiesta
+senza header di identità riceve `401`.
+
+Se la porta non risponde da fuori mentre risponde in locale, è il
+firewall:
+
+```bash
+sudo ufw allow 8010/tcp
+```
 
 ### Dati di esempio
 
@@ -65,6 +88,14 @@ mostra sempre un giorno bloccato e uno conteso:
 
 ```bash
 sqlite3 telescope_time.db < seed.sql
+```
+
+Le tabelle le crea l'app al primo avvio, quindi il seed va applicato dopo
+averla avviata almeno una volta. Se `sqlite3` non è installato:
+
+```bash
+uv run python -c "import sqlite3; d=sqlite3.connect('telescope_time.db'); \
+  d.executescript(open('seed.sql').read()); d.commit()"
 ```
 
 ---
@@ -152,7 +183,7 @@ autenticati.
 `AUTH_MODE=dev` sintetizza quegli header, così non serve un'istanza Authelia:
 
 ```bash
-AUTH_MODE=dev uvicorn main:app --reload --port 8010
+AUTH_MODE=dev uv run uvicorn main:app --reload --port 8010
 ```
 
 Si è autenticati come `DEV_USER` con i gruppi di `DEV_GROUPS`. Per provare
