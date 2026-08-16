@@ -7,8 +7,8 @@ Da includere nel server CRaC principale con:
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, validator
-from typing import Optional, List
+from pydantic import BaseModel
+from typing import Literal, Optional, List
 from datetime import date, datetime
 import sqlite3
 import os
@@ -171,10 +171,12 @@ class RichiestaCreate(BaseModel):
     ricerca_id: int
     osservatore: str
     co_osservatori: Optional[str] = None
-    giorno_richiesto: str  # formato ISO: YYYY-MM-DD
+    # `date` valida e normalizza il formato ISO: una stringa non conforme
+    # produce 422 prima che l'handler venga eseguito.
+    giorno_richiesto: date
 
 class AggiornamentoStato(BaseModel):
-    stato: str  # 'approvata' | 'rifiutata'
+    stato: Literal["approvata", "rifiutata"]
     note_responsabile: Optional[str] = None
 
 class RichiestaOut(BaseModel):
@@ -329,7 +331,7 @@ def invia_richiesta(body: RichiestaCreate, db: sqlite3.Connection = Depends(get_
     # Verifica che non ci sia già una richiesta per quella ricerca in quel giorno
     esistente = db.execute(
         "SELECT id FROM richieste WHERE ricerca_id = ? AND giorno_richiesto = ? AND stato != 'rifiutata'",
-        (body.ricerca_id, body.giorno_richiesto)
+        (body.ricerca_id, body.giorno_richiesto.isoformat())
     ).fetchone()
     if esistente:
         raise HTTPException(status_code=409, detail="Esiste già una richiesta per questa ricerca in quella data.")
@@ -337,7 +339,8 @@ def invia_richiesta(body: RichiestaCreate, db: sqlite3.Connection = Depends(get_
     cursor = db.execute(
         """INSERT INTO richieste (ricerca_id, osservatore, co_osservatori, giorno_richiesto)
            VALUES (?, ?, ?, ?)""",
-        (body.ricerca_id, body.osservatore.strip(), body.co_osservatori, body.giorno_richiesto)
+        (body.ricerca_id, body.osservatore.strip(), body.co_osservatori,
+         body.giorno_richiesto.isoformat())
     )
     db.commit()
 
@@ -363,9 +366,6 @@ def aggiorna_stato(
     db: sqlite3.Connection = Depends(get_db),
     utente: Utente = Depends(solo_responsabili),
 ):
-    if body.stato not in ("approvata", "rifiutata"):
-        raise HTTPException(status_code=400, detail="Stato non valido. Usare 'approvata' o 'rifiutata'.")
-
     richiesta = db.execute("SELECT * FROM richieste WHERE id = ?", (richiesta_id,)).fetchone()
     if not richiesta:
         raise HTTPException(status_code=404, detail="Richiesta non trovata.")

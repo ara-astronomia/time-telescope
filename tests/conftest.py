@@ -69,3 +69,34 @@ def approva(client, richiesta_id, stato="approvata", note=None):
         f"/telescope-time/richieste/{richiesta_id}",
         json={"stato": stato, "note_responsabile": note},
     )
+
+
+# ─── Frontend: l'app servita a un browser vero ────────────────────────────────
+
+@pytest.fixture(scope="session")
+def app_url(tmp_path_factory):
+    """Avvia l'app su una porta libera: il browser fa richieste HTTP reali,
+    quindi TestClient non basta."""
+    import os, socket, threading, time
+    import uvicorn
+
+    os.environ["TELESCOPE_DB_PATH"] = str(tmp_path_factory.mktemp("db") / "frontend.db")
+    os.environ["AUTH_MODE"] = "dev"
+    import main
+
+    presa = socket.socket()
+    presa.bind(("127.0.0.1", 0))
+    porta = presa.getsockname()[1]
+    presa.close()
+
+    server = uvicorn.Server(uvicorn.Config(main.app, port=porta, log_level="error"))
+    threading.Thread(target=server.run, daemon=True).start()
+    for _ in range(50):
+        try:
+            socket.create_connection(("127.0.0.1", porta), 0.1).close()
+            break
+        except OSError:
+            time.sleep(0.1)
+
+    yield f"http://127.0.0.1:{porta}"
+    server.should_exit = True

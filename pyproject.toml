@@ -16,6 +16,7 @@ dependencies = [
 dev = [
     "httpx2>=2.10.0",
     "pytest>=8.0.0",
+    "pytest-playwright>=0.5.0",
 ]
 
 [tool.uv]
