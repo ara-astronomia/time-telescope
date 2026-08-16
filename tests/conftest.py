@@ -53,6 +53,16 @@ def ricerca(client):
     return res.json()
 
 
+@pytest.fixture
+def ricerca_authelia(client_authelia):
+    """Come `ricerca`, ma sul client in modalità forward-auth."""
+    res = client_authelia.post(
+        "/telescope-time/ricerche", json={"nome": "Supernovae"}, headers=RESPONSABILE
+    )
+    assert res.status_code == 201
+    return res.json()
+
+
 def crea_richiesta(client, ricerca_id, giorno, osservatore="Mario Rossi"):
     return client.post(
         "/telescope-time/richieste",

@@ -212,6 +212,7 @@ curl -X PATCH localhost:8010/telescope-time/richieste/1 \
 | POST   | /telescope-time/richieste        | Invia richiesta                   |
 | PATCH  | /telescope-time/richieste/{id}   | Approva / rifiuta                 |
 | GET    | /telescope-time/calendario       | Calendario mensile (?anno=&mese=) |
+| GET    | /telescope-time/richieste/{id}/storico | Decisioni prese sulla richiesta |
 | GET    | /telescope-time/statistiche      | Statistiche aggregate             |
 
 Documentazione interattiva: /docs (Swagger UI)
@@ -227,3 +228,7 @@ Documentazione interattiva: /docs (Swagger UI)
 5. Approva o rifiuta con note opzionali
 6. Il calendario riflette in tempo reale lo stato delle date
    (libera / contesa / bloccata)
+7. Il telescopio può ospitare più programmi nella stessa notte: i giorni
+   con più di un'osservazione approvata sono segnalati nella griglia
+8. Le decisioni del responsabile sono tracciate: ogni cambio di stato
+   finisce in `richieste_storico`, con chi e quando

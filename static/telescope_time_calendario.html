@@ -208,6 +208,12 @@
 
   /* pill richieste nella cella */
   .day-pills { margin-top: .35rem; display: flex; flex-direction: column; gap: .22rem; }
+  .turni {
+    margin-top: .3rem; padding: .1rem .3rem; border-radius: 4px;
+    font-size: .62rem; font-weight: 600; letter-spacing: .02em;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
+    display: inline-block;
+  }
   .pill {
     font-family: var(--mono); font-size: .58rem;
     border-radius: 4px; padding: .12rem .38rem;
@@ -395,7 +401,7 @@ let oggi = new Date();
 let annoCorrente = oggi.getFullYear();
 let meseCorrente = oggi.getMonth() + 1; // 1-based
 
-let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, richieste[] } }
+let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, approvate, richieste[] } }
 
 // ─── Navigazione ─────────────────────────────────────────────────────────────
 function cambioMese(delta) {
@@ -467,10 +473,18 @@ function renderCalendario() {
     const richieste = info ? info.richieste : [];
 
     cell.className = `day-cell ${stato}${richieste.length ? ' has-richieste' : ''}`;
+    cell.dataset.giorno = dataStr;
     if (dataStr === oggiStr) cell.classList.add('today');
 
     // Numero giorno
     let html = `<div class="day-num">${giorno}</div>`;
+
+    // Il telescopio può ospitare più programmi nella stessa notte: il colore
+    // 'bloccata' da solo non distingue una osservazione da tre.
+    const approvate = info ? (info.approvate || 0) : 0;
+    if (approvate > 1) {
+      html += `<div class="turni" title="${approvate} osservazioni approvate per questa notte">${approvate} programmi</div>`;
+    }
 
     // Pills (max 3 visibili)
     if (richieste.length) {
