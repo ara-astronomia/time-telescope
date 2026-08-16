@@ -1,3 +1,8 @@
+# Compose per lo SVILUPPO locale.
+# Monta il codice dell'host e avvia uvicorn con --reload: modificare un file
+# ha effetto subito, senza ricostruire l'immagine.
+# In produzione il servizio usa una configurazione propria sulla macchina di
+# deploy, che non è versionata qui.
 services:
   telescope_time:
     build: .
@@ -6,9 +11,18 @@ services:
     ports:
       - "8010:8010"
     volumes:
+      # Il codice dell'host ha la precedenza su quello copiato nell'immagine.
+      # Esclude .venv: quello dentro il container è per Linux e per l'utente
+      # del container, e non va sovrascritto da quello dell'host.
+      - .:/app
+      - /app/.venv
+      # Il database resta nel volume, fuori dalla working copy.
       - telescope_db:/data
+    command: uvicorn main:app --host 0.0.0.0 --port 8010 --reload
     environment:
       - TELESCOPE_DB_PATH=/data/telescope_time.db
+      # I .pyc scritti dal container finirebbero nella working copy.
+      - PYTHONDONTWRITEBYTECODE=1
       # Autenticazione simulata: in sviluppo non serve Authelia.
       # In produzione va lasciata a 'forward-auth' (il default).
       - AUTH_MODE=dev
