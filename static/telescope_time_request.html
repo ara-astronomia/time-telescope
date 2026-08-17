@@ -264,6 +264,13 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-lo);
   }
+  .utente-corrente {
+    padding: .55rem .7rem; border-radius: 6px;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+    font-size: .85rem; color: var(--text);
+  }
+  .utente-corrente .username { color: var(--text-dim); font-family: var(--mono); font-size: .78rem; }
+
   .chip {
     display: inline-flex;
     align-items: center;
@@ -407,8 +414,8 @@
       <div class="section-label"><span>01</span> Osservatori</div>
 
       <div class="field">
-        <label>Nome e Cognome Osservatore Principale <span class="req">*</span></label>
-        <input type="text" id="osservatore" required placeholder="es. Mario Rossi" autocomplete="name">
+        <label>Osservatore principale</label>
+        <div id="utente-corrente" class="utente-corrente">…</div>
       </div>
 
       <div class="field">
@@ -535,6 +542,25 @@ coInput.addEventListener('blur', () => {
   if (coInput.value.trim()) addChip(coInput.value);
 });
 
+// ─── Chi sono ─────────────────────────────────────────────────────────────────
+// L'identità arriva da Authelia: non si digita e non si può falsificare.
+let utenteCorrente = null;
+
+async function caricaUtente() {
+  try {
+    const res = await fetch(`${API_BASE}/me`);
+    utenteCorrente = await res.json();
+    // nome_completo è il display name di Authelia; senza, resta lo username
+    const visualizzato = utenteCorrente.nome_completo || utenteCorrente.nome;
+    const nome = utenteCorrente.email
+      ? `${escHtml(visualizzato)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
+      : escHtml(visualizzato);
+    document.getElementById('utente-corrente').innerHTML = nome;
+  } catch(e) {
+    document.getElementById('utente-corrente').textContent = 'identità non disponibile';
+  }
+}
+
 // ─── Carica ricerche esistenti ────────────────────────────────────────────────
 async function caricaRicerche() {
   try {
@@ -600,14 +626,13 @@ async function salvaRicerca() {
 
 // ─── Invia richiesta ──────────────────────────────────────────────────────────
 async function inviaRichiesta() {
-  const osservatore    = document.getElementById('osservatore').value.trim();
   const ricercaId      = document.getElementById('ricerca_id').value;
   const giornoRichiesto = document.getElementById('giorno_richiesto').value;
 
   // Validazione nativa del browser: copre campi vuoti, formato della data e
   // il vincolo `min` (nessuna data nel passato). L'invio avviene via fetch,
   // quindi va invocata a mano: senza, `min` e `required` sono decorativi.
-  for (const id of ['osservatore', 'ricerca_id', 'giorno_richiesto']) {
+  for (const id of ['ricerca_id', 'giorno_richiesto']) {
     const campo = document.getElementById(id);
     if (!campo.reportValidity()) return;
   }
@@ -622,7 +647,6 @@ async function inviaRichiesta() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ricerca_id:       parseInt(ricercaId),
-        osservatore,
         co_osservatori:  coHidden.value || null,
         giorno_richiesto: giornoRichiesto
       })
@@ -653,11 +677,16 @@ async function inviaRichiesta() {
 }
 
 function resetForm() {
-  document.getElementById('osservatore').value = '';
   document.getElementById('ricerca_id').value = '';
   document.getElementById('giorno_richiesto').value = '';
   coOsservatori = [];
   renderChips();
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -674,6 +703,7 @@ function showToast(msg, type = 'success') {
 document.getElementById('giorno_richiesto').min = new Date().toISOString().split('T')[0];
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+caricaUtente();
 caricaRicerche();
 </script>
 </body>

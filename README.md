@@ -213,6 +213,7 @@ curl -X PATCH localhost:8010/telescope-time/richieste/1 \
 | PATCH  | /telescope-time/richieste/{id}   | Approva / rifiuta                 |
 | GET    | /telescope-time/calendario       | Calendario mensile (?anno=&mese=) |
 | GET    | /telescope-time/richieste/{id}/storico | Decisioni prese sulla richiesta |
+| GET    | /telescope-time/me               | Identità dell'utente collegato    |
 | GET    | /telescope-time/statistiche      | Statistiche aggregate             |
 
 Documentazione interattiva: /docs (Swagger UI)
@@ -221,9 +222,10 @@ Documentazione interattiva: /docs (Swagger UI)
 
 ## Flusso operativo
 
-1. Osservatore apre telescope_time_request.html
+1. Osservatore apre telescope_time_request.html: il suo nome è già noto,
+   arriva da Authelia e non si digita
 2. Seleziona ricerca esistente o ne crea una nuova
-3. Inserisce osservatore, co-osservatori, data → invia
+3. Indica co-osservatori e data → invia
 4. Responsabile riceve email e apre telescope_time_dashboard.html
 5. Approva o rifiuta con note opzionali
 6. Il calendario riflette in tempo reale lo stato delle date
@@ -232,3 +234,5 @@ Documentazione interattiva: /docs (Swagger UI)
    con più di un'osservazione approvata sono segnalati nella griglia
 8. Le decisioni del responsabile sono tracciate: ogni cambio di stato
    finisce in `richieste_storico`, con chi e quando
+9. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
+   Authelia fornisce; se manca, l'avviso va al responsabile

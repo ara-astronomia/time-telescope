@@ -62,9 +62,10 @@ def test_ultimo_giorno_di_febbraio_bisestile(client, ricerca):
 
 
 def test_dettaglio_richiesta_nel_giorno(client, ricerca):
-    crea_richiesta(client, ricerca["id"], "2026-09-12", osservatore="Mario Rossi")
+    """L'osservatore non è più un nome digitato: è l'identità autenticata."""
+    crea_richiesta(client, ricerca["id"], "2026-09-12")
     richiesta = giorni(client)["2026-09-12"]["richieste"][0]
-    assert richiesta["osservatore"] == "Mario Rossi"
+    assert richiesta["osservatore"] == "sviluppo"   # DEV_USER
     assert richiesta["nome_ricerca"] == "Supernovae"
     assert richiesta["stato"] == "in_attesa"
 
