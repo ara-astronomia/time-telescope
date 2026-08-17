@@ -152,3 +152,57 @@ def test_senza_email_l_esito_va_al_responsabile(client_authelia, ricerca_autheli
                           headers=RESPONSABILE)
 
     assert inviate == [router.EMAIL_RESPONSABILE]
+
+
+# ─── Il nome mostrato è quello vero, non lo username ──────────────────────────
+
+RESPONSABILE_CON_NOME = {**RESPONSABILE, "Remote-Name": "Anna Rossi"}
+
+
+def test_il_display_name_di_authelia_finisce_in_anagrafica(client_authelia):
+    client_authelia.get("/telescope-time/me", headers=RESPONSABILE_CON_NOME)
+    registrato = utenti(client_authelia)[0]
+    assert registrato["username"] == "anna"
+    assert registrato["nome"] == "Anna Rossi"
+
+
+def test_senza_display_name_resta_lo_username(client_authelia):
+    """Authelia può non inviarlo: lo username è comunque leggibile."""
+    client_authelia.get("/telescope-time/me", headers=RESPONSABILE)
+    assert utenti(client_authelia)[0]["nome"] == "anna"
+
+
+def test_la_richiesta_mostra_il_nome_vero(client_authelia, ricerca_authelia):
+    res = client_authelia.post(
+        "/telescope-time/richieste",
+        json={"ricerca_id": 1, "giorno_richiesto": "2026-09-12"},
+        headers=RESPONSABILE_CON_NOME,
+    )
+    assert res.json()["osservatore"] == "Anna Rossi"
+
+
+def test_il_nome_si_aggiorna_se_cambia_in_authelia(client_authelia):
+    client_authelia.get("/telescope-time/me", headers=RESPONSABILE_CON_NOME)
+    client_authelia.get("/telescope-time/me",
+                        headers={**RESPONSABILE, "Remote-Name": "Anna Rossi Verdi"})
+    registrati = utenti(client_authelia)
+    assert len(registrati) == 1
+    assert registrati[0]["nome"] == "Anna Rossi Verdi"
+
+
+def test_due_utenti_con_la_stessa_email(client_authelia):
+    """L'email può risultare già occupata: con #40 i co-osservatori vengono
+    registrati con l'indirizzo digitato a mano, quindi qualcuno può prendersi
+    l'email di un socio prima del suo primo accesso. Chi arriva secondo deve
+    poter entrare: viene registrato senza email, non respinto."""
+    primo = {"Remote-User": "anna", "Remote-Groups": "soci",
+             "Remote-Email": "condivisa@example.test"}
+    secondo = {"Remote-User": "bruno", "Remote-Groups": "soci",
+               "Remote-Email": "condivisa@example.test"}
+
+    assert client_authelia.get("/telescope-time/me", headers=primo).status_code == 200
+    assert client_authelia.get("/telescope-time/me", headers=secondo).status_code == 200
+
+    registrati = {u["username"]: u["email"] for u in utenti(client_authelia)}
+    assert registrati["anna"] == "condivisa@example.test"
+    assert registrati["bruno"] is None

@@ -131,16 +131,17 @@ def init_db():
 # ─── Autenticazione ───────────────────────────────────────────────────────────
 
 class Utente(BaseModel):
-    nome: str                       # username di Authelia
+    nome: str                             # username di Authelia
     gruppi: List[str] = []
     email: Optional[str] = None
-    id: Optional[int] = None        # valorizzato da utente_registrato
+    nome_completo: Optional[str] = None   # Remote-Name, se Authelia lo invia
+    id: Optional[int] = None              # valorizzato da utente_registrato
 
     @property
     def nome_visualizzato(self) -> str:
-        """Nome da mostrare. Authelia può inviare Remote-Name; senza, resta
-        l'username, che è comunque leggibile."""
-        return self.nome
+        """Nome da mostrare: il display name se c'è, altrimenti lo username,
+        che è comunque leggibile."""
+        return self.nome_completo or self.nome
 
     @property
     def e_responsabile(self) -> bool:
@@ -151,6 +152,7 @@ def utente_corrente(
     remote_user:   Optional[str] = Header(None, alias="Remote-User"),
     remote_groups: str           = Header("",   alias="Remote-Groups"),
     remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
+    remote_name:   Optional[str] = Header(None, alias="Remote-Name"),
 ) -> Utente:
     """Identità dell'utente, dagli header impostati da Nginx via Authelia.
 
@@ -172,6 +174,7 @@ def utente_corrente(
         nome=remote_user,
         gruppi=[g.strip() for g in remote_groups.split(",") if g.strip()],
         email=remote_email,
+        nome_completo=remote_name,
     )
 
 
@@ -194,21 +197,51 @@ def registra_utente(db: sqlite3.Connection, utente: "Utente") -> int:
             db.commit()
             return cursore.lastrowid
         except sqlite3.IntegrityError:
-            # Un'altra richiesta dello stesso utente è arrivata prima: la
-            # SELECT sopra non la vedeva ancora. Si rilegge il record suo.
             db.rollback()
+            # Due casi finiscono qui.
             riga = db.execute(
                 "SELECT id, nome, email FROM utenti WHERE username = ?", (utente.nome,)
             ).fetchone()
-            if riga is None:
-                raise
+            if riga is not None:
+                # 1) un'altra richiesta dello stesso utente è arrivata prima:
+                #    la SELECT iniziale non la vedeva ancora.
+                return riga["id"]
+            # 2) l'email appartiene già a un altro record. Il caso non nasce
+            #    da Authelia — che l'unicità la richiede, per quanto non la
+            #    imponga — ma dai co-osservatori di #40, registrati con
+            #    l'email digitata a mano: se qualcuno inserisce l'indirizzo di
+            #    un socio che non ha ancora fatto il primo accesso, quel
+            #    record occupa l'email prima di lui.
+            #    Registrare senza email è meglio che negare l'accesso:
+            #    l'utente lavora, e l'esito delle sue richieste va al
+            #    responsabile.
+            print(
+                f"[anagrafica] '{utente.nome}': email {utente.email!r} già "
+                f"associata a un altro utente, registrato senza indirizzo",
+                flush=True,
+            )
+            cursore = db.execute(
+                "INSERT INTO utenti (username, nome, email) VALUES (?, ?, NULL)",
+                (utente.nome, utente.nome_visualizzato),
+            )
+            db.commit()
+            return cursore.lastrowid
 
     if (riga["nome"], riga["email"]) != (utente.nome_visualizzato, utente.email):
-        db.execute(
-            "UPDATE utenti SET nome = ?, email = ? WHERE id = ?",
-            (utente.nome_visualizzato, utente.email, riga["id"]),
-        )
-        db.commit()
+        try:
+            db.execute(
+                "UPDATE utenti SET nome = ?, email = ? WHERE id = ?",
+                (utente.nome_visualizzato, utente.email, riga["id"]),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            # L'email è passata a un altro account: si aggiorna il solo nome.
+            db.rollback()
+            db.execute(
+                "UPDATE utenti SET nome = ? WHERE id = ?",
+                (utente.nome_visualizzato, riga["id"]),
+            )
+            db.commit()
     return riga["id"]
 
 

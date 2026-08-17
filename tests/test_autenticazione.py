@@ -50,6 +50,7 @@ def test_gruppi_letti_dall_header(client_authelia):
         "nome": "anna",
         "gruppi": ["soci", "telescope-responsabili"],
         "email": "anna@example.test",
+        "nome_completo": None,          # Authelia non ha inviato Remote-Name
     }
 
 
@@ -67,6 +68,7 @@ def test_dev_sintetizza_l_utente(client):
         "nome": "sviluppo",
         "gruppi": ["telescope-responsabili"],
         "email": "sviluppo@example.test",
+        "nome_completo": None,
     }
 
 

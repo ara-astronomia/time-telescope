@@ -550,9 +550,11 @@ async function caricaUtente() {
   try {
     const res = await fetch(`${API_BASE}/me`);
     utenteCorrente = await res.json();
+    // nome_completo è il display name di Authelia; senza, resta lo username
+    const visualizzato = utenteCorrente.nome_completo || utenteCorrente.nome;
     const nome = utenteCorrente.email
-      ? `${escHtml(utenteCorrente.nome)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
-      : escHtml(utenteCorrente.nome);
+      ? `${escHtml(visualizzato)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
+      : escHtml(visualizzato);
     document.getElementById('utente-corrente').innerHTML = nome;
   } catch(e) {
     document.getElementById('utente-corrente').textContent = 'identità non disponibile';
