@@ -190,11 +190,40 @@ def test_il_nome_si_aggiorna_se_cambia_in_authelia(client_authelia):
     assert registrati[0]["nome"] == "Anna Rossi Verdi"
 
 
-def test_due_utenti_con_la_stessa_email(client_authelia):
-    """L'email può risultare già occupata: con #40 i co-osservatori vengono
-    registrati con l'indirizzo digitato a mano, quindi qualcuno può prendersi
-    l'email di un socio prima del suo primo accesso. Chi arriva secondo deve
-    poter entrare: viene registrato senza email, non respinto."""
+def test_l_accesso_promuove_il_co_osservatore_esistente(client_authelia):
+    """Authelia vince: se un'email appartiene a una persona conosciuta solo
+    per nome (co-osservatore, #40) e quella persona accede, il record viene
+    promosso invece di crearne un secondo. È la stessa persona, e le
+    osservazioni a cui ha partecipato restano sue."""
+    import os
+    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
+    try:
+        conn.execute(
+            "INSERT INTO utenti (nome, email) VALUES ('M. Rossi', 'mario.rossi@example.test')"
+        )
+        conn.commit()
+        id_prima = conn.execute("SELECT id FROM utenti WHERE nome = 'M. Rossi'").fetchone()[0]
+    finally:
+        conn.close()
+
+    client_authelia.get("/telescope-time/me", headers={
+        "Remote-User": "mrossi",
+        "Remote-Groups": "soci",
+        "Remote-Email": "mario.rossi@example.test",
+        "Remote-Name": "Mario Rossi",
+    })
+
+    registrati = utenti(client_authelia)
+    assert len(registrati) == 1, "il record è stato duplicato invece di promosso"
+    promosso = registrati[0]
+    assert promosso["id"] == id_prima, "l'id è cambiato: le associazioni esistenti si perderebbero"
+    assert promosso["username"] == "mrossi"
+    assert promosso["nome"] == "Mario Rossi"    # il nome di Authelia prevale
+
+
+def test_due_account_authelia_con_la_stessa_email(client_authelia):
+    """Caso patologico: due account verificati con lo stesso indirizzo. Il
+    secondo entra comunque, senza rubare l'email al primo."""
     primo = {"Remote-User": "anna", "Remote-Groups": "soci",
              "Remote-Email": "condivisa@example.test"}
     secondo = {"Remote-User": "bruno", "Remote-Groups": "soci",

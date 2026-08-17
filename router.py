@@ -206,18 +206,29 @@ def registra_utente(db: sqlite3.Connection, utente: "Utente") -> int:
                 # 1) un'altra richiesta dello stesso utente è arrivata prima:
                 #    la SELECT iniziale non la vedeva ancora.
                 return riga["id"]
-            # 2) l'email appartiene già a un altro record. Il caso non nasce
-            #    da Authelia — che l'unicità la richiede, per quanto non la
-            #    imponga — ma dai co-osservatori di #40, registrati con
-            #    l'email digitata a mano: se qualcuno inserisce l'indirizzo di
-            #    un socio che non ha ancora fatto il primo accesso, quel
-            #    record occupa l'email prima di lui.
-            #    Registrare senza email è meglio che negare l'accesso:
-            #    l'utente lavora, e l'esito delle sue richieste va al
-            #    responsabile.
+            # 2) l'email è già in anagrafica. Se appartiene a una persona
+            #    conosciuta solo per nome — un co-osservatore inserito a mano
+            #    (#40) — è la stessa persona che ora si autentica: il record
+            #    viene promosso, non duplicato, così le osservazioni a cui ha
+            #    partecipato restano collegate a lei.
+            gemello = db.execute(
+                "SELECT id, username FROM utenti WHERE email = ?", (utente.email,)
+            ).fetchone()
+
+            if gemello is not None and gemello["username"] is None:
+                db.execute(
+                    "UPDATE utenti SET username = ?, nome = ? WHERE id = ?",
+                    (utente.nome, utente.nome_visualizzato, gemello["id"]),
+                )
+                db.commit()
+                return gemello["id"]
+
+            # 3) l'email appartiene a un altro account già verificato: caso
+            #    patologico, Authelia chiede indirizzi univoci. Si registra
+            #    senza email invece di negare l'accesso.
             print(
                 f"[anagrafica] '{utente.nome}': email {utente.email!r} già "
-                f"associata a un altro utente, registrato senza indirizzo",
+                f"assegnata a un altro utente verificato, registrato senza indirizzo",
                 flush=True,
             )
             cursore = db.execute(
