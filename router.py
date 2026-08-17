@@ -452,11 +452,19 @@ RICHIESTE_COMPLETE = """
 """
 
 
+RICHIESTA_NON_TROVATA = "Richiesta non trovata."
+
+
 def leggi_richiesta(db: sqlite3.Connection, richiesta_id: int) -> dict:
     riga = db.execute(f"{RICHIESTE_COMPLETE} WHERE r.id = ?", (richiesta_id,)).fetchone()
     if riga is None:
-        raise HTTPException(status_code=404, detail="Richiesta non trovata.")
+        raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
     return dict(riga)
+
+
+def verifica_richiesta(db: sqlite3.Connection, richiesta_id: int) -> None:
+    if db.execute("SELECT 1 FROM richieste WHERE id = ?", (richiesta_id,)).fetchone() is None:
+        raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
 
 
 def leggi_ricerca(db: sqlite3.Connection, ricerca_id: int) -> dict:
@@ -550,7 +558,7 @@ def aggiorna_stato(
 @router.get("/richieste/{richiesta_id}/storico", response_model=List[DecisioneOut])
 def storico_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Decisioni prese su una richiesta, dalla più vecchia alla più recente."""
-    leggi_richiesta(db, richiesta_id)
+    verifica_richiesta(db, richiesta_id)
     righe = db.execute(
         "SELECT * FROM richieste_storico WHERE richiesta_id = ? ORDER BY id",
         (richiesta_id,)
