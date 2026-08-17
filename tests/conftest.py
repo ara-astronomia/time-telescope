@@ -12,7 +12,8 @@ RESPONSABILE = {
     "Remote-Groups": "soci,telescope-responsabili",
     "Remote-Email": "anna@example.test",
 }
-SOCIO = {"Remote-User": "mario", "Remote-Groups": "soci"}
+SOCIO = {"Remote-User": "mario", "Remote-Groups": "soci",
+         "Remote-Email": "mario@example.test"}
 
 
 @pytest.fixture

@@ -52,63 +52,6 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 EMAIL_FROM    = os.environ.get("EMAIL_FROM", "crac@osservatorio.it")
 EMAIL_RESPONSABILE = os.environ.get("EMAIL_RESPONSABILE", "responsabile@osservatorio.it")
 
-# ─── Autenticazione ───────────────────────────────────────────────────────────
-
-class Utente(BaseModel):
-    nome: str
-    gruppi: List[str] = []
-    email: Optional[str] = None
-
-    @property
-    def e_responsabile(self) -> bool:
-        return gruppo_responsabili() in self.gruppi
-
-
-def utente_corrente(
-    remote_user:   Optional[str] = Header(None, alias="Remote-User"),
-    remote_groups: str           = Header("",   alias="Remote-Groups"),
-    remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
-) -> Utente:
-    """Identità dell'utente, dagli header impostati da Nginx via Authelia.
-
-    Gli header sono attendibili solo se il servizio non è raggiungibile
-    scavalcando Nginx: chi arriva diretto sulla porta 8010 può dichiarare
-    quel che vuole. Il container non deve quindi esporre la porta all'esterno.
-    """
-    if auth_mode() == "dev":
-        remote_user   = remote_user   or dev_user()
-        remote_groups = remote_groups or dev_groups()
-        remote_email  = remote_email  or f"{remote_user}@example.test"
-
-    if not remote_user:
-        # Nessun fallback in forward-auth: header assente significa che la
-        # richiesta non è passata da Authelia.
-        raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
-
-    return Utente(
-        nome=remote_user,
-        gruppi=[g.strip() for g in remote_groups.split(",") if g.strip()],
-        email=remote_email,
-    )
-
-
-def solo_responsabili(utente: Utente = Depends(utente_corrente)) -> Utente:
-    if not utente.e_responsabile:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Operazione riservata al gruppo '{gruppo_responsabili()}'.",
-        )
-    return utente
-
-
-# Ogni endpoint richiede un utente autenticato; l'approvazione richiede in più
-# l'appartenenza al gruppo dei responsabili.
-router = APIRouter(
-    prefix="/telescope-time",
-    tags=["Telescope Time"],
-    dependencies=[Depends(utente_corrente)],
-)
-
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 def get_db():
@@ -148,10 +91,22 @@ def init_db():
             creata_il   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
 
+        CREATE TABLE IF NOT EXISTS utenti (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            -- username non nullo = identità verificata da Authelia.
+            -- NULL per chi è conosciuto solo per nome (co-osservatori, #40).
+            username    TEXT    UNIQUE,
+            nome        TEXT    NOT NULL,
+            -- chiave con cui si riconosce una persona già in anagrafica (#40);
+            -- più righe possono averla NULL.
+            email       TEXT    UNIQUE,
+            creato_il   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        );
+
         CREATE TABLE IF NOT EXISTS richieste (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             ricerca_id          INTEGER NOT NULL REFERENCES ricerche(id),
-            osservatore         TEXT    NOT NULL,
+            richiedente_id      INTEGER NOT NULL REFERENCES utenti(id),
             co_osservatori      TEXT,
             giorno_richiesto    TEXT    NOT NULL,
             stato               TEXT    NOT NULL DEFAULT 'in_attesa',
@@ -173,6 +128,116 @@ def init_db():
     conn.commit()
     conn.close()
 
+# ─── Autenticazione ───────────────────────────────────────────────────────────
+
+class Utente(BaseModel):
+    nome: str                       # username di Authelia
+    gruppi: List[str] = []
+    email: Optional[str] = None
+    id: Optional[int] = None        # valorizzato da utente_registrato
+
+    @property
+    def nome_visualizzato(self) -> str:
+        """Nome da mostrare. Authelia può inviare Remote-Name; senza, resta
+        l'username, che è comunque leggibile."""
+        return self.nome
+
+    @property
+    def e_responsabile(self) -> bool:
+        return gruppo_responsabili() in self.gruppi
+
+
+def utente_corrente(
+    remote_user:   Optional[str] = Header(None, alias="Remote-User"),
+    remote_groups: str           = Header("",   alias="Remote-Groups"),
+    remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
+) -> Utente:
+    """Identità dell'utente, dagli header impostati da Nginx via Authelia.
+
+    Gli header sono attendibili solo se il servizio non è raggiungibile
+    scavalcando Nginx: chi arriva diretto sulla porta 8010 può dichiarare
+    quel che vuole. Il container non deve quindi esporre la porta all'esterno.
+    """
+    if auth_mode() == "dev":
+        remote_user   = remote_user   or dev_user()
+        remote_groups = remote_groups or dev_groups()
+        remote_email  = remote_email  or f"{remote_user}@example.test"
+
+    if not remote_user:
+        # Nessun fallback in forward-auth: header assente significa che la
+        # richiesta non è passata da Authelia.
+        raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
+
+    return Utente(
+        nome=remote_user,
+        gruppi=[g.strip() for g in remote_groups.split(",") if g.strip()],
+        email=remote_email,
+    )
+
+
+def registra_utente(db: sqlite3.Connection, utente: "Utente") -> int:
+    """Allinea l'anagrafica all'identità che arriva da Authelia e ne restituisce l'id.
+
+    Scrive solo se il record manca o se nome/email sono cambiati: le richieste
+    normali costano una SELECT, non una scrittura.
+    """
+    riga = db.execute(
+        "SELECT id, nome, email FROM utenti WHERE username = ?", (utente.nome,)
+    ).fetchone()
+
+    if riga is None:
+        try:
+            cursore = db.execute(
+                "INSERT INTO utenti (username, nome, email) VALUES (?, ?, ?)",
+                (utente.nome, utente.nome_visualizzato, utente.email),
+            )
+            db.commit()
+            return cursore.lastrowid
+        except sqlite3.IntegrityError:
+            # Un'altra richiesta dello stesso utente è arrivata prima: la
+            # SELECT sopra non la vedeva ancora. Si rilegge il record suo.
+            db.rollback()
+            riga = db.execute(
+                "SELECT id, nome, email FROM utenti WHERE username = ?", (utente.nome,)
+            ).fetchone()
+            if riga is None:
+                raise
+
+    if (riga["nome"], riga["email"]) != (utente.nome_visualizzato, utente.email):
+        db.execute(
+            "UPDATE utenti SET nome = ?, email = ? WHERE id = ?",
+            (utente.nome_visualizzato, utente.email, riga["id"]),
+        )
+        db.commit()
+    return riga["id"]
+
+
+def utente_registrato(
+    utente: Utente = Depends(utente_corrente),
+    db: sqlite3.Connection = Depends(get_db),
+) -> Utente:
+    """Utente corrente, con l'id del suo record in anagrafica."""
+    utente.id = registra_utente(db, utente)
+    return utente
+
+
+def solo_responsabili(utente: Utente = Depends(utente_corrente)) -> Utente:
+    if not utente.e_responsabile:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Operazione riservata al gruppo '{gruppo_responsabili()}'.",
+        )
+    return utente
+
+
+# Ogni endpoint richiede un utente autenticato; l'approvazione richiede in più
+# l'appartenenza al gruppo dei responsabili.
+router = APIRouter(
+    prefix="/telescope-time",
+    tags=["Telescope Time"],
+    dependencies=[Depends(utente_registrato)],
+)
+
 # ─── Modelli Pydantic ─────────────────────────────────────────────────────────
 
 class RicercaCreate(BaseModel):
@@ -188,8 +253,9 @@ class RicercaOut(BaseModel):
     creata_il: str
 
 class RichiestaCreate(BaseModel):
+    # `osservatore` non c'è: l'identità arriva da Authelia, non dal body,
+    # quindi non è falsificabile. Un campo omonimo inviato viene ignorato.
     ricerca_id: int
-    osservatore: str
     co_osservatori: Optional[str] = None
     # `date` valida e normalizza il formato ISO: una stringa non conforme
     # produce 422 prima che l'handler venga eseguito.
@@ -221,6 +287,32 @@ class RichiestaOut(BaseModel):
     aggiornata_il: Optional[str]
 
 # ─── Utility Email ────────────────────────────────────────────────────────────
+
+def invia_messaggio(destinatario: str, oggetto: str, corpo: str):
+    """Unico punto di invio. Senza SMTP configurato logga e basta.
+
+    Isolarlo qui rende verificabile *a chi* viene mandato un messaggio senza
+    un server di posta, ed è il posto da toccare quando l'invio passerà su
+    BackgroundTasks (#8).
+    """
+    if not SMTP_HOST or not SMTP_USER:
+        print(f"[SMTP non configurato] a {destinatario}: {oggetto}", flush=True)
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = oggetto
+    msg["From"]    = EMAIL_FROM
+    msg["To"]      = destinatario
+    msg.attach(MIMEText(corpo, "plain"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(EMAIL_FROM, destinatario, msg.as_string())
+    except Exception as e:
+        print(f"[Errore invio email] a {destinatario}: {e}", flush=True)
+
 
 def send_email_notifica(richiesta: dict, ricerca: dict):
     """Invia notifica email al responsabile. Se SMTP non configurato, logga solo."""
@@ -262,39 +354,29 @@ Accedi alla dashboard CRaC per approvare o rifiutare la richiesta.
 
 
 def send_email_esito(richiesta: dict, ricerca: dict):
-    """Invia email all'osservatore con l'esito della richiesta."""
-    if not SMTP_HOST or not SMTP_USER:
-        print(f"[SMTP non configurato] Esito richiesta {richiesta['id']}: {richiesta['stato']}")
-        return
+    """Comunica l'esito a chi ha fatto la richiesta.
 
-    stato_label = "✅ APPROVATA" if richiesta['stato'] == 'approvata' else "❌ RIFIUTATA"
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[CRaC] Richiesta {stato_label} — {ricerca['nome']}"
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = EMAIL_RESPONSABILE  # sostituire con email osservatore quando disponibile
+    L'indirizzo arriva dall'anagrafica, che lo prende da Authelia. Se manca —
+    utente senza email fra gli header — l'avviso va al responsabile, che
+    almeno sa di doverlo riferire a voce.
+    """
+    stato_label = "✅ APPROVATA" if richiesta["stato"] == "approvata" else "❌ RIFIUTATA"
+    destinatario = richiesta.get("email_osservatore") or EMAIL_RESPONSABILE
 
     corpo = f"""
 La tua richiesta di tempo telescopio è stata: {stato_label}
 
-Ricerca:         {ricerca['nome']}
+Osservatore:      {richiesta['osservatore']}
+Ricerca:          {ricerca['nome']}
 Giorno richiesto: {richiesta['giorno_richiesto']}
 Note responsabile: {richiesta.get('note_responsabile') or '—'}
     """.strip()
 
-    msg.attach(MIMEText(corpo, "plain"))
-
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(EMAIL_FROM, EMAIL_RESPONSABILE, msg.as_string())
-    except Exception as e:
-        print(f"[Errore invio email esito] {e}")
+    invia_messaggio(destinatario, f"[CRaC] Richiesta {stato_label} — {ricerca['nome']}", corpo)
 
 # ─── Endpoint Utente ──────────────────────────────────────────────────────────
 
-@router.get("/me", response_model=Utente)
+@router.get("/me", response_model=Utente, response_model_exclude={"id"})
 def me(utente: Utente = Depends(utente_corrente)):
     """Identità dell'utente collegato: serve alle pagine per sapere se
     mostrare i comandi di approvazione."""
@@ -337,9 +419,11 @@ def lista_richieste(
     db: sqlite3.Connection = Depends(get_db)
 ):
     query = """
-        SELECT r.*, rc.nome as nome_ricerca
+        SELECT r.*, rc.nome as nome_ricerca,
+               u.nome as osservatore, u.email as email_osservatore
         FROM richieste r
         JOIN ricerche rc ON rc.id = r.ricerca_id
+        JOIN utenti   u  ON u.id  = r.richiedente_id
     """
     params = []
     if stato:
@@ -351,7 +435,11 @@ def lista_richieste(
 
 
 @router.post("/richieste", response_model=RichiestaOut, status_code=201)
-def invia_richiesta(body: RichiestaCreate, db: sqlite3.Connection = Depends(get_db)):
+def invia_richiesta(
+    body: RichiestaCreate,
+    db: sqlite3.Connection = Depends(get_db),
+    utente: Utente = Depends(utente_registrato),
+):
     # Verifica che la ricerca esista
     ricerca = db.execute("SELECT * FROM ricerche WHERE id = ?", (body.ricerca_id,)).fetchone()
     if not ricerca:
@@ -366,16 +454,19 @@ def invia_richiesta(body: RichiestaCreate, db: sqlite3.Connection = Depends(get_
         raise HTTPException(status_code=409, detail="Esiste già una richiesta per questa ricerca in quella data.")
 
     cursor = db.execute(
-        """INSERT INTO richieste (ricerca_id, osservatore, co_osservatori, giorno_richiesto)
+        """INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
            VALUES (?, ?, ?, ?)""",
-        (body.ricerca_id, body.osservatore.strip(), body.co_osservatori,
+        (body.ricerca_id, utente.id, body.co_osservatori,
          body.giorno_richiesto.isoformat())
     )
     db.commit()
 
     row = db.execute("""
-        SELECT r.*, rc.nome as nome_ricerca
-        FROM richieste r JOIN ricerche rc ON rc.id = r.ricerca_id
+        SELECT r.*, rc.nome as nome_ricerca,
+               u.nome as osservatore, u.email as email_osservatore
+        FROM richieste r
+        JOIN ricerche rc ON rc.id = r.ricerca_id
+        JOIN utenti   u  ON u.id  = r.richiedente_id
         WHERE r.id = ?
     """, (cursor.lastrowid,)).fetchone()
 
@@ -424,8 +515,11 @@ def aggiorna_stato(
     db.commit()
 
     row = db.execute("""
-        SELECT r.*, rc.nome as nome_ricerca
-        FROM richieste r JOIN ricerche rc ON rc.id = r.ricerca_id
+        SELECT r.*, rc.nome as nome_ricerca,
+               u.nome as osservatore, u.email as email_osservatore
+        FROM richieste r
+        JOIN ricerche rc ON rc.id = r.ricerca_id
+        JOIN utenti   u  ON u.id  = r.richiedente_id
         WHERE r.id = ?
     """, (richiesta_id,)).fetchone()
 
@@ -490,12 +584,13 @@ def calendario(
     data_fine   = f"{mese_str}-{giorni_nel_mese:02d}"
 
     rows = db.execute("""
-        SELECT r.id, r.osservatore, r.co_osservatori, r.giorno_richiesto,
+        SELECT r.id, u.nome as osservatore, r.co_osservatori, r.giorno_richiesto,
                r.stato, r.note_responsabile, r.creata_il,
                rc.id as ricerca_id, rc.nome as nome_ricerca,
                rc.descrizione, rc.specifiche
         FROM richieste r
         JOIN ricerche rc ON rc.id = r.ricerca_id
+        JOIN utenti   u  ON u.id  = r.richiedente_id
         WHERE r.giorno_richiesto BETWEEN ? AND ?
           AND r.stato IN ('approvata', 'in_attesa')
         ORDER BY r.giorno_richiesto, r.stato DESC, r.creata_il
