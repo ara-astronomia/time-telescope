@@ -133,6 +133,7 @@ def test_l_esito_va_all_email_del_richiedente(client_authelia, ricerca_authelia,
     monkeypatch.setattr(router, "invia_messaggio", lambda destinatario, oggetto, corpo: inviate.append(destinatario))
 
     crea_richiesta_come(client_authelia, SOCIO)
+    inviate.clear()          # la creazione notifica il responsabile: qui interessa l'esito
     client_authelia.patch("/telescope-time/richieste/1", json={"stato": "approvata"},
                           headers=RESPONSABILE)
 
@@ -148,6 +149,7 @@ def test_senza_email_l_esito_va_al_responsabile(client_authelia, ricerca_autheli
     client_authelia.post("/telescope-time/richieste",
                          json={"ricerca_id": 1, "giorno_richiesto": "2026-09-14"},
                          headers=senza_email)
+    inviate.clear()
     client_authelia.patch("/telescope-time/richieste/1", json={"stato": "approvata"},
                           headers=RESPONSABILE)
 
@@ -235,3 +237,19 @@ def test_due_account_authelia_con_la_stessa_email(client_authelia):
     registrati = {u["username"]: u["email"] for u in utenti(client_authelia)}
     assert registrati["anna"] == "condivisa@example.test"
     assert registrati["bruno"] is None
+
+
+def test_la_creazione_notifica_il_responsabile(client_authelia, ricerca_authelia, monkeypatch):
+    """Ogni email passa da invia_messaggio: la notifica di una nuova richiesta
+    va al responsabile, non a chi l'ha inviata."""
+    import router
+    inviate = []
+    monkeypatch.setattr(router, "invia_messaggio",
+                        lambda destinatario, oggetto, corpo: inviate.append((destinatario, oggetto)))
+
+    crea_richiesta_come(client_authelia, SOCIO)
+
+    assert len(inviate) == 1
+    destinatario, oggetto = inviate[0]
+    assert destinatario == router.EMAIL_RESPONSABILE
+    assert "Nuova richiesta" in oggetto

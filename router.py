@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Literal, Optional, List
+from calendar import monthrange
 from datetime import date, datetime
 import sqlite3
 import os
@@ -359,64 +360,48 @@ def invia_messaggio(destinatario: str, oggetto: str, corpo: str):
 
 
 def send_email_notifica(richiesta: dict, ricerca: dict):
-    """Invia notifica email al responsabile. Se SMTP non configurato, logga solo."""
-    if not SMTP_HOST or not SMTP_USER:
-        print(f"[SMTP non configurato] Nuova richiesta: {richiesta['osservatore']} — {ricerca['nome']} per il {richiesta['giorno_richiesto']}")
-        return
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[CRaC] Nuova richiesta tempo telescopio — {ricerca['nome']}"
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = EMAIL_RESPONSABILE
-
     corpo = f"""
 Nuova richiesta tempo telescopio ricevuta.
 
-Osservatore:     {richiesta['osservatore']}
-Co-osservatori:  {richiesta.get('co_osservatori') or '—'}
-Ricerca:         {ricerca['nome']}
+Osservatore:      {richiesta['osservatore']}
+Co-osservatori:   {richiesta['co_osservatori'] or '—'}
+Ricerca:          {ricerca['nome']}
 Giorno richiesto: {richiesta['giorno_richiesto']}
 
 Descrizione ricerca:
-{ricerca.get('descrizione') or '—'}
+{ricerca['descrizione'] or '—'}
 
 Specifiche:
-{ricerca.get('specifiche') or '—'}
+{ricerca['specifiche'] or '—'}
 
 Accedi alla dashboard CRaC per approvare o rifiutare la richiesta.
     """.strip()
 
-    msg.attach(MIMEText(corpo, "plain"))
-
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(EMAIL_FROM, EMAIL_RESPONSABILE, msg.as_string())
-    except Exception as e:
-        print(f"[Errore invio email] {e}")
+    invia_messaggio(
+        EMAIL_RESPONSABILE,
+        f"[CRaC] Nuova richiesta tempo telescopio — {ricerca['nome']}",
+        corpo,
+    )
 
 
-def send_email_esito(richiesta: dict, ricerca: dict):
-    """Comunica l'esito a chi ha fatto la richiesta.
-
-    L'indirizzo arriva dall'anagrafica, che lo prende da Authelia. Se manca —
-    utente senza email fra gli header — l'avviso va al responsabile, che
-    almeno sa di doverlo riferire a voce.
-    """
-    stato_label = "✅ APPROVATA" if richiesta["stato"] == "approvata" else "❌ RIFIUTATA"
-    destinatario = richiesta.get("email_osservatore") or EMAIL_RESPONSABILE
-
+def send_email_esito(richiesta: dict):
+    """L'indirizzo arriva dall'anagrafica, che lo prende da Authelia. Se manca,
+    l'avviso va al responsabile, che almeno sa di doverlo riferire a voce."""
+    esito = "✅ APPROVATA" if richiesta["stato"] == "approvata" else "❌ RIFIUTATA"
     corpo = f"""
-La tua richiesta di tempo telescopio è stata: {stato_label}
+La tua richiesta di tempo telescopio è stata: {esito}
 
-Osservatore:      {richiesta['osservatore']}
-Ricerca:          {ricerca['nome']}
-Giorno richiesto: {richiesta['giorno_richiesto']}
-Note responsabile: {richiesta.get('note_responsabile') or '—'}
+Osservatore:       {richiesta['osservatore']}
+Ricerca:           {richiesta['nome_ricerca']}
+Giorno richiesto:  {richiesta['giorno_richiesto']}
+Note responsabile: {richiesta['note_responsabile'] or '—'}
     """.strip()
 
-    invia_messaggio(destinatario, f"[CRaC] Richiesta {stato_label} — {ricerca['nome']}", corpo)
+    invia_messaggio(
+        richiesta["email_osservatore"] or EMAIL_RESPONSABILE,
+        f"[CRaC] Richiesta {esito} — {richiesta['nome_ricerca']}",
+        corpo,
+    )
 
 # ─── Endpoint Utente ──────────────────────────────────────────────────────────
 
@@ -442,40 +427,69 @@ def crea_ricerca(body: RicercaCreate, db: sqlite3.Connection = Depends(get_db)):
             (body.nome.strip(), body.descrizione, body.specifiche)
         )
         db.commit()
-        row = db.execute("SELECT * FROM ricerche WHERE id = ?", (cursor.lastrowid,)).fetchone()
-        return dict(row)
+        return leggi_ricerca(db, cursor.lastrowid)
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail=f"Ricerca '{body.nome}' già esistente.")
 
 
 @router.get("/ricerche/{ricerca_id}", response_model=RicercaOut)
 def dettaglio_ricerca(ricerca_id: int, db: sqlite3.Connection = Depends(get_db)):
-    row = db.execute("SELECT * FROM ricerche WHERE id = ?", (ricerca_id,)).fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Ricerca non trovata.")
-    return dict(row)
+    return leggi_ricerca(db, ricerca_id)
 
 # ─── Endpoint Richieste ───────────────────────────────────────────────────────
+
+def estremi_del_mese(anno: int, mese: int) -> tuple[str, str]:
+    ultimo_giorno = monthrange(anno, mese)[1]
+    return f"{anno}-{mese:02d}-01", f"{anno}-{mese:02d}-{ultimo_giorno:02d}"
+
+
+RICHIESTE_COMPLETE = """
+    SELECT r.*, rc.nome as nome_ricerca,
+           u.nome as osservatore, u.email as email_osservatore
+    FROM richieste r
+    JOIN ricerche rc ON rc.id = r.ricerca_id
+    JOIN utenti   u  ON u.id  = r.richiedente_id
+"""
+
+
+RICHIESTA_NON_TROVATA = "Richiesta non trovata."
+
+
+def leggi_richiesta(db: sqlite3.Connection, richiesta_id: int) -> dict:
+    riga = db.execute(f"{RICHIESTE_COMPLETE} WHERE r.id = ?", (richiesta_id,)).fetchone()
+    if riga is None:
+        raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
+    return dict(riga)
+
+
+def verifica_richiesta(db: sqlite3.Connection, richiesta_id: int) -> None:
+    if db.execute("SELECT 1 FROM richieste WHERE id = ?", (richiesta_id,)).fetchone() is None:
+        raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
+
+
+def leggi_ricerca(db: sqlite3.Connection, ricerca_id: int) -> dict:
+    riga = db.execute("SELECT * FROM ricerche WHERE id = ?", (ricerca_id,)).fetchone()
+    if riga is None:
+        raise HTTPException(status_code=404, detail="Ricerca non trovata.")
+    return dict(riga)
+
 
 @router.get("/richieste", response_model=List[RichiestaOut])
 def lista_richieste(
     stato: Optional[str] = None,
     db: sqlite3.Connection = Depends(get_db)
 ):
-    query = """
-        SELECT r.*, rc.nome as nome_ricerca,
-               u.nome as osservatore, u.email as email_osservatore
-        FROM richieste r
-        JOIN ricerche rc ON rc.id = r.ricerca_id
-        JOIN utenti   u  ON u.id  = r.richiedente_id
-    """
-    params = []
-    if stato:
-        query += " WHERE r.stato = ?"
-        params.append(stato)
-    query += " ORDER BY r.giorno_richiesto DESC"
-    rows = db.execute(query, params).fetchall()
-    return [dict(row) for row in rows]
+    filtro = " WHERE r.stato = ?" if stato else ""
+    righe = db.execute(
+        f"{RICHIESTE_COMPLETE}{filtro} ORDER BY r.giorno_richiesto DESC",
+        [stato] if stato else [],
+    ).fetchall()
+    return [dict(riga) for riga in righe]
+
+
+@router.get("/richieste/{richiesta_id}", response_model=RichiestaOut)
+def dettaglio_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    return leggi_richiesta(db, richiesta_id)
 
 
 @router.post("/richieste", response_model=RichiestaOut, status_code=201)
@@ -484,43 +498,28 @@ def invia_richiesta(
     db: sqlite3.Connection = Depends(get_db),
     utente: Utente = Depends(utente_registrato),
 ):
-    # Verifica che la ricerca esista
-    ricerca = db.execute("SELECT * FROM ricerche WHERE id = ?", (body.ricerca_id,)).fetchone()
-    if not ricerca:
-        raise HTTPException(status_code=404, detail="Ricerca non trovata.")
+    ricerca = leggi_ricerca(db, body.ricerca_id)
+    giorno = body.giorno_richiesto.isoformat()
 
-    # Verifica che non ci sia già una richiesta per quella ricerca in quel giorno
-    esistente = db.execute(
-        "SELECT id FROM richieste WHERE ricerca_id = ? AND giorno_richiesto = ? AND stato != 'rifiutata'",
-        (body.ricerca_id, body.giorno_richiesto.isoformat())
-    ).fetchone()
-    if esistente:
-        raise HTTPException(status_code=409, detail="Esiste già una richiesta per questa ricerca in quella data.")
+    if db.execute(
+        "SELECT 1 FROM richieste WHERE ricerca_id = ? AND giorno_richiesto = ? AND stato != 'rifiutata'",
+        (body.ricerca_id, giorno),
+    ).fetchone():
+        raise HTTPException(
+            status_code=409,
+            detail="Esiste già una richiesta per questa ricerca in quella data.",
+        )
 
-    cursor = db.execute(
+    cursore = db.execute(
         """INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
            VALUES (?, ?, ?, ?)""",
-        (body.ricerca_id, utente.id, body.co_osservatori,
-         body.giorno_richiesto.isoformat())
+        (body.ricerca_id, utente.id, body.co_osservatori, giorno),
     )
     db.commit()
 
-    row = db.execute("""
-        SELECT r.*, rc.nome as nome_ricerca,
-               u.nome as osservatore, u.email as email_osservatore
-        FROM richieste r
-        JOIN ricerche rc ON rc.id = r.ricerca_id
-        JOIN utenti   u  ON u.id  = r.richiedente_id
-        WHERE r.id = ?
-    """, (cursor.lastrowid,)).fetchone()
-
-    richiesta_dict = dict(row)
-    ricerca_dict   = dict(ricerca)
-
-    # Notifica email responsabile (non-blocking)
-    send_email_notifica(richiesta_dict, ricerca_dict)
-
-    return richiesta_dict
+    richiesta = leggi_richiesta(db, cursore.lastrowid)
+    send_email_notifica(richiesta, ricerca)
+    return richiesta
 
 
 @router.patch("/richieste/{richiesta_id}", response_model=RichiestaOut)
@@ -530,10 +529,7 @@ def aggiorna_stato(
     db: sqlite3.Connection = Depends(get_db),
     utente: Utente = Depends(solo_responsabili),
 ):
-    richiesta = db.execute("SELECT * FROM richieste WHERE id = ?", (richiesta_id,)).fetchone()
-    if not richiesta:
-        raise HTTPException(status_code=404, detail="Richiesta non trovata.")
-
+    richiesta = leggi_richiesta(db, richiesta_id)
     stato_precedente = richiesta["stato"]
     # Ribaltare una decisione è legittimo — il meteo cambia — ma va tracciato.
     # Se invece lo stato non cambia (doppio click sul pulsante), non si
@@ -558,29 +554,16 @@ def aggiorna_stato(
     )
     db.commit()
 
-    row = db.execute("""
-        SELECT r.*, rc.nome as nome_ricerca,
-               u.nome as osservatore, u.email as email_osservatore
-        FROM richieste r
-        JOIN ricerche rc ON rc.id = r.ricerca_id
-        JOIN utenti   u  ON u.id  = r.richiedente_id
-        WHERE r.id = ?
-    """, (richiesta_id,)).fetchone()
-
-    richiesta_dict = dict(row)
+    aggiornata = leggi_richiesta(db, richiesta_id)
     if cambia_stato:
-        ricerca = db.execute("SELECT * FROM ricerche WHERE id = ?", (richiesta_dict['ricerca_id'],)).fetchone()
-        send_email_esito(richiesta_dict, dict(ricerca))
-
-    return richiesta_dict
+        send_email_esito(aggiornata)
+    return aggiornata
 
 
 @router.get("/richieste/{richiesta_id}/storico", response_model=List[DecisioneOut])
 def storico_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Decisioni prese su una richiesta, dalla più vecchia alla più recente."""
-    if not db.execute("SELECT 1 FROM richieste WHERE id = ?", (richiesta_id,)).fetchone():
-        raise HTTPException(status_code=404, detail="Richiesta non trovata.")
-
+    verifica_richiesta(db, richiesta_id)
     righe = db.execute(
         "SELECT * FROM richieste_storico WHERE richiesta_id = ? ORDER BY id",
         (richiesta_id,)
@@ -594,40 +577,18 @@ def calendario(
     mese:  Optional[int] = None,
     db: sqlite3.Connection = Depends(get_db)
 ):
-    """
-    Restituisce tutte le richieste (approvate + in_attesa) per il mese richiesto.
-    Se anno/mese non specificati, usa il mese corrente.
+    """Richieste approvate e in attesa del mese, raggruppate per giorno.
 
-    Logica disponibilità date:
-      - data con almeno una richiesta 'approvata'  → BLOCCATA
-      - data con sole richieste 'in_attesa'         → CONTESA (prenotabile ma con conflitti)
-      - data senza richieste                        → LIBERA
-
-    Struttura risposta:
-    {
-      "anno": 2025, "mese": 6,
-      "giorni": {
-        "2025-06-12": {
-          "stato_giorno": "bloccata" | "contesa" | "libera",
-          "approvate": 2,      # quante osservazioni condividono la notte
-          "richieste": [ { id, osservatore, nome_ricerca, stato, ... } ]
-        },
-        ...
-      }
-    }
+    Ogni giorno riporta `stato_giorno` (`libera`, `contesa`, `bloccata`),
+    `approvate` — quante osservazioni condividono la notte — e l'elenco delle
+    richieste. I giorni senza richieste non compaiono.
     """
     oggi = datetime.now()
     anno = anno or oggi.year
     mese = mese or oggi.month
+    primo, ultimo = estremi_del_mese(anno, mese)
 
-    # Costruisce range del mese
-    from calendar import monthrange
-    _, giorni_nel_mese = monthrange(anno, mese)
-    mese_str  = f"{anno}-{mese:02d}"
-    data_inizio = f"{mese_str}-01"
-    data_fine   = f"{mese_str}-{giorni_nel_mese:02d}"
-
-    rows = db.execute("""
+    righe = db.execute("""
         SELECT r.id, u.nome as osservatore, r.co_osservatori, r.giorno_richiesto,
                r.stato, r.note_responsabile, r.creata_il,
                rc.id as ricerca_id, rc.nome as nome_ricerca,
@@ -638,42 +599,23 @@ def calendario(
         WHERE r.giorno_richiesto BETWEEN ? AND ?
           AND r.stato IN ('approvata', 'in_attesa')
         ORDER BY r.giorno_richiesto, r.stato DESC, r.creata_il
-    """, (data_inizio, data_fine)).fetchall()
+    """, (primo, ultimo)).fetchall()
 
-    # Raggruppa per giorno
     giorni: dict = {}
-    for row in rows:
-        d = row["giorno_richiesto"]
-        if d not in giorni:
-            giorni[d] = {"stato_giorno": "libera", "approvate": 0, "richieste": []}
-        giorni[d]["richieste"].append({
-            "id":              row["id"],
-            "osservatore":     row["osservatore"],
-            "co_osservatori":  row["co_osservatori"],
-            "stato":           row["stato"],
-            "nome_ricerca":    row["nome_ricerca"],
-            "descrizione":     row["descrizione"],
-            "specifiche":      row["specifiche"],
-            "note_responsabile": row["note_responsabile"],
-            "creata_il":       row["creata_il"],
-        })
+    for riga in righe:
+        richiesta = dict(riga)
+        giorno = giorni.setdefault(
+            richiesta.pop("giorno_richiesto"),
+            {"stato_giorno": "libera", "approvate": 0, "richieste": []},
+        )
+        giorno["richieste"].append(richiesta)
+        if richiesta["stato"] == "approvata":
+            giorno["approvate"] += 1
+            giorno["stato_giorno"] = "bloccata"
+        elif giorno["stato_giorno"] == "libera":
+            giorno["stato_giorno"] = "contesa"
 
-    # Calcola stato_giorno e quante osservazioni sono approvate. Il telescopio
-    # può ospitare più programmi nella stessa notte, quindi il conteggio serve
-    # a rendere visibile la compresenza: `bloccata` da solo non la distingue.
-    for data, info in giorni.items():
-        stati = [r["stato"] for r in info["richieste"]]
-        info["approvate"] = stati.count("approvata")
-        if info["approvate"]:
-            info["stato_giorno"] = "bloccata"
-        elif "in_attesa" in stati:
-            info["stato_giorno"] = "contesa"
-
-    return {
-        "anno":   anno,
-        "mese":   mese,
-        "giorni": giorni
-    }
+    return {"anno": anno, "mese": mese, "giorni": giorni}
 
 
 @router.get("/statistiche")

@@ -107,3 +107,31 @@ def test_data_valida_normalizzata(client, ricerca):
     res = crea_richiesta(client, ricerca["id"], "2026-09-12")
     assert res.status_code == 201
     assert res.json()["giorno_richiesto"] == "2026-09-12"
+
+
+# ─── Lettura di una singola richiesta ─────────────────────────────────────────
+
+def test_dettaglio_richiesta(client, ricerca):
+    creata = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+
+    res = client.get(f"/telescope-time/richieste/{creata['id']}")
+
+    assert res.status_code == 200
+    assert res.json() == creata
+
+
+def test_dettaglio_richiesta_inesistente(client):
+    res = client.get("/telescope-time/richieste/999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "Richiesta non trovata."
+
+
+def test_il_dettaglio_riflette_le_decisioni(client, ricerca):
+    creata = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+    approva(client, creata["id"], note="Meteo stabile")
+
+    dettaglio = client.get(f"/telescope-time/richieste/{creata['id']}").json()
+
+    assert dettaglio["stato"] == "approvata"
+    assert dettaglio["note_responsabile"] == "Meteo stabile"
+    assert dettaglio["aggiornata_il"] is not None
