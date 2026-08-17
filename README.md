@@ -210,6 +210,7 @@ curl -X PATCH localhost:8010/telescope-time/richieste/1 \
 | GET    | /telescope-time/ricerche/{id}    | Dettaglio ricerca                 |
 | GET    | /telescope-time/richieste        | Lista richieste (filtrabile)      |
 | POST   | /telescope-time/richieste        | Invia richiesta                   |
+| GET    | /telescope-time/richieste/{id}   | Dettaglio richiesta               |
 | PATCH  | /telescope-time/richieste/{id}   | Approva / rifiuta                 |
 | GET    | /telescope-time/calendario       | Calendario mensile (?anno=&mese=) |
 | GET    | /telescope-time/richieste/{id}/storico | Decisioni prese sulla richiesta |

@@ -487,6 +487,11 @@ def lista_richieste(
     return [dict(riga) for riga in righe]
 
 
+@router.get("/richieste/{richiesta_id}", response_model=RichiestaOut)
+def dettaglio_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    return leggi_richiesta(db, richiesta_id)
+
+
 @router.post("/richieste", response_model=RichiestaOut, status_code=201)
 def invia_richiesta(
     body: RichiestaCreate,
