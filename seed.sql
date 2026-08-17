@@ -18,7 +18,7 @@ INSERT OR IGNORE INTO ricerche (nome, descrizione, specifiche) VALUES
 
 -- Giorno bloccato: una richiesta approvata.
 INSERT INTO richieste (ricerca_id, osservatore, co_osservatori, giorno_richiesto, stato, note_responsabile, aggiornata_il)
-SELECT id, 'Giulia Vernier', 'Marco Silvestri', date('now', '+3 days'), 'approvata', 'Meteo previsto stabile.', datetime('now')
+SELECT id, 'Giulia Vernier', 'Marco Silvestri', date('now', '+3 days'), 'approvata', 'Meteo previsto stabile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM ricerche WHERE nome = 'Survey exoplanet';
 
 -- Giorno conteso: due ricerche diverse chiedono la stessa data, entrambe in attesa.
@@ -32,7 +32,7 @@ FROM ricerche WHERE nome = 'Curve di luce asteroidi';
 
 -- Richiesta rifiutata: non compare nel calendario e libera di nuovo la data.
 INSERT INTO richieste (ricerca_id, osservatore, co_osservatori, giorno_richiesto, stato, note_responsabile, aggiornata_il)
-SELECT id, 'Paolo Ranieri', NULL, date('now', '+10 days'), 'rifiutata', 'Strumentazione in manutenzione.', datetime('now')
+SELECT id, 'Paolo Ranieri', NULL, date('now', '+10 days'), 'rifiutata', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM ricerche WHERE nome = 'Survey exoplanet';
 
 -- Richiesta semplice in attesa, più avanti nel mese.

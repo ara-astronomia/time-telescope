@@ -115,13 +115,23 @@ def get_db():
     # timeout: quanto attendere se un'altra connessione sta scrivendo, prima
     # di sollevare "database is locked". Con WAL i lettori non aspettano mai,
     # ma le scritture restano serializzate.
-    conn = sqlite3.connect(db_path(), timeout=15)
+    # check_same_thread=False: FastAPI esegue la dependency e l'handler nel
+    # threadpool senza garantire che sia lo stesso thread, e con due richieste
+    # simultanee capita che non lo sia. La connessione resta comunque privata
+    # della singola richiesta, quindi non è condivisa fra thread concorrenti.
+    conn = sqlite3.connect(db_path(), timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")  # va impostato su ogni connessione
     try:
         yield conn
     finally:
         conn.close()
+
+# SQLite scrive `datetime('now')` come '2026-08-17 06:30:00': UTC, ma senza
+# dirlo, e con uno spazio al posto della T. Non è ISO 8601 valido, quindi i
+# browser lo interpretano come ora locale e mostrano un orario sbagliato di
+# un'ora in inverno e due in estate.
+ADESSO_UTC = "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
 
 def init_db():
     conn = sqlite3.connect(db_path())
@@ -135,7 +145,7 @@ def init_db():
             nome        TEXT    NOT NULL UNIQUE,
             descrizione TEXT,
             specifiche  TEXT,
-            creata_il   TEXT    NOT NULL DEFAULT (datetime('now'))
+            creata_il   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
 
         CREATE TABLE IF NOT EXISTS richieste (
@@ -146,7 +156,7 @@ def init_db():
             giorno_richiesto    TEXT    NOT NULL,
             stato               TEXT    NOT NULL DEFAULT 'in_attesa',
             note_responsabile   TEXT,
-            creata_il           TEXT    NOT NULL DEFAULT (datetime('now')),
+            creata_il           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
             aggiornata_il       TEXT
         );
 
@@ -157,7 +167,7 @@ def init_db():
             stato_nuovo       TEXT    NOT NULL,
             note              TEXT,
             deciso_da         TEXT,
-            deciso_il         TEXT    NOT NULL DEFAULT (datetime('now'))
+            deciso_il         TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         );
     """)
     conn.commit()
@@ -407,8 +417,8 @@ def aggiorna_stato(
         )
 
     db.execute(
-        """UPDATE richieste SET stato = ?, note_responsabile = ?, aggiornata_il = datetime('now')
-           WHERE id = ?""",
+        f"""UPDATE richieste SET stato = ?, note_responsabile = ?, aggiornata_il = {ADESSO_UTC}
+            WHERE id = ?""",
         (body.stato, note, richiesta_id)
     )
     db.commit()
