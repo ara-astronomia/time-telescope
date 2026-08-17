@@ -149,6 +149,16 @@ def init_db():
             creata_il           TEXT    NOT NULL DEFAULT (datetime('now')),
             aggiornata_il       TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS richieste_storico (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            richiesta_id      INTEGER NOT NULL REFERENCES richieste(id),
+            stato_precedente  TEXT    NOT NULL,
+            stato_nuovo       TEXT    NOT NULL,
+            note              TEXT,
+            deciso_da         TEXT,
+            deciso_il         TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
     conn.close()
@@ -178,6 +188,15 @@ class RichiestaCreate(BaseModel):
 class AggiornamentoStato(BaseModel):
     stato: Literal["approvata", "rifiutata"]
     note_responsabile: Optional[str] = None
+
+class DecisioneOut(BaseModel):
+    id: int
+    richiesta_id: int
+    stato_precedente: str
+    stato_nuovo: str
+    note: Optional[str]
+    deciso_da: Optional[str]
+    deciso_il: str
 
 class RichiestaOut(BaseModel):
     id: int
@@ -370,10 +389,27 @@ def aggiorna_stato(
     if not richiesta:
         raise HTTPException(status_code=404, detail="Richiesta non trovata.")
 
+    stato_precedente = richiesta["stato"]
+    # Ribaltare una decisione è legittimo — il meteo cambia — ma va tracciato.
+    # Se invece lo stato non cambia (doppio click sul pulsante), non si
+    # registra nulla e non si rimanda l'email.
+    cambia_stato = body.stato != stato_precedente
+
+    # Le note già scritte non vanno perse quando il PATCH non le include.
+    note = body.note_responsabile if body.note_responsabile is not None else richiesta["note_responsabile"]
+
+    if cambia_stato:
+        db.execute(
+            """INSERT INTO richieste_storico
+                   (richiesta_id, stato_precedente, stato_nuovo, note, deciso_da)
+               VALUES (?, ?, ?, ?, ?)""",
+            (richiesta_id, stato_precedente, body.stato, body.note_responsabile, utente.nome)
+        )
+
     db.execute(
         """UPDATE richieste SET stato = ?, note_responsabile = ?, aggiornata_il = datetime('now')
            WHERE id = ?""",
-        (body.stato, body.note_responsabile, richiesta_id)
+        (body.stato, note, richiesta_id)
     )
     db.commit()
 
@@ -384,10 +420,24 @@ def aggiorna_stato(
     """, (richiesta_id,)).fetchone()
 
     richiesta_dict = dict(row)
-    ricerca = db.execute("SELECT * FROM ricerche WHERE id = ?", (richiesta_dict['ricerca_id'],)).fetchone()
-    send_email_esito(richiesta_dict, dict(ricerca))
+    if cambia_stato:
+        ricerca = db.execute("SELECT * FROM ricerche WHERE id = ?", (richiesta_dict['ricerca_id'],)).fetchone()
+        send_email_esito(richiesta_dict, dict(ricerca))
 
     return richiesta_dict
+
+
+@router.get("/richieste/{richiesta_id}/storico", response_model=List[DecisioneOut])
+def storico_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Decisioni prese su una richiesta, dalla più vecchia alla più recente."""
+    if not db.execute("SELECT 1 FROM richieste WHERE id = ?", (richiesta_id,)).fetchone():
+        raise HTTPException(status_code=404, detail="Richiesta non trovata.")
+
+    righe = db.execute(
+        "SELECT * FROM richieste_storico WHERE richiesta_id = ? ORDER BY id",
+        (richiesta_id,)
+    ).fetchall()
+    return [dict(r) for r in righe]
 
 
 @router.get("/calendario")
@@ -411,6 +461,7 @@ def calendario(
       "giorni": {
         "2025-06-12": {
           "stato_giorno": "bloccata" | "contesa" | "libera",
+          "approvate": 2,      # quante osservazioni condividono la notte
           "richieste": [ { id, osservatore, nome_ricerca, stato, ... } ]
         },
         ...
@@ -445,7 +496,7 @@ def calendario(
     for row in rows:
         d = row["giorno_richiesto"]
         if d not in giorni:
-            giorni[d] = {"stato_giorno": "libera", "richieste": []}
+            giorni[d] = {"stato_giorno": "libera", "approvate": 0, "richieste": []}
         giorni[d]["richieste"].append({
             "id":              row["id"],
             "osservatore":     row["osservatore"],
@@ -458,10 +509,13 @@ def calendario(
             "creata_il":       row["creata_il"],
         })
 
-    # Calcola stato_giorno
+    # Calcola stato_giorno e quante osservazioni sono approvate. Il telescopio
+    # può ospitare più programmi nella stessa notte, quindi il conteggio serve
+    # a rendere visibile la compresenza: `bloccata` da solo non la distingue.
     for data, info in giorni.items():
-        stati = {r["stato"] for r in info["richieste"]}
-        if "approvata" in stati:
+        stati = [r["stato"] for r in info["richieste"]]
+        info["approvate"] = stati.count("approvata")
+        if info["approvate"]:
             info["stato_giorno"] = "bloccata"
         elif "in_attesa" in stati:
             info["stato_giorno"] = "contesa"
