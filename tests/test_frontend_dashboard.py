@@ -38,6 +38,18 @@ def crea(page, app_url, nome, giorni_avanti):
     return richiesta, (prima, datetime.now(FUSO))
 
 
+def crea_con_fascia(page, app_url, nome, giorno, ora, durata):
+    inizio = datetime.combine(giorno, time(ora))
+    ricerca = page.request.post(
+        f"{app_url}/telescope-time/ricerche", data={"nome": nome}
+    ).json()
+    return page.request.post(
+        f"{app_url}/telescope-time/richieste",
+        data={"ricerca_id": ricerca["id"], "inizio": inizio.isoformat(),
+              "fine": (inizio + timedelta(hours=durata)).isoformat()},
+    ).json()
+
+
 def riga_meta(page, app_url, richiesta_id):
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector(".richiesta-card")
@@ -70,3 +82,45 @@ def test_lo_scarto_utc_non_compare(page, app_url):
         assert ora not in riga, (
             f"mostrata l'ora UTC {ora} invece di una fra {sorted(ore_locali)}"
         )
+
+
+# ─── Il conflitto di fascia va detto, non nascosto (#33) ──────────────────────
+
+def test_il_conflitto_di_fascia_e_mostrato_all_utente(page, app_url):
+    """Il 409 nomina la richiesta in conflitto: se la dashboard lo appiattisce
+    su 'Errore durante l'aggiornamento', il responsabile non sa cosa spostare."""
+    giorno = date.today() + timedelta(days=25)
+    approvata = crea_con_fascia(page, app_url, "Conflitto A", giorno, ora=21, durata=3)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{approvata['id']}", data={"stato": "approvata"}
+    )
+    seconda = crea_con_fascia(page, app_url, "Conflitto B", giorno, ora=23, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector(f"#card-{seconda['id']}")
+    page.click(f"#card-{seconda['id']} .rc-header")
+    page.click(f"#card-{seconda['id']} .btn-approve")
+    page.wait_for_selector("#toast.show")
+
+    testo = page.inner_text("#toast")
+    assert f"#{approvata['id']}" in testo, f"il messaggio non nomina il conflitto: {testo!r}"
+
+
+def test_la_richiesta_in_conflitto_resta_in_attesa(page, app_url):
+    giorno = date.today() + timedelta(days=26)
+    approvata = crea_con_fascia(page, app_url, "Conflitto C", giorno, ora=21, durata=3)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{approvata['id']}", data={"stato": "approvata"}
+    )
+    seconda = crea_con_fascia(page, app_url, "Conflitto D", giorno, ora=23, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector(f"#card-{seconda['id']}")
+    page.click(f"#card-{seconda['id']} .rc-header")
+    page.click(f"#card-{seconda['id']} .btn-approve")
+    page.wait_for_selector("#toast.show")
+
+    dopo = page.request.get(f"{app_url}/telescope-time/richieste/{seconda['id']}").json()
+    assert dopo["stato"] == "in_attesa"

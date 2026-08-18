@@ -550,6 +550,12 @@ async function aggiornaStato(id, stato) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stato, note_responsabile: note || null })
     });
+    if (res.status === 409) {
+      // Sovrapposizione di fascia: il messaggio nomina la richiesta in
+      // conflitto, ed è l'unica cosa che dice al responsabile cosa spostare.
+      showToast((await res.json()).detail, 'error');
+      return;
+    }
     if (!res.ok) throw new Error();
 
     const emoji = stato === 'approvata' ? '✓' : '✗';
