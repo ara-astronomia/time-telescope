@@ -124,3 +124,125 @@ def test_la_richiesta_in_conflitto_resta_in_attesa(page, app_url):
 
     dopo = page.request.get(f"{app_url}/telescope-time/richieste/{seconda['id']}").json()
     assert dopo["stato"] == "in_attesa"
+
+
+# ─── Spostare data e orari dalla dashboard (#34) ──────────────────────────────
+
+def orari(page, app_url, richiesta_id):
+    r = page.request.get(f"{app_url}/telescope-time/richieste/{richiesta_id}").json()
+    return r["inizio"], r["fine"]
+
+
+def apri_card(page, app_url, richiesta_id):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector(f"#card-{richiesta_id}")
+    page.click(f"#card-{richiesta_id} .rc-header")
+
+
+def compila_spostamento(page, richiesta_id, giorno, ora=23, durata=4, motivo=""):
+    inizio = datetime.combine(giorno, time(ora))
+    page.fill(f"#sposta-inizio-{richiesta_id}", inizio.strftime("%Y-%m-%dT%H:%M"))
+    page.fill(f"#sposta-fine-{richiesta_id}",
+              (inizio + timedelta(hours=durata)).strftime("%Y-%m-%dT%H:%M"))
+    if motivo:
+        page.fill(f"#sposta-motivo-{richiesta_id}", motivo)
+
+
+def test_il_comando_di_spostamento_c_e_anche_sulle_approvate(page, app_url):
+    """Una richiesta approvata è un impegno preso, non un impegno immutabile:
+    il meteo cambia e la notte va spostata, non cancellata."""
+    giorno = date.today() + timedelta(days=40)
+    richiesta = crea_con_fascia(page, app_url, "Sposta A", giorno, ora=21, durata=2)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}", data={"stato": "approvata"}
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.locator(f"#sposta-inizio-{richiesta['id']}").count() == 1
+    assert page.locator(f"#card-{richiesta['id']} .btn-sposta").count() == 1
+
+
+def test_anche_le_rifiutate_si_spostano(page, app_url):
+    """Una rifiutata per meteo si recupera spostandola e riapprovandola. Se non
+    la si potesse spostare prima, bisognerebbe riapprovarla sulla fascia
+    originale — che nel frattempo può essere occupata da un'altra approvata, e
+    a quel punto non c'è più via d'uscita."""
+    giorno = date.today() + timedelta(days=41)
+    richiesta = crea_con_fascia(page, app_url, "Sposta B", giorno, ora=21, durata=2)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}", data={"stato": "rifiutata"}
+    )
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+
+    inizio, _ = orari(page, app_url, richiesta["id"])
+    assert inizio == f"{giorno + timedelta(days=1)}T23:00:00"
+
+
+def test_lo_spostamento_cambia_gli_orari(page, app_url):
+    giorno = date.today() + timedelta(days=42)
+    richiesta = crea_con_fascia(page, app_url, "Sposta C", giorno, ora=21, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1), motivo="Manutenzione")
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+
+    inizio, _ = orari(page, app_url, richiesta["id"])
+    assert inizio == f"{giorno + timedelta(days=1)}T23:00:00"
+
+
+def test_una_data_passata_e_dichiarata_prima_di_confermare(page, app_url):
+    """Spostare nel passato è permesso, ma dev'essere una scelta consapevole:
+    la conferma lo dice, invece di lasciarlo passare in silenzio."""
+    giorno = date.today() + timedelta(days=43)
+    richiesta = crea_con_fascia(page, app_url, "Sposta D", giorno, ora=21, durata=2)
+
+    messaggi = []
+    page.on("dialog", lambda d: (messaggi.append(d.message), d.dismiss()))
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], date.today() - timedelta(days=5))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_timeout(400)
+
+    assert messaggi, "nessuna conferma chiesta"
+    assert "trascors" in messaggi[0].lower(), messaggi[0]
+
+
+def test_la_conferma_rifiutata_non_sposta_nulla(page, app_url):
+    giorno = date.today() + timedelta(days=44)
+    richiesta = crea_con_fascia(page, app_url, "Sposta E", giorno, ora=21, durata=2)
+    prima = orari(page, app_url, richiesta["id"])
+
+    page.on("dialog", lambda d: d.dismiss())
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_timeout(400)
+
+    assert orari(page, app_url, richiesta["id"]) == prima
+
+
+def test_il_conflitto_di_fascia_blocca_lo_spostamento(page, app_url):
+    giorno = date.today() + timedelta(days=45)
+    occupata = crea_con_fascia(page, app_url, "Sposta F", giorno, ora=21, durata=3)
+    mobile = crea_con_fascia(page, app_url, "Sposta G", giorno + timedelta(days=2), ora=21, durata=2)
+    for r in (occupata, mobile):
+        page.request.patch(
+            f"{app_url}/telescope-time/richieste/{r['id']}", data={"stato": "approvata"}
+        )
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, mobile["id"])
+    compila_spostamento(page, mobile["id"], giorno, ora=22, durata=2)
+    page.click(f"#card-{mobile['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+
+    testo = page.inner_text("#toast")
+    assert f"#{occupata['id']}" in testo, testo

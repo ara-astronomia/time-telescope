@@ -277,6 +277,25 @@
     transition: opacity 0.2s, transform 0.15s;
     height: 38px;
   }
+  .sposta-area {
+    display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap;
+    margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
+  }
+  .sposta-campo { display: flex; flex-direction: column; gap: 0.25rem; }
+  .sposta-campo .dl { font-size: 0.62rem; }
+  .sposta-campo input { min-width: 190px; }
+
+  .btn-sposta {
+    font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.05em;
+    padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer;
+    font-weight: 700; height: 38px;
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--accent);
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-sposta:hover  { background: var(--accent-lo); }
+  .btn-sposta:active { transform: scale(0.97); }
+
   .btn-approve { background: var(--green); color: #0a1a12; }
   .btn-reject  { background: var(--red);   color: #1a0a0e; }
   .btn-approve:hover, .btn-reject:hover { opacity: 0.85; }
@@ -523,6 +542,19 @@ function renderList() {
           <button class="btn-approve" onclick="aggiornaStato(${r.id}, 'approvata')">✓ Approva</button>
           <button class="btn-reject"  onclick="aggiornaStato(${r.id}, 'rifiutata')">✗ Rifiuta</button>
         </div>` : ''}
+
+        <div class="sposta-area">
+          <div class="sposta-campo">
+            <div class="dl">NUOVO INIZIO</div>
+            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.inizio.slice(0,16)}">
+          </div>
+          <div class="sposta-campo">
+            <div class="dl">NUOVA FINE</div>
+            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.fine.slice(0,16)}">
+          </div>
+          <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
+          <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
+        </div>
       </div>
     </div>
     `;
@@ -564,6 +596,50 @@ async function aggiornaStato(id, stato) {
 
   } catch(e) {
     showToast('Errore durante l\'aggiornamento.', 'error');
+  }
+}
+
+// ─── Sposta data e orari ──────────────────────────────────────────────────────
+async function spostaOrario(id) {
+  const inizio = document.getElementById(`sposta-inizio-${id}`).value;
+  const fine   = document.getElementById(`sposta-fine-${id}`).value;
+  const motivo = document.getElementById(`sposta-motivo-${id}`).value.trim();
+
+  if (!inizio || !fine) {
+    showToast('Indica il nuovo inizio e la nuova fine.', 'error'); return;
+  }
+  if (fine <= inizio) {
+    showToast('La fine deve essere successiva all\'inizio.', 'error'); return;
+  }
+
+  // Spostare nel passato è permesso — serve a registrare a posteriori
+  // un'osservazione davvero fatta — ma va detto, altrimenti un errore di
+  // battitura sull'anno passa in silenzio.
+  const conferma = new Date(inizio) < new Date()
+    ? 'Stai spostando questa osservazione in una data già trascorsa.\n\nConfermi?'
+    : 'Confermi lo spostamento? L\'osservatore riceverà un avviso via email.';
+  if (!confirm(conferma)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/richieste/${id}/orario`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inizio, fine, motivo: motivo || null })
+    });
+
+    if (res.status === 409) {
+      showToast((await res.json()).detail, 'error'); return;
+    }
+    if (res.status === 422) {
+      showToast('Il server ha rifiutato gli orari: controlla e riprova.', 'error'); return;
+    }
+    if (!res.ok) throw new Error();
+
+    showToast('🕒 Osservazione riprogrammata, avviso inviato all\'osservatore.', 'success');
+    await caricaRichieste();
+
+  } catch(e) {
+    showToast('Errore durante lo spostamento.', 'error');
   }
 }
 

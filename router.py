@@ -122,11 +122,19 @@ def init_db():
             aggiornata_il       TEXT
         );
 
+        -- Due tipi di evento nella stessa tabella, distinti da `tipo`: una
+        -- sola cronologia ordinata è ciò che serve a chi legge la storia di
+        -- una richiesta. Le colonne dell'altro tipo restano NULL.
         CREATE TABLE IF NOT EXISTS richieste_storico (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
             richiesta_id      INTEGER NOT NULL REFERENCES richieste(id),
-            stato_precedente  TEXT    NOT NULL,
-            stato_nuovo       TEXT    NOT NULL,
+            tipo              TEXT    NOT NULL DEFAULT 'decisione',
+            stato_precedente  TEXT,
+            stato_nuovo       TEXT,
+            inizio_precedente TEXT,
+            fine_precedente   TEXT,
+            inizio_nuovo      TEXT,
+            fine_nuovo        TEXT,
             note              TEXT,
             deciso_da         TEXT,
             deciso_il         TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -303,11 +311,7 @@ class RicercaOut(BaseModel):
     specifiche: Optional[str]
     creata_il: str
 
-class RichiestaCreate(BaseModel):
-    # `osservatore` non c'è: l'identità arriva da Authelia, non dal body,
-    # quindi non è falsificabile. Un campo omonimo inviato viene ignorato.
-    ricerca_id: int
-    co_osservatori: Optional[str] = None
+class FasciaOraria(BaseModel):
     # NaiveDatetime valida il formato ISO e rifiuta gli istanti con fuso: gli
     # orari sono ora locale dell'osservatorio, e un offset renderebbe le fasce
     # salvate non più confrontabili fra loro.
@@ -321,13 +325,6 @@ class RichiestaCreate(BaseModel):
         stringhe, in SQL come in Python."""
         return istante.replace(microsecond=0)
 
-    @field_validator("inizio")
-    @classmethod
-    def nel_futuro(cls, istante: datetime) -> datetime:
-        if istante <= datetime.now():
-            raise ValueError("L'osservazione deve cominciare nel futuro.")
-        return istante
-
     @field_validator("fine")
     @classmethod
     def dopo_l_inizio(cls, istante: datetime, info: ValidationInfo) -> datetime:
@@ -340,15 +337,43 @@ class RichiestaCreate(BaseModel):
     def notte(self) -> str:
         return self.inizio.date().isoformat()
 
+
+class RichiestaCreate(FasciaOraria):
+    # `osservatore` non c'è: l'identità arriva da Authelia, non dal body,
+    # quindi non è falsificabile. Un campo omonimo inviato viene ignorato.
+    ricerca_id: int
+    co_osservatori: Optional[str] = None
+
+    @field_validator("inizio")
+    @classmethod
+    def nel_futuro(cls, istante: datetime) -> datetime:
+        if istante <= datetime.now():
+            raise ValueError("L'osservazione deve cominciare nel futuro.")
+        return istante
+
+
+class SpostamentoOrario(FasciaOraria):
+    """Nessun vincolo di futuro: il responsabile registra a posteriori anche
+    un'osservazione già fatta. Che la data sia passata viene dichiarato, non
+    impedito."""
+    motivo: Optional[str] = None
+
 class AggiornamentoStato(BaseModel):
     stato: Literal["approvata", "rifiutata"]
     note_responsabile: Optional[str] = None
 
-class DecisioneOut(BaseModel):
+class EventoOut(BaseModel):
+    """Una voce di storico: una decisione oppure uno spostamento. I campi
+    dell'altro tipo sono nulli."""
     id: int
     richiesta_id: int
-    stato_precedente: str
-    stato_nuovo: str
+    tipo: str
+    stato_precedente: Optional[str]
+    stato_nuovo: Optional[str]
+    inizio_precedente: Optional[str]
+    fine_precedente: Optional[str]
+    inizio_nuovo: Optional[str]
+    fine_nuovo: Optional[str]
     note: Optional[str]
     deciso_da: Optional[str]
     deciso_il: str
@@ -448,6 +473,29 @@ Note responsabile: {richiesta['note_responsabile'] or '—'}
         corpo,
     )
 
+def send_email_spostamento(richiesta: dict, precedente: dict, motivo: Optional[str]):
+    """L'osservatore si è visto assegnare un orario diverso da quello chiesto:
+    non è un'informazione che possa scoprire per caso aprendo il calendario."""
+    avviso = ""
+    if datetime.fromisoformat(richiesta["inizio"]) < datetime.now():
+        avviso = "\n\nAttenzione: la nuova fascia cade in una data passata."
+
+    corpo = f"""
+La tua osservazione è stata riprogrammata dal responsabile.
+
+Osservatore:  {richiesta['osservatore']}
+Ricerca:      {richiesta['nome_ricerca']}
+Prima:        {fascia_leggibile(precedente)}
+Adesso:       {fascia_leggibile(richiesta)}
+Motivo:       {motivo or '—'}{avviso}
+    """.strip()
+
+    invia_messaggio(
+        richiesta["email_osservatore"] or EMAIL_RESPONSABILE,
+        f"[CRaC] Osservazione riprogrammata — {richiesta['nome_ricerca']}",
+        corpo,
+    )
+
 # ─── Endpoint Utente ──────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=Utente, response_model_exclude={"id"})
@@ -512,16 +560,52 @@ def verifica_richiesta(db: sqlite3.Connection, richiesta_id: int) -> None:
         raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
 
 
-def gia_approvata_negli_stessi_istanti(db: sqlite3.Connection, richiesta: dict) -> Optional[dict]:
+def gia_approvata_negli_stessi_istanti(
+    db: sqlite3.Connection, richiesta_id: int, inizio: str, fine: str
+) -> Optional[dict]:
     """Un'altra richiesta approvata che occupa lo strumento negli stessi
     istanti. Due programmi possono condividere la notte, non l'istante."""
     riga = db.execute(
         f"""{RICHIESTE_COMPLETE}
             WHERE r.stato = 'approvata' AND r.id != ?
               AND r.inizio < ? AND ? < r.fine""",
-        (richiesta["id"], richiesta["fine"], richiesta["inizio"]),
+        (richiesta_id, fine, inizio),
     ).fetchone()
     return dict(riga) if riga else None
+
+
+def blocca_per_scrittura(db: sqlite3.Connection) -> None:
+    """Apre subito una transazione esclusiva, invece di aspettare la prima
+    scrittura come farebbe SQLite da solo.
+
+    Fra il controllo di conflitto e l'UPDATE c'è una finestra: senza questo,
+    due approvazioni simultanee la attraversano entrambe e creano proprio la
+    sovrapposizione che il vincolo esiste per impedire.
+    """
+    db.execute("BEGIN IMMEDIATE")
+
+
+def conflitto_di_fascia(db: sqlite3.Connection, richiesta_id: int, inizio: str, fine: str):
+    occupata = gia_approvata_negli_stessi_istanti(db, richiesta_id, inizio, fine)
+    if occupata:
+        raise HTTPException(
+            status_code=409,
+            detail=f"La fascia si sovrappone alla richiesta #{occupata['id']} "
+                   f"({occupata['nome_ricerca']}, {fascia_leggibile(occupata)}), "
+                   f"già approvata.",
+        )
+
+
+def registra_evento(db: sqlite3.Connection, richiesta_id: int, tipo: str,
+                    autore: str, note: Optional[str], **valori) -> None:
+    colonne = ", ".join(valori)
+    segnaposto = ", ".join("?" * len(valori))
+    db.execute(
+        f"""INSERT INTO richieste_storico
+                (richiesta_id, tipo, deciso_da, note, {colonne})
+            VALUES (?, ?, ?, ?, {segnaposto})""",
+        (richiesta_id, tipo, autore, note, *valori.values()),
+    )
 
 
 def leggi_ricerca(db: sqlite3.Connection, ricerca_id: int) -> dict:
@@ -587,6 +671,7 @@ def aggiorna_stato(
     db: sqlite3.Connection = Depends(get_db),
     utente: Utente = Depends(solo_responsabili),
 ):
+    blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)
     stato_precedente = richiesta["stato"]
     # Ribaltare una decisione è legittimo — il meteo cambia — ma va tracciato.
@@ -595,24 +680,15 @@ def aggiorna_stato(
     cambia_stato = body.stato != stato_precedente
 
     if body.stato == "approvata" and cambia_stato:
-        conflitto = gia_approvata_negli_stessi_istanti(db, richiesta)
-        if conflitto:
-            raise HTTPException(
-                status_code=409,
-                detail=f"La fascia si sovrappone alla richiesta #{conflitto['id']} "
-                       f"({conflitto['nome_ricerca']}, {fascia_leggibile(conflitto)}), "
-                       f"già approvata.",
-            )
+        conflitto_di_fascia(db, richiesta_id, richiesta["inizio"], richiesta["fine"])
 
     # Le note già scritte non vanno perse quando il PATCH non le include.
     note = body.note_responsabile if body.note_responsabile is not None else richiesta["note_responsabile"]
 
     if cambia_stato:
-        db.execute(
-            """INSERT INTO richieste_storico
-                   (richiesta_id, stato_precedente, stato_nuovo, note, deciso_da)
-               VALUES (?, ?, ?, ?, ?)""",
-            (richiesta_id, stato_precedente, body.stato, body.note_responsabile, utente.nome)
+        registra_evento(
+            db, richiesta_id, "decisione", utente.nome, body.note_responsabile,
+            stato_precedente=stato_precedente, stato_nuovo=body.stato,
         )
 
     db.execute(
@@ -628,7 +704,47 @@ def aggiorna_stato(
     return aggiornata
 
 
-@router.get("/richieste/{richiesta_id}/storico", response_model=List[DecisioneOut])
+@router.patch("/richieste/{richiesta_id}/orario", response_model=RichiestaOut)
+def sposta_orario(
+    richiesta_id: int,
+    body: SpostamentoOrario,
+    db: sqlite3.Connection = Depends(get_db),
+    utente: Utente = Depends(solo_responsabili),
+):
+    """Riprogramma una richiesta, in attesa o già approvata.
+
+    Separato dal PATCH dello stato perché sono due azioni distinte: una decide,
+    l'altra riprogramma, e tenerle insieme renderebbe ambiguo cosa registrare
+    nello storico.
+    """
+    blocca_per_scrittura(db)
+    richiesta = leggi_richiesta(db, richiesta_id)
+    inizio, fine = body.inizio.isoformat(), body.fine.isoformat()
+    if (inizio, fine) == (richiesta["inizio"], richiesta["fine"]):
+        return richiesta
+
+    if richiesta["stato"] == "approvata":
+        conflitto_di_fascia(db, richiesta_id, inizio, fine)
+
+    registra_evento(
+        db, richiesta_id, "spostamento", utente.nome, body.motivo,
+        inizio_precedente=richiesta["inizio"], fine_precedente=richiesta["fine"],
+        inizio_nuovo=inizio, fine_nuovo=fine,
+    )
+    db.execute(
+        f"""UPDATE richieste
+               SET giorno_richiesto = ?, inizio = ?, fine = ?, aggiornata_il = {ADESSO_UTC}
+             WHERE id = ?""",
+        (body.notte, inizio, fine, richiesta_id),
+    )
+    db.commit()
+
+    spostata = leggi_richiesta(db, richiesta_id)
+    send_email_spostamento(spostata, richiesta, body.motivo)
+    return spostata
+
+
+@router.get("/richieste/{richiesta_id}/storico", response_model=List[EventoOut])
 def storico_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Decisioni prese su una richiesta, dalla più vecchia alla più recente."""
     verifica_richiesta(db, richiesta_id)
