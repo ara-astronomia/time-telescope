@@ -574,6 +574,17 @@ def gia_approvata_negli_stessi_istanti(
     return dict(riga) if riga else None
 
 
+def blocca_per_scrittura(db: sqlite3.Connection) -> None:
+    """Apre subito una transazione esclusiva, invece di aspettare la prima
+    scrittura come farebbe SQLite da solo.
+
+    Fra il controllo di conflitto e l'UPDATE c'è una finestra: senza questo,
+    due approvazioni simultanee la attraversano entrambe e creano proprio la
+    sovrapposizione che il vincolo esiste per impedire.
+    """
+    db.execute("BEGIN IMMEDIATE")
+
+
 def conflitto_di_fascia(db: sqlite3.Connection, richiesta_id: int, inizio: str, fine: str):
     occupata = gia_approvata_negli_stessi_istanti(db, richiesta_id, inizio, fine)
     if occupata:
@@ -660,6 +671,7 @@ def aggiorna_stato(
     db: sqlite3.Connection = Depends(get_db),
     utente: Utente = Depends(solo_responsabili),
 ):
+    blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)
     stato_precedente = richiesta["stato"]
     # Ribaltare una decisione è legittimo — il meteo cambia — ma va tracciato.
@@ -705,6 +717,7 @@ def sposta_orario(
     l'altra riprogramma, e tenerle insieme renderebbe ambiguo cosa registrare
     nello storico.
     """
+    blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)
     inizio, fine = body.inizio.isoformat(), body.fine.isoformat()
     if (inizio, fine) == (richiesta["inizio"], richiesta["fine"]):
