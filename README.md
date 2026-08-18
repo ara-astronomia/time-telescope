@@ -220,8 +220,9 @@ curl -X PATCH localhost:8010/telescope-time/richieste/1 \
 | POST   | /telescope-time/richieste        | Invia richiesta                   |
 | GET    | /telescope-time/richieste/{id}   | Dettaglio richiesta               |
 | PATCH  | /telescope-time/richieste/{id}   | Approva / rifiuta                 |
+| PATCH  | /telescope-time/richieste/{id}/orario | Sposta data e orari (responsabili) |
 | GET    | /telescope-time/calendario       | Calendario mensile (?anno=&mese=) |
-| GET    | /telescope-time/richieste/{id}/storico | Decisioni prese sulla richiesta |
+| GET    | /telescope-time/richieste/{id}/storico | Decisioni e spostamenti sulla richiesta |
 | GET    | /telescope-time/me               | Identità dell'utente collegato    |
 | GET    | /telescope-time/statistiche      | Statistiche aggregate             |
 
@@ -274,7 +275,13 @@ all'approvazione.
    Quello che due programmi non possono condividere è lo stesso istante:
    approvare una richiesta la cui fascia interseca quella di una già
    approvata dà `409`, con il numero della richiesta in conflitto
-8. Le decisioni del responsabile sono tracciate: ogni cambio di stato
-   finisce in `richieste_storico`, con chi e quando
-9. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
+8. Il responsabile può riprogrammare una richiesta — in attesa o già
+   approvata — invece di rifiutarla: è così che si sblocca una fascia
+   contesa, o si recupera una notte persa per meteo o manutenzione.
+   Lo spostamento è consentito su qualsiasi data, passato incluso, perché
+   serve anche a registrare a posteriori un'osservazione fatta; se la data
+   è trascorsa l'interfaccia lo dichiara prima di confermare
+9. Decisioni e spostamenti sono tracciati: entrambi finiscono in
+   `richieste_storico`, distinti da `tipo`, con chi e quando
+10. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
    Authelia fornisce; se manca, l'avviso va al responsabile
