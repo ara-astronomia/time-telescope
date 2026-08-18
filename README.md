@@ -125,8 +125,15 @@ docker compose up -d --build
 # Log
 docker compose logs -f
 
-# Ispezione DB
-docker compose exec telescope_time sqlite3 /data/telescope_time.db
+# Ispezione DB — l'immagine non contiene sqlite3, si passa da Python
+docker compose exec telescope_time python -c \
+  "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
+   print(d.execute('SELECT id, giorno_richiesto, inizio, fine, stato FROM richieste').fetchall())"
+
+# Dati di esempio
+docker compose exec -T telescope_time python -c \
+  "import sqlite3,sys; d=sqlite3.connect('/data/telescope_time.db'); \
+   d.executescript(sys.stdin.read()); d.commit()" < seed.sql
 ```
 
 Il database è persistente nel volume Docker `telescope_db`.
