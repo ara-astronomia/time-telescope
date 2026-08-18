@@ -58,6 +58,18 @@ def test_si_sposta_anche_una_richiesta_approvata(client, richiesta, altro_giorno
     assert res.json()["stato"] == "approvata"
 
 
+def test_si_sposta_anche_una_richiesta_rifiutata(client, richiesta, altro_giorno):
+    """Spostare e poi riapprovare è l'unico ordine che funziona: riapprovare
+    prima significherebbe farlo sulla fascia originale, che può nel frattempo
+    essere occupata."""
+    approva(client, richiesta["id"], stato="rifiutata")
+
+    res = sposta(client, richiesta["id"], altro_giorno)
+
+    assert res.status_code == 200
+    assert res.json()["stato"] == "rifiutata"
+
+
 def test_il_responsabile_puo_spostare_nel_passato(client, richiesta):
     """Serve a registrare a posteriori un'osservazione davvero fatta. Il vincolo
     non è sulla data, è sulla chiarezza: lo dichiara l'interfaccia."""

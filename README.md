@@ -275,12 +275,15 @@ all'approvazione.
    Quello che due programmi non possono condividere è lo stesso istante:
    approvare una richiesta la cui fascia interseca quella di una già
    approvata dà `409`, con il numero della richiesta in conflitto
-8. Il responsabile può riprogrammare una richiesta — in attesa o già
-   approvata — invece di rifiutarla: è così che si sblocca una fascia
+8. Il responsabile può riprogrammare una richiesta, in qualunque stato si
+   trovi, invece di rifiutarla: è così che si sblocca una fascia
    contesa, o si recupera una notte persa per meteo o manutenzione.
    Lo spostamento è consentito su qualsiasi data, passato incluso, perché
    serve anche a registrare a posteriori un'osservazione fatta; se la data
-   è trascorsa l'interfaccia lo dichiara prima di confermare
+   è trascorsa l'interfaccia lo dichiara prima di confermare. Anche una
+   rifiutata si sposta: recuperarla significa prima riprogrammarla e poi
+   riapprovarla, non il contrario — riapprovare per prima la lascerebbe sulla
+   fascia originale, che nel frattempo può essere occupata
 9. Decisioni e spostamenti sono tracciati: entrambi finiscono in
    `richieste_storico`, distinti da `tipo`, con chi e quando
 10. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che

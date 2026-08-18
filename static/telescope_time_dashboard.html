@@ -543,7 +543,6 @@ function renderList() {
           <button class="btn-reject"  onclick="aggiornaStato(${r.id}, 'rifiutata')">✗ Rifiuta</button>
         </div>` : ''}
 
-        ${r.stato !== 'rifiutata' ? `
         <div class="sposta-area">
           <div class="sposta-campo">
             <div class="dl">NUOVO INIZIO</div>
@@ -555,7 +554,7 @@ function renderList() {
           </div>
           <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
           <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
-        </div>` : ''}
+        </div>
       </div>
     </div>
     `;

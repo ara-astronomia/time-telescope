@@ -163,16 +163,25 @@ def test_il_comando_di_spostamento_c_e_anche_sulle_approvate(page, app_url):
     assert page.locator(f"#card-{richiesta['id']} .btn-sposta").count() == 1
 
 
-def test_le_rifiutate_non_si_spostano(page, app_url):
+def test_anche_le_rifiutate_si_spostano(page, app_url):
+    """Una rifiutata per meteo si recupera spostandola e riapprovandola. Se non
+    la si potesse spostare prima, bisognerebbe riapprovarla sulla fascia
+    originale — che nel frattempo può essere occupata da un'altra approvata, e
+    a quel punto non c'è più via d'uscita."""
     giorno = date.today() + timedelta(days=41)
     richiesta = crea_con_fascia(page, app_url, "Sposta B", giorno, ora=21, durata=2)
     page.request.patch(
         f"{app_url}/telescope-time/richieste/{richiesta['id']}", data={"stato": "rifiutata"}
     )
 
+    page.on("dialog", lambda d: d.accept())
     apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
 
-    assert page.locator(f"#card-{richiesta['id']} .btn-sposta").count() == 0
+    inizio, _ = orari(page, app_url, richiesta["id"])
+    assert inizio == f"{giorno + timedelta(days=1)}T23:00:00"
 
 
 def test_lo_spostamento_cambia_gli_orari(page, app_url):
