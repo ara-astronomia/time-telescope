@@ -22,6 +22,10 @@
     --green-lo:    rgba(45,206,137,0.13);
     --green-gl:    rgba(45,206,137,0.05);
 
+    --cyan:        #22d3ee;
+    --cyan-lo:     rgba(34,211,238,0.13);
+    --cyan-gl:     rgba(34,211,238,0.05);
+
     --amber:       #ffc107;
     --amber-lo:    rgba(255,193,7,0.13);
     --amber-gl:    rgba(255,193,7,0.05);
@@ -140,7 +144,7 @@
     width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
   }
   .leg-dot.libera    { background: var(--border-hi); }
-  .leg-dot.richiesta { background: var(--accent); }
+  .leg-dot.richiesta { background: var(--cyan); }
   .leg-dot.contesa   { background: var(--amber); }
   .leg-dot.bloccata  { background: var(--red); }
   .leg-dot.approv   { background: var(--green); }
@@ -186,8 +190,8 @@
     cursor: pointer;
   }
   .day-cell.richiesta {
-    background: var(--accent-gl);
-    border-color: rgba(79,124,255,.28);
+    background: var(--cyan-gl);
+    border-color: rgba(34,211,238,.28);
     cursor: pointer;
   }
   .day-cell.contesa {
@@ -271,7 +275,7 @@
   }
   .dp-stato.bloccata { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
   .dp-stato.contesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
-  .dp-stato.richiesta { background: var(--accent-lo); color: var(--accent); border: 1px solid rgba(79,124,255,.25); }
+  .dp-stato.richiesta { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
 
   .dp-conflitto {
     margin-top: .5rem; font-family: var(--mono); font-size: .68rem;
