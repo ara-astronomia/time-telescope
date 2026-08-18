@@ -284,7 +284,11 @@ all'approvazione.
    rifiutata si sposta: recuperarla significa prima riprogrammarla e poi
    riapprovarla, non il contrario — riapprovare per prima la lascerebbe sulla
    fascia originale, che nel frattempo può essere occupata
-9. Decisioni e spostamenti sono tracciati: entrambi finiscono in
-   `richieste_storico`, distinti da `tipo`, con chi e quando
-10. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
+9. Una decisione si può ribaltare: su una richiesta approvata la dashboard
+   offre il rifiuto e viceversa, non il comando che la lascerebbe com'è.
+   L'osservatore riceve un secondo avviso, e la conferma lo dichiara
+10. Decisioni e spostamenti sono tracciati: entrambi finiscono in
+    `richieste_storico`, distinti da `tipo`, con chi e quando, ed è quello
+    che la dashboard mostra aprendo il dettaglio di una richiesta
+11. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
    Authelia fornisce; se manca, l'avviso va al responsabile
