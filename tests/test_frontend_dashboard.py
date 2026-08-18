@@ -392,3 +392,36 @@ def test_una_richiesta_mai_decisa_dichiara_lo_storico_vuoto(page, app_url):
 
     assert page.locator(f"#storico-{richiesta['id']} .voce").count() == 0
     assert page.inner_text(f"#storico-{richiesta['id']}").strip() != ""
+
+
+def test_svuotare_le_note_le_cancella(page, app_url):
+    """Il campo si apre precompilato: se svuotarlo non cancellasse nulla,
+    sembrerebbe modificabile senza esserlo."""
+    richiesta = decisa(page, app_url, "Note A", 60, "approvata")
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "approvata", "note_responsabile": "Da cancellare"},
+    )
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.fill(f"#note-{richiesta['id']}", "")
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+
+    note = page.request.get(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}"
+    ).json()["note_responsabile"]
+    assert not note, f"le note non sono state cancellate: {note!r}"
+
+
+def test_le_note_esistenti_compaiono_nel_campo(page, app_url):
+    richiesta = decisa(page, app_url, "Note B", 61, "approvata")
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "approvata", "note_responsabile": "Meteo stabile"},
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.input_value(f"#note-{richiesta['id']}") == "Meteo stabile"
