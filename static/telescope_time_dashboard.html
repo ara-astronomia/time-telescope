@@ -479,6 +479,9 @@ function setFilter(btn) {
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
+  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: senza
+  // questo, la card su cui si sta lavorando si richiude sotto le mani.
+  const aperti = dettagliAperti();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'tutte'
     ? allRichieste
@@ -584,17 +587,31 @@ function renderList() {
     </div>
     `;
   }).join('');
+
+  aperti.forEach(id => {
+    // Una richiesta può essere uscita dal filtro attivo proprio per l'azione
+    // appena fatta: in quel caso non c'è più nulla da riaprire.
+    if (document.getElementById(`detail-${id}`)) mostraDettaglio(id, true);
+  });
 }
 
 function toggleDetail(id) {
-  const detail  = document.getElementById(`detail-${id}`);
-  const chevron = document.getElementById(`chevron-${id}`);
-  const isOpen  = detail.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+  const aperto = document.getElementById(`detail-${id}`).classList.contains('open');
+  mostraDettaglio(id, !aperto);
+}
+
+function mostraDettaglio(id, apri) {
+  document.getElementById(`detail-${id}`).classList.toggle('open', apri);
+  document.getElementById(`chevron-${id}`).style.transform = apri ? 'rotate(180deg)' : '';
   // Ricaricato a ogni apertura: dopo una decisione o uno spostamento la
   // cronologia è cambiata. Solo per le richieste che si aprono davvero —
   // caricarlo in lista significherebbe una chiamata per riga.
-  if (isOpen) caricaStorico(id);
+  if (apri) caricaStorico(id);
+}
+
+function dettagliAperti() {
+  return [...document.querySelectorAll('.rc-detail.open')]
+    .map(d => d.id.slice('detail-'.length));
 }
 
 async function caricaStorico(id) {

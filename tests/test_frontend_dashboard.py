@@ -425,3 +425,65 @@ def test_le_note_esistenti_compaiono_nel_campo(page, app_url):
     apri_card(page, app_url, richiesta["id"])
 
     assert page.input_value(f"#note-{richiesta['id']}") == "Meteo stabile"
+
+
+# ─── Il dettaglio non si richiude sotto le mani ───────────────────────────────
+
+def aperta(page, richiesta_id):
+    return "open" in (page.locator(f"#detail-{richiesta_id}").get_attribute("class") or "")
+
+
+def test_la_card_resta_aperta_dopo_una_decisione(page, app_url):
+    """Ricostruire la lista chiudeva la card su cui si stava lavorando: con due
+    o tre azioni di fila sulla stessa richiesta, si riapre ogni volta."""
+    richiesta = decisa(page, app_url, "Aperta A", 62, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert aperta(page, richiesta["id"])
+
+
+def test_lo_storico_si_aggiorna_senza_riaprire(page, app_url):
+    richiesta = decisa(page, app_url, "Aperta B", 63, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_function(
+        f"document.querySelectorAll('#storico-{richiesta['id']} .voce').length === 2"
+    )
+
+    assert "rifiutata" in page.inner_text(f"#storico-{richiesta['id']}")
+
+
+def test_la_card_resta_aperta_dopo_uno_spostamento(page, app_url):
+    giorno = date.today() + timedelta(days=64)
+    richiesta = crea_con_fascia(page, app_url, "Aperta C", giorno, ora=21, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert aperta(page, richiesta["id"])
+
+
+def test_le_card_chiuse_restano_chiuse(page, app_url):
+    giorno = date.today() + timedelta(days=65)
+    aperta_ = crea_con_fascia(page, app_url, "Aperta D", giorno, ora=21, durata=2)
+    chiusa = crea_con_fascia(page, app_url, "Aperta E", giorno, ora=23, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, aperta_["id"])
+    page.click(f"#card-{aperta_['id']} .btn-approve")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert not aperta(page, chiusa["id"])
