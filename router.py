@@ -7,10 +7,10 @@ Da includere nel server CRaC principale con:
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, NaiveDatetime, ValidationInfo, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import datetime
 import sqlite3
 import os
 import smtplib
@@ -109,7 +109,13 @@ def init_db():
             ricerca_id          INTEGER NOT NULL REFERENCES ricerche(id),
             richiedente_id      INTEGER NOT NULL REFERENCES utenti(id),
             co_osservatori      TEXT,
+            -- notte di riferimento, derivata dalla data di `inizio`: le ore
+            -- piccole appartengono alla notte precedente. È la chiave su cui
+            -- il calendario raggruppa.
             giorno_richiesto    TEXT    NOT NULL,
+            -- fascia oraria, ora locale dell'osservatorio: '2026-09-12T22:00:00'.
+            inizio              TEXT    NOT NULL,
+            fine                TEXT    NOT NULL,
             stato               TEXT    NOT NULL DEFAULT 'in_attesa',
             note_responsabile   TEXT,
             creata_il           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
@@ -302,9 +308,37 @@ class RichiestaCreate(BaseModel):
     # quindi non è falsificabile. Un campo omonimo inviato viene ignorato.
     ricerca_id: int
     co_osservatori: Optional[str] = None
-    # `date` valida e normalizza il formato ISO: una stringa non conforme
-    # produce 422 prima che l'handler venga eseguito.
-    giorno_richiesto: date
+    # NaiveDatetime valida il formato ISO e rifiuta gli istanti con fuso: gli
+    # orari sono ora locale dell'osservatorio, e un offset renderebbe le fasce
+    # salvate non più confrontabili fra loro.
+    inizio: NaiveDatetime
+    fine: NaiveDatetime
+
+    @field_validator("inizio", "fine")
+    @classmethod
+    def al_secondo(cls, istante: datetime) -> datetime:
+        """Un formato unico è ciò che rende lecito confrontare le fasce come
+        stringhe, in SQL come in Python."""
+        return istante.replace(microsecond=0)
+
+    @field_validator("inizio")
+    @classmethod
+    def nel_futuro(cls, istante: datetime) -> datetime:
+        if istante <= datetime.now():
+            raise ValueError("L'osservazione deve cominciare nel futuro.")
+        return istante
+
+    @field_validator("fine")
+    @classmethod
+    def dopo_l_inizio(cls, istante: datetime, info: ValidationInfo) -> datetime:
+        inizio = info.data.get("inizio")
+        if inizio is not None and istante <= inizio:
+            raise ValueError("La fine deve essere successiva all'inizio.")
+        return istante
+
+    @property
+    def notte(self) -> str:
+        return self.inizio.date().isoformat()
 
 class AggiornamentoStato(BaseModel):
     stato: Literal["approvata", "rifiutata"]
@@ -326,6 +360,8 @@ class RichiestaOut(BaseModel):
     osservatore: str
     co_osservatori: Optional[str]
     giorno_richiesto: str
+    inizio: str
+    fine: str
     stato: str
     note_responsabile: Optional[str]
     creata_il: str
@@ -359,6 +395,15 @@ def invia_messaggio(destinatario: str, oggetto: str, corpo: str):
         print(f"[Errore invio email] a {destinatario}: {e}", flush=True)
 
 
+def fascia_leggibile(richiesta: dict) -> str:
+    """'12/09/2026 22:00 → 13/09/2026 01:00', senza ripetere la data quando la
+    sessione non attraversa la mezzanotte."""
+    inizio = datetime.fromisoformat(richiesta["inizio"])
+    fine = datetime.fromisoformat(richiesta["fine"])
+    formato_fine = "%H:%M" if inizio.date() == fine.date() else "%d/%m/%Y %H:%M"
+    return f"{inizio:%d/%m/%Y %H:%M} → {fine:{formato_fine}}"
+
+
 def send_email_notifica(richiesta: dict, ricerca: dict):
     corpo = f"""
 Nuova richiesta tempo telescopio ricevuta.
@@ -366,7 +411,7 @@ Nuova richiesta tempo telescopio ricevuta.
 Osservatore:      {richiesta['osservatore']}
 Co-osservatori:   {richiesta['co_osservatori'] or '—'}
 Ricerca:          {ricerca['nome']}
-Giorno richiesto: {richiesta['giorno_richiesto']}
+Fascia oraria:    {fascia_leggibile(richiesta)}
 
 Descrizione ricerca:
 {ricerca['descrizione'] or '—'}
@@ -393,7 +438,7 @@ La tua richiesta di tempo telescopio è stata: {esito}
 
 Osservatore:       {richiesta['osservatore']}
 Ricerca:           {richiesta['nome_ricerca']}
-Giorno richiesto:  {richiesta['giorno_richiesto']}
+Fascia oraria:     {fascia_leggibile(richiesta)}
 Note responsabile: {richiesta['note_responsabile'] or '—'}
     """.strip()
 
@@ -467,6 +512,18 @@ def verifica_richiesta(db: sqlite3.Connection, richiesta_id: int) -> None:
         raise HTTPException(status_code=404, detail=RICHIESTA_NON_TROVATA)
 
 
+def gia_approvata_negli_stessi_istanti(db: sqlite3.Connection, richiesta: dict) -> Optional[dict]:
+    """Un'altra richiesta approvata che occupa lo strumento negli stessi
+    istanti. Due programmi possono condividere la notte, non l'istante."""
+    riga = db.execute(
+        f"""{RICHIESTE_COMPLETE}
+            WHERE r.stato = 'approvata' AND r.id != ?
+              AND r.inizio < ? AND ? < r.fine""",
+        (richiesta["id"], richiesta["fine"], richiesta["inizio"]),
+    ).fetchone()
+    return dict(riga) if riga else None
+
+
 def leggi_ricerca(db: sqlite3.Connection, ricerca_id: int) -> dict:
     riga = db.execute("SELECT * FROM ricerche WHERE id = ?", (ricerca_id,)).fetchone()
     if riga is None:
@@ -481,7 +538,7 @@ def lista_richieste(
 ):
     filtro = " WHERE r.stato = ?" if stato else ""
     righe = db.execute(
-        f"{RICHIESTE_COMPLETE}{filtro} ORDER BY r.giorno_richiesto DESC",
+        f"{RICHIESTE_COMPLETE}{filtro} ORDER BY r.inizio DESC",
         [stato] if stato else [],
     ).fetchall()
     return [dict(riga) for riga in righe]
@@ -499,21 +556,22 @@ def invia_richiesta(
     utente: Utente = Depends(utente_registrato),
 ):
     ricerca = leggi_ricerca(db, body.ricerca_id)
-    giorno = body.giorno_richiesto.isoformat()
 
     if db.execute(
         "SELECT 1 FROM richieste WHERE ricerca_id = ? AND giorno_richiesto = ? AND stato != 'rifiutata'",
-        (body.ricerca_id, giorno),
+        (body.ricerca_id, body.notte),
     ).fetchone():
         raise HTTPException(
             status_code=409,
-            detail="Esiste già una richiesta per questa ricerca in quella data.",
+            detail="Esiste già una richiesta per questa ricerca in quella notte.",
         )
 
     cursore = db.execute(
-        """INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
-           VALUES (?, ?, ?, ?)""",
-        (body.ricerca_id, utente.id, body.co_osservatori, giorno),
+        """INSERT INTO richieste
+               (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (body.ricerca_id, utente.id, body.co_osservatori, body.notte,
+         body.inizio.isoformat(), body.fine.isoformat()),
     )
     db.commit()
 
@@ -535,6 +593,16 @@ def aggiorna_stato(
     # Se invece lo stato non cambia (doppio click sul pulsante), non si
     # registra nulla e non si rimanda l'email.
     cambia_stato = body.stato != stato_precedente
+
+    if body.stato == "approvata" and cambia_stato:
+        conflitto = gia_approvata_negli_stessi_istanti(db, richiesta)
+        if conflitto:
+            raise HTTPException(
+                status_code=409,
+                detail=f"La fascia si sovrappone alla richiesta #{conflitto['id']} "
+                       f"({conflitto['nome_ricerca']}, {fascia_leggibile(conflitto)}), "
+                       f"già approvata.",
+            )
 
     # Le note già scritte non vanno perse quando il PATCH non le include.
     note = body.note_responsabile if body.note_responsabile is not None else richiesta["note_responsabile"]
@@ -577,11 +645,15 @@ def calendario(
     mese:  Optional[int] = None,
     db: sqlite3.Connection = Depends(get_db)
 ):
-    """Richieste approvate e in attesa del mese, raggruppate per giorno.
+    """Richieste approvate e in attesa del mese, raggruppate per notte.
 
-    Ogni giorno riporta `stato_giorno` (`libera`, `contesa`, `bloccata`),
-    `approvate` — quante osservazioni condividono la notte — e l'elenco delle
-    richieste. I giorni senza richieste non compaiono.
+    Ogni notte riporta `stato_giorno` (`richiesta`, `contesa`, `bloccata`), i
+    conteggi `approvate` e `in_attesa`, le coppie di richieste le cui fasce si
+    intersecano e l'elenco delle richieste. Le notti libere non compaiono.
+
+    Contesa è la notte in cui due richieste non ancora approvate si disputano
+    gli stessi istanti: due sessioni in turni distinti condividono la notte
+    senza contendersela.
     """
     oggi = datetime.now()
     anno = anno or oggi.year
@@ -590,7 +662,7 @@ def calendario(
 
     righe = db.execute("""
         SELECT r.id, u.nome as osservatore, r.co_osservatori, r.giorno_richiesto,
-               r.stato, r.note_responsabile, r.creata_il,
+               r.inizio, r.fine, r.stato, r.note_responsabile, r.creata_il,
                rc.id as ricerca_id, rc.nome as nome_ricerca,
                rc.descrizione, rc.specifiche
         FROM richieste r
@@ -598,22 +670,38 @@ def calendario(
         JOIN utenti   u  ON u.id  = r.richiedente_id
         WHERE r.giorno_richiesto BETWEEN ? AND ?
           AND r.stato IN ('approvata', 'in_attesa')
-        ORDER BY r.giorno_richiesto, r.stato DESC, r.creata_il
+        ORDER BY r.inizio, r.creata_il
     """, (primo, ultimo)).fetchall()
 
+    richieste = [dict(riga) for riga in righe]
     giorni: dict = {}
-    for riga in righe:
-        richiesta = dict(riga)
-        giorno = giorni.setdefault(
-            richiesta.pop("giorno_richiesto"),
-            {"stato_giorno": "libera", "approvate": 0, "richieste": []},
+    for richiesta in richieste:
+        notte = giorni.setdefault(
+            richiesta["giorno_richiesto"],
+            {"stato_giorno": "richiesta", "approvate": 0, "in_attesa": 0,
+             "sovrapposizioni": [], "richieste": []},
         )
-        giorno["richieste"].append(richiesta)
-        if richiesta["stato"] == "approvata":
-            giorno["approvate"] += 1
-            giorno["stato_giorno"] = "bloccata"
-        elif giorno["stato_giorno"] == "libera":
-            giorno["stato_giorno"] = "contesa"
+        notte["richieste"].append(richiesta)
+        notte["approvate" if richiesta["stato"] == "approvata" else "in_attesa"] += 1
+
+    # Le richieste sono ordinate per `inizio`: appena una comincia dopo la fine
+    # di `a`, tutte quelle che seguono fanno lo stesso e il confronto si ferma.
+    contese = set()
+    for posizione, a in enumerate(richieste):
+        for b in richieste[posizione + 1:]:
+            if b["inizio"] >= a["fine"]:
+                break
+            notti = {a["giorno_richiesto"], b["giorno_richiesto"]}
+            for chiave in notti:
+                giorni[chiave]["sovrapposizioni"].append([a["id"], b["id"]])
+            if a["stato"] == b["stato"] == "in_attesa":
+                contese |= notti
+
+    for chiave, notte in giorni.items():
+        if notte["approvate"]:
+            notte["stato_giorno"] = "bloccata"
+        elif chiave in contese:
+            notte["stato_giorno"] = "contesa"
 
     return {"anno": anno, "mese": mese, "giorni": giorni}
 

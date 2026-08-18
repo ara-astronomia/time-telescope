@@ -1,7 +1,7 @@
 """L'identità arriva dagli header che Nginx riceve da Authelia; in sviluppo
 AUTH_MODE=dev li sintetizza."""
 
-from conftest import RESPONSABILE, SOCIO
+from conftest import RESPONSABILE, SOCIO, corpo_richiesta
 
 
 # ─── Modalità forward-auth (produzione) ───────────────────────────────────────
@@ -20,7 +20,7 @@ def test_socio_non_puo_approvare(client_authelia):
     client_authelia.post("/telescope-time/ricerche", json={"nome": "Supernovae"}, headers=RESPONSABILE)
     client_authelia.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": 1, "osservatore": "Mario", "giorno_richiesto": "2026-09-12"},
+        json=corpo_richiesta(osservatore="Mario"),
         headers=SOCIO,
     )
     res = client_authelia.patch(
@@ -34,7 +34,7 @@ def test_responsabile_puo_approvare(client_authelia):
     client_authelia.post("/telescope-time/ricerche", json={"nome": "Supernovae"}, headers=RESPONSABILE)
     client_authelia.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": 1, "osservatore": "Mario", "giorno_richiesto": "2026-09-12"},
+        json=corpo_richiesta(osservatore="Mario"),
         headers=SOCIO,
     )
     res = client_authelia.patch(
@@ -82,7 +82,7 @@ def test_dev_gli_header_espliciti_vincono(client):
 def test_dev_utente_forzato_senza_gruppo_riceve_403(client, ricerca):
     client.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": ricerca["id"], "osservatore": "Mario", "giorno_richiesto": "2026-09-12"},
+        json=corpo_richiesta(ricerca["id"], osservatore="Mario"),
     )
     res = client.patch("/telescope-time/richieste/1", json={"stato": "approvata"}, headers=SOCIO)
     assert res.status_code == 403

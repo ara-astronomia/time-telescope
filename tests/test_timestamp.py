@@ -27,39 +27,40 @@ def test_creata_il_di_una_ricerca(client):
     assert vicino_a_adesso(ricerca["creata_il"])
 
 
-def test_creata_il_di_una_richiesta(client, ricerca):
-    richiesta = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+def test_creata_il_di_una_richiesta(client, ricerca, giorno):
+    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
     assert richiesta["creata_il"].endswith("Z")
     assert vicino_a_adesso(richiesta["creata_il"])
 
 
-def test_aggiornata_il_dopo_una_decisione(client, ricerca):
-    richiesta = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+def test_aggiornata_il_dopo_una_decisione(client, ricerca, giorno):
+    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
     aggiornata = approva(client, richiesta["id"]).json()["aggiornata_il"]
     assert aggiornata.endswith("Z")
     assert vicino_a_adesso(aggiornata)
 
 
-def test_deciso_il_nello_storico(client, ricerca):
-    richiesta = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
+def test_deciso_il_nello_storico(client, ricerca, giorno):
+    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
     approva(client, richiesta["id"])
     voce = client.get(f"/telescope-time/richieste/{richiesta['id']}/storico").json()[0]
     assert voce["deciso_il"].endswith("Z")
     assert vicino_a_adesso(voce["deciso_il"])
 
 
-def test_creata_il_nel_calendario(client, ricerca):
-    crea_richiesta(client, ricerca["id"], "2026-09-12")
-    giorno = client.get(
-        "/telescope-time/calendario", params={"anno": 2026, "mese": 9}
-    ).json()["giorni"]["2026-09-12"]
-    assert giorno["richieste"][0]["creata_il"].endswith("Z")
+def test_creata_il_nel_calendario(client, ricerca, giorno):
+    crea_richiesta(client, ricerca["id"], giorno)
+    notte = client.get(
+        "/telescope-time/calendario",
+        params={"anno": giorno.year, "mese": giorno.month},
+    ).json()["giorni"][giorno.isoformat()]
+    assert notte["richieste"][0]["creata_il"].endswith("Z")
 
 
-def test_ordinamento_per_data_di_creazione_resta_coerente(client, ricerca):
+def test_ordinamento_per_data_di_creazione_resta_coerente(client, ricerca, giorno, altro_giorno):
     """Il formato cambia: l'ordinamento lessicografico usato dalle query deve
     continuare a coincidere con quello cronologico."""
-    prima = crea_richiesta(client, ricerca["id"], "2026-09-12").json()
-    seconda = crea_richiesta(client, ricerca["id"], "2026-09-13").json()
+    prima = crea_richiesta(client, ricerca["id"], giorno).json()
+    seconda = crea_richiesta(client, ricerca["id"], altro_giorno).json()
     assert prima["creata_il"] <= seconda["creata_il"]
     assert parsa(prima["creata_il"]) <= parsa(seconda["creata_il"])

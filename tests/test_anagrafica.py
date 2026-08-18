@@ -6,7 +6,7 @@ aprire una richiesta. Il nome e l'email non si digitano più.
 
 import sqlite3
 
-from conftest import RESPONSABILE, SOCIO
+from conftest import RESPONSABILE, SOCIO, corpo_richiesta, notte
 
 
 def utenti(client):
@@ -20,10 +20,10 @@ def utenti(client):
         conn.close()
 
 
-def crea_richiesta_come(client, headers, giorno="2026-09-12", ricerca_id=1):
+def crea_richiesta_come(client, headers, giorno=None, ricerca_id=1):
     return client.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": ricerca_id, "giorno_richiesto": giorno},
+        json=corpo_richiesta(ricerca_id, giorno),
         headers=headers,
     )
 
@@ -103,8 +103,7 @@ def test_osservatore_nel_body_viene_ignorato(client_authelia, ricerca_authelia):
     """Anche se il campo viene inviato, l'identità resta quella verificata."""
     res = client_authelia.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": 1, "giorno_richiesto": "2026-09-12",
-              "osservatore": "Qualcun Altro"},
+        json=corpo_richiesta(osservatore="Qualcun Altro"),
         headers=SOCIO,
     )
     assert res.status_code == 201
@@ -147,7 +146,7 @@ def test_senza_email_l_esito_va_al_responsabile(client_authelia, ricerca_autheli
 
     senza_email = {"Remote-User": "ospite", "Remote-Groups": "soci"}
     client_authelia.post("/telescope-time/richieste",
-                         json={"ricerca_id": 1, "giorno_richiesto": "2026-09-14"},
+                         json=corpo_richiesta(giorno=notte(32)),
                          headers=senza_email)
     inviate.clear()
     client_authelia.patch("/telescope-time/richieste/1", json={"stato": "approvata"},
@@ -177,7 +176,7 @@ def test_senza_display_name_resta_lo_username(client_authelia):
 def test_la_richiesta_mostra_il_nome_vero(client_authelia, ricerca_authelia):
     res = client_authelia.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": 1, "giorno_richiesto": "2026-09-12"},
+        json=corpo_richiesta(),
         headers=RESPONSABILE_CON_NOME,
     )
     assert res.json()["osservatore"] == "Anna Rossi"
