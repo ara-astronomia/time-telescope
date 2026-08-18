@@ -246,3 +246,244 @@ def test_il_conflitto_di_fascia_blocca_lo_spostamento(page, app_url):
 
     testo = page.inner_text("#toast")
     assert f"#{occupata['id']}" in testo, testo
+
+
+# ─── Cambiare una decisione già presa (#45) ───────────────────────────────────
+
+def decisa(page, app_url, nome, giorni_avanti, stato, ora=21):
+    giorno = date.today() + timedelta(days=giorni_avanti)
+    richiesta = crea_con_fascia(page, app_url, nome, giorno, ora=ora, durata=2)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}", data={"stato": stato}
+    )
+    return richiesta
+
+
+def stato_di(page, app_url, richiesta_id):
+    return page.request.get(
+        f"{app_url}/telescope-time/richieste/{richiesta_id}"
+    ).json()["stato"]
+
+
+def test_una_approvata_si_puo_rifiutare(page, app_url):
+    richiesta = decisa(page, app_url, "Ribalta A", 50, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+
+    assert stato_di(page, app_url, richiesta["id"]) == "rifiutata"
+
+
+def test_una_rifiutata_si_puo_approvare(page, app_url):
+    richiesta = decisa(page, app_url, "Ribalta B", 51, "rifiutata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-approve")
+    page.wait_for_selector("#toast.show")
+
+    assert stato_di(page, app_url, richiesta["id"]) == "approvata"
+
+
+def test_il_comando_che_non_cambia_nulla_non_compare(page, app_url):
+    """Riapprovare una approvata il server lo tratta già come un non-evento:
+    mostrarlo suggerirebbe un'azione che non fa niente."""
+    approvata = decisa(page, app_url, "Ribalta C", 52, "approvata")
+    rifiutata = decisa(page, app_url, "Ribalta D", 53, "rifiutata")
+
+    apri_card(page, app_url, approvata["id"])
+    assert page.locator(f"#card-{approvata['id']} .btn-approve").count() == 0
+    assert page.locator(f"#card-{approvata['id']} .btn-reject").count() == 1
+
+    apri_card(page, app_url, rifiutata["id"])
+    assert page.locator(f"#card-{rifiutata['id']} .btn-reject").count() == 0
+    assert page.locator(f"#card-{rifiutata['id']} .btn-approve").count() == 1
+
+
+def test_una_in_attesa_ha_entrambi_i_comandi(page, app_url):
+    giorno = date.today() + timedelta(days=54)
+    richiesta = crea_con_fascia(page, app_url, "Ribalta E", giorno, ora=21, durata=2)
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.locator(f"#card-{richiesta['id']} .btn-approve").count() == 1
+    assert page.locator(f"#card-{richiesta['id']} .btn-reject").count() == 1
+
+
+def test_ribaltare_avverte_che_l_esito_e_gia_stato_comunicato(page, app_url):
+    """Non è la stessa cosa di una prima decisione: l'osservatore ha già
+    ricevuto un esito e ne riceverà un secondo."""
+    richiesta = decisa(page, app_url, "Ribalta F", 55, "approvata")
+
+    messaggi = []
+    page.on("dialog", lambda d: (messaggi.append(d.message), d.dismiss()))
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_timeout(400)
+
+    assert messaggi, "nessuna conferma chiesta"
+    testo = messaggi[0].lower()
+    assert "email" in testo, messaggi[0]
+    assert "approvazione" in testo or "già" in testo, messaggi[0]
+
+
+def test_le_note_restano_scrivibili_su_una_decisa(page, app_url):
+    richiesta = decisa(page, app_url, "Ribalta G", 56, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.fill(f"#note-{richiesta['id']}", "Previsioni peggiorate")
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+
+    note = page.request.get(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}"
+    ).json()["note_responsabile"]
+    assert note == "Previsioni peggiorate"
+
+
+# ─── Lo storico diventa visibile ──────────────────────────────────────────────
+
+def test_lo_storico_e_mostrato_nel_dettaglio(page, app_url):
+    """Senza, un ribaltamento è indistinguibile da una decisione presa una
+    volta sola — ed è proprio ciò che giustifica il permetterlo."""
+    richiesta = decisa(page, app_url, "Storico A", 57, "approvata")
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "rifiutata", "note_responsabile": "Meteo peggiorato"},
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+    page.wait_for_selector(f"#storico-{richiesta['id']} .voce")
+
+    testo = page.inner_text(f"#storico-{richiesta['id']}")
+    assert "approvata" in testo.lower()
+    assert "rifiutata" in testo.lower()
+    assert "Meteo peggiorato" in testo
+
+
+def test_lo_storico_mostra_anche_gli_spostamenti(page, app_url):
+    giorno = date.today() + timedelta(days=58)
+    richiesta = crea_con_fascia(page, app_url, "Storico B", giorno, ora=21, durata=2)
+    nuovo = datetime.combine(giorno + timedelta(days=1), time(23))
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}/orario",
+        data={"inizio": nuovo.isoformat(),
+              "fine": (nuovo + timedelta(hours=3)).isoformat(),
+              "motivo": "Manutenzione"},
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+    page.wait_for_selector(f"#storico-{richiesta['id']} .voce")
+
+    testo = page.inner_text(f"#storico-{richiesta['id']}")
+    assert "23:00" in testo, testo
+    assert "Manutenzione" in testo
+
+
+def test_una_richiesta_mai_decisa_dichiara_lo_storico_vuoto(page, app_url):
+    giorno = date.today() + timedelta(days=59)
+    richiesta = crea_con_fascia(page, app_url, "Storico C", giorno, ora=21, durata=2)
+
+    apri_card(page, app_url, richiesta["id"])
+    page.wait_for_selector(f"#storico-{richiesta['id']}")
+
+    assert page.locator(f"#storico-{richiesta['id']} .voce").count() == 0
+    assert page.inner_text(f"#storico-{richiesta['id']}").strip() != ""
+
+
+def test_svuotare_le_note_le_cancella(page, app_url):
+    """Il campo si apre precompilato: se svuotarlo non cancellasse nulla,
+    sembrerebbe modificabile senza esserlo."""
+    richiesta = decisa(page, app_url, "Note A", 60, "approvata")
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "approvata", "note_responsabile": "Da cancellare"},
+    )
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.fill(f"#note-{richiesta['id']}", "")
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+
+    note = page.request.get(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}"
+    ).json()["note_responsabile"]
+    assert not note, f"le note non sono state cancellate: {note!r}"
+
+
+def test_le_note_esistenti_compaiono_nel_campo(page, app_url):
+    richiesta = decisa(page, app_url, "Note B", 61, "approvata")
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "approvata", "note_responsabile": "Meteo stabile"},
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.input_value(f"#note-{richiesta['id']}") == "Meteo stabile"
+
+
+# ─── Il dettaglio non si richiude sotto le mani ───────────────────────────────
+
+def aperta(page, richiesta_id):
+    return "open" in (page.locator(f"#detail-{richiesta_id}").get_attribute("class") or "")
+
+
+def test_la_card_resta_aperta_dopo_una_decisione(page, app_url):
+    """Ricostruire la lista chiudeva la card su cui si stava lavorando: con due
+    o tre azioni di fila sulla stessa richiesta, si riapre ogni volta."""
+    richiesta = decisa(page, app_url, "Aperta A", 62, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert aperta(page, richiesta["id"])
+
+
+def test_lo_storico_si_aggiorna_senza_riaprire(page, app_url):
+    richiesta = decisa(page, app_url, "Aperta B", 63, "approvata")
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    page.click(f"#card-{richiesta['id']} .btn-reject")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_function(
+        f"document.querySelectorAll('#storico-{richiesta['id']} .voce').length === 2"
+    )
+
+    assert "rifiutata" in page.inner_text(f"#storico-{richiesta['id']}")
+
+
+def test_la_card_resta_aperta_dopo_uno_spostamento(page, app_url):
+    giorno = date.today() + timedelta(days=64)
+    richiesta = crea_con_fascia(page, app_url, "Aperta C", giorno, ora=21, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=1))
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert aperta(page, richiesta["id"])
+
+
+def test_le_card_chiuse_restano_chiuse(page, app_url):
+    giorno = date.today() + timedelta(days=65)
+    aperta_ = crea_con_fascia(page, app_url, "Aperta D", giorno, ora=21, durata=2)
+    chiusa = crea_con_fascia(page, app_url, "Aperta E", giorno, ora=23, durata=2)
+
+    page.on("dialog", lambda d: d.accept())
+    apri_card(page, app_url, aperta_["id"])
+    page.click(f"#card-{aperta_['id']} .btn-approve")
+    page.wait_for_selector("#toast.show")
+    page.wait_for_timeout(400)
+
+    assert not aperta(page, chiusa["id"])

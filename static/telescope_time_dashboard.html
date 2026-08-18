@@ -277,6 +277,20 @@
     transition: opacity 0.2s, transform 0.15s;
     height: 38px;
   }
+  .storico-box {
+    margin-top: 0.8rem; padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+  .storico { font-family: var(--mono); font-size: 0.72rem; margin-top: 0.4rem; }
+  .storico .voce {
+    display: flex; gap: 0.6rem; flex-wrap: wrap;
+    padding: 0.3rem 0; color: var(--text-mid);
+  }
+  .storico .quando { color: var(--text-dim); min-width: 130px; }
+  .storico .chi    { color: var(--accent); }
+  .storico .nota   { color: var(--text-dim); font-style: italic; }
+  .storico .vuoto  { color: var(--text-dim); padding: 0.3rem 0; }
+
   .sposta-area {
     display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap;
     margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
@@ -465,6 +479,9 @@ function setFilter(btn) {
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
+  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: senza
+  // questo, la card su cui si sta lavorando si richiude sotto le mani.
+  const aperti = dettagliAperti();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'tutte'
     ? allRichieste
@@ -481,11 +498,17 @@ function renderList() {
     // stringa, così il fuso del browser non la sposta. La sola data passa da
     // Date perché va scritta per esteso in italiano.
     const data = new Date(r.inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const fascia = `${r.inizio.slice(11,16)} → ${r.fine.slice(11,16)}`
-                 + (r.inizio.slice(0,10) === r.fine.slice(0,10) ? '' : ' (+1g)');
+
     const dataCreazione = new Date(r.creata_il).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    const isAttesa = r.stato === 'in_attesa';
+    // Il comando che riporterebbe allo stato corrente non compare: il server
+    // lo tratta già come un non-evento, mostrarlo suggerirebbe un'azione che
+    // non fa niente. Una decisione si ribalta, non si ripete.
+    const comandi = {
+      in_attesa: [['approvata', '✓ Approva'], ['rifiutata', '✗ Rifiuta']],
+      approvata: [['rifiutata', '↺ Ribalta: rifiuta']],
+      rifiutata: [['approvata', '↺ Ribalta: approva']],
+    }[r.stato];
     const statoLabel = { in_attesa: 'IN ATTESA', approvata: 'APPROVATA', rifiutata: 'RIFIUTATA' }[r.stato];
 
     return `
@@ -496,7 +519,7 @@ function renderList() {
           <div class="rc-meta">
             <span>👤 ${escHtml(r.osservatore)}</span>
             <span>📅 ${data}</span>
-            <span>🔭 ${fascia}</span>
+            <span>🔭 ${fascia(r.inizio, r.fine)}</span>
             <span>🕐 ${dataCreazione}</span>
             ${r.co_osservatori ? `<span>👥 ${escHtml(r.co_osservatori)}</span>` : ''}
           </div>
@@ -536,12 +559,17 @@ function renderList() {
           </div>` : ''}
         </div>
 
-        ${isAttesa ? `
+        <div class="storico-box">
+          <div class="dl">STORICO</div>
+          <div class="storico" id="storico-${r.id}"></div>
+        </div>
+
         <div class="action-area">
-          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…"></textarea>
-          <button class="btn-approve" onclick="aggiornaStato(${r.id}, 'approvata')">✓ Approva</button>
-          <button class="btn-reject"  onclick="aggiornaStato(${r.id}, 'rifiutata')">✗ Rifiuta</button>
-        </div>` : ''}
+          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.note_responsabile)}</textarea>
+          ${comandi.map(([stato, etichetta]) => `
+          <button class="${stato === 'approvata' ? 'btn-approve' : 'btn-reject'}"
+                  onclick="aggiornaStato(${r.id}, '${stato}', '${r.stato}')">${etichetta}</button>`).join('')}
+        </div>
 
         <div class="sposta-area">
           <div class="sposta-campo">
@@ -559,28 +587,80 @@ function renderList() {
     </div>
     `;
   }).join('');
+
+  aperti.forEach(id => {
+    // Una richiesta può essere uscita dal filtro attivo proprio per l'azione
+    // appena fatta: in quel caso non c'è più nulla da riaprire.
+    if (document.getElementById(`detail-${id}`)) mostraDettaglio(id, true);
+  });
 }
 
 function toggleDetail(id) {
-  const detail  = document.getElementById(`detail-${id}`);
-  const chevron = document.getElementById(`chevron-${id}`);
-  const isOpen  = detail.classList.toggle('open');
-  chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+  const aperto = document.getElementById(`detail-${id}`).classList.contains('open');
+  mostraDettaglio(id, !aperto);
+}
+
+function mostraDettaglio(id, apri) {
+  document.getElementById(`detail-${id}`).classList.toggle('open', apri);
+  document.getElementById(`chevron-${id}`).style.transform = apri ? 'rotate(180deg)' : '';
+  // Ricaricato a ogni apertura: dopo una decisione o uno spostamento la
+  // cronologia è cambiata. Solo per le richieste che si aprono davvero —
+  // caricarlo in lista significherebbe una chiamata per riga.
+  if (apri) caricaStorico(id);
+}
+
+function dettagliAperti() {
+  return [...document.querySelectorAll('.rc-detail.open')]
+    .map(d => d.id.slice('detail-'.length));
+}
+
+async function caricaStorico(id) {
+  const box = document.getElementById(`storico-${id}`);
+  try {
+    const voci = await (await fetch(`${API_BASE}/richieste/${id}/storico`)).json();
+    box.innerHTML = voci.length
+      ? voci.map(voceStorico).join('')
+      : '<div class="vuoto">Nessuna decisione presa finora.</div>';
+  } catch(e) {
+    box.innerHTML = '<div class="vuoto">Storico non disponibile.</div>';
+  }
+}
+
+function voceStorico(v) {
+  const quando = new Date(v.deciso_il).toLocaleString('it-IT',
+    { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const cosa = v.tipo === 'spostamento'
+    ? `spostata da ${fascia(v.inizio_precedente, v.fine_precedente)}`
+      + ` a ${fascia(v.inizio_nuovo, v.fine_nuovo)}`
+    : `${v.stato_precedente} → ${v.stato_nuovo}`;
+  return `<div class="voce">
+    <span class="quando">${quando}</span>
+    <span>${escHtml(cosa)}</span>
+    <span class="chi">${escHtml(v.deciso_da || '—')}</span>
+    ${v.note ? `<span class="nota">${escHtml(v.note)}</span>` : ''}
+  </div>`;
 }
 
 // ─── Approva / Rifiuta ────────────────────────────────────────────────────────
-async function aggiornaStato(id, stato) {
-  const noteEl = document.getElementById(`note-${id}`);
-  const note   = noteEl ? noteEl.value.trim() : null;
+async function aggiornaStato(id, stato, statoAttuale) {
+  // Il campo si apre già compilato con le note esistenti, quindi il suo
+  // contenuto è la volontà dell'utente — stringa vuota compresa. Inviare
+  // `null` al posto del vuoto direbbe al server "non toccarle", e svuotarle
+  // diventerebbe impossibile.
+  const note = document.getElementById(`note-${id}`).value.trim();
 
   const label = stato === 'approvata' ? 'approvare' : 'rifiutare';
-  if (!confirm(`Vuoi ${label} questa richiesta?`)) return;
+  const deciso = statoAttuale === 'in_attesa'
+    ? `Vuoi ${label} questa richiesta?`
+    : `Stai annullando una decisione già comunicata all'osservatore, che riceverà`
+      + ` una seconda email.\n\nVuoi ${label} questa richiesta?`;
+  if (!confirm(deciso)) return;
 
   try {
     const res = await fetch(`${API_BASE}/richieste/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stato, note_responsabile: note || null })
+      body: JSON.stringify({ stato, note_responsabile: note })
     });
     if (res.status === 409) {
       // Sovrapposizione di fascia: il messaggio nomina la richiesta in
@@ -597,6 +677,13 @@ async function aggiornaStato(id, stato) {
   } catch(e) {
     showToast('Errore durante l\'aggiornamento.', 'error');
   }
+}
+
+// `inizio` e `fine` sono ora locale dell'osservatorio: le ore si leggono come
+// stringa, così il fuso del browser non le sposta.
+function fascia(inizio, fine) {
+  return `${inizio.slice(11,16)} → ${fine.slice(11,16)}`
+       + (inizio.slice(0,10) === fine.slice(0,10) ? '' : ' (+1g)');
 }
 
 // ─── Sposta data e orari ──────────────────────────────────────────────────────
