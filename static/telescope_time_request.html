@@ -475,8 +475,15 @@
       <div class="section-label"><span>03</span> Sessione Richiesta</div>
 
       <div class="field">
-        <label>Data Richiesta <span class="req">*</span></label>
-        <input type="date" id="giorno_richiesto" required>
+        <label>Inizio Osservazione <span class="req">*</span></label>
+        <input type="datetime-local" id="inizio" required>
+      </div>
+
+      <div class="field">
+        <label>Fine Osservazione <span class="req">*</span>
+          <small style="color:var(--text-dim)">(può cadere dopo la mezzanotte)</small>
+        </label>
+        <input type="datetime-local" id="fine" required>
       </div>
     </div>
 
@@ -626,13 +633,13 @@ async function salvaRicerca() {
 
 // ─── Invia richiesta ──────────────────────────────────────────────────────────
 async function inviaRichiesta() {
-  const ricercaId      = document.getElementById('ricerca_id').value;
-  const giornoRichiesto = document.getElementById('giorno_richiesto').value;
+  const ricercaId = document.getElementById('ricerca_id').value;
 
-  // Validazione nativa del browser: copre campi vuoti, formato della data e
-  // il vincolo `min` (nessuna data nel passato). L'invio avviene via fetch,
-  // quindi va invocata a mano: senza, `min` e `required` sono decorativi.
-  for (const id of ['ricerca_id', 'giorno_richiesto']) {
+  // Validazione nativa del browser: copre campi vuoti, formato degli orari e
+  // i vincoli `min` (niente nel passato, fine dopo inizio). L'invio avviene
+  // via fetch, quindi va invocata a mano: senza, `min` e `required` sono
+  // decorativi.
+  for (const id of ['ricerca_id', 'inizio', 'fine']) {
     const campo = document.getElementById(id);
     if (!campo.reportValidity()) return;
   }
@@ -646,20 +653,22 @@ async function inviaRichiesta() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ricerca_id:       parseInt(ricercaId),
-        co_osservatori:  coHidden.value || null,
-        giorno_richiesto: giornoRichiesto
+        ricerca_id:     parseInt(ricercaId),
+        co_osservatori: coHidden.value || null,
+        inizio:         document.getElementById('inizio').value,
+        fine:           document.getElementById('fine').value
       })
     });
 
     if (res.status === 409) {
-      showToast('Esiste già una richiesta per questa ricerca in quella data.', 'error');
+      showToast('Esiste già una richiesta per questa ricerca in quella notte.', 'error');
       return;
     }
     if (res.status === 422) {
       // Il server ha rifiutato un campo: mostrarlo invece di un errore generico.
       const dettaglio = (await res.json()).detail?.[0];
-      const campo = dettaglio?.loc?.slice(-1)[0] === 'giorno_richiesto' ? 'la data' : 'i dati inseriti';
+      const etichette = { inizio: "l'orario di inizio", fine: "l'orario di fine" };
+      const campo = etichette[dettaglio?.loc?.slice(-1)[0]] || 'i dati inseriti';
       showToast(`Il server ha rifiutato ${campo}: controlla e riprova.`, 'error');
       return;
     }
@@ -678,7 +687,8 @@ async function inviaRichiesta() {
 
 function resetForm() {
   document.getElementById('ricerca_id').value = '';
-  document.getElementById('giorno_richiesto').value = '';
+  document.getElementById('inizio').value = '';
+  document.getElementById('fine').value = '';
   coOsservatori = [];
   renderChips();
 }
@@ -699,8 +709,28 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
-// ─── Data minima = oggi ───────────────────────────────────────────────────────
-document.getElementById('giorno_richiesto').min = new Date().toISOString().split('T')[0];
+// ─── Vincoli sulla fascia oraria ──────────────────────────────────────────────
+// `datetime-local` parla in ora locale: toISOString() è UTC e sfaserebbe il
+// vincolo di un'ora in inverno e due in estate.
+function localeIso(momento) {
+  momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
+  return momento.toISOString().slice(0, 16);
+}
+
+const campoInizio = document.getElementById('inizio');
+const campoFine   = document.getElementById('fine');
+
+campoInizio.min = localeIso(new Date());
+campoInizio.addEventListener('input', () => {
+  // Il vincolo della fine è relativo all'inizio: nessun attributo statico può
+  // esprimerlo, va riscritto a ogni cambiamento.
+  campoFine.min = campoInizio.value;
+  if (campoInizio.value && !campoFine.value) {
+    const fine = new Date(campoInizio.value);
+    fine.setHours(fine.getHours() + 3);
+    campoFine.value = localeIso(fine);
+  }
+});
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 caricaUtente();

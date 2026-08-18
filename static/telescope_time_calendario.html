@@ -22,6 +22,10 @@
     --green-lo:    rgba(45,206,137,0.13);
     --green-gl:    rgba(45,206,137,0.05);
 
+    --cyan:        #22d3ee;
+    --cyan-lo:     rgba(34,211,238,0.13);
+    --cyan-gl:     rgba(34,211,238,0.05);
+
     --amber:       #ffc107;
     --amber-lo:    rgba(255,193,7,0.13);
     --amber-gl:    rgba(255,193,7,0.05);
@@ -139,9 +143,10 @@
   .leg-dot {
     width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
   }
-  .leg-dot.libera   { background: var(--border-hi); }
-  .leg-dot.contesa  { background: var(--amber); }
-  .leg-dot.bloccata { background: var(--red); }
+  .leg-dot.libera    { background: var(--border-hi); }
+  .leg-dot.richiesta { background: var(--cyan); }
+  .leg-dot.contesa   { background: var(--amber); }
+  .leg-dot.bloccata  { background: var(--red); }
   .leg-dot.approv   { background: var(--green); }
 
   /* ── Griglia calendario ──────────────────────────────────────────────────── */
@@ -184,6 +189,11 @@
     border-color: rgba(255,77,109,.3);
     cursor: pointer;
   }
+  .day-cell.richiesta {
+    background: var(--cyan-gl);
+    border-color: rgba(34,211,238,.28);
+    cursor: pointer;
+  }
   .day-cell.contesa {
     background: rgba(255,193,7,.06);
     border-color: rgba(255,193,7,.28);
@@ -192,6 +202,7 @@
   .day-cell.has-richieste { cursor: pointer; }
   .day-cell.has-richieste:hover,
   .day-cell.bloccata:hover,
+  .day-cell.richiesta:hover,
   .day-cell.contesa:hover {
     border-color: var(--border-hi);
     transform: translateY(-2px);
@@ -264,6 +275,12 @@
   }
   .dp-stato.bloccata { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
   .dp-stato.contesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+  .dp-stato.richiesta { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
+
+  .dp-conflitto {
+    margin-top: .5rem; font-family: var(--mono); font-size: .68rem;
+    color: var(--amber);
+  }
 
   .dp-close {
     background: none; border: none; color: var(--text-dim);
@@ -362,7 +379,8 @@
   <!-- Legenda -->
   <div class="legenda">
     <div class="leg-item"><div class="leg-dot libera"></div>Libera</div>
-    <div class="leg-item"><div class="leg-dot contesa"></div>In attesa (contesa)</div>
+    <div class="leg-item"><div class="leg-dot richiesta"></div>Richiesta (in attesa)</div>
+    <div class="leg-item"><div class="leg-dot contesa"></div>Contesa (fasce sovrapposte)</div>
     <div class="leg-item"><div class="leg-dot bloccata"></div>Bloccata (approvata)</div>
     <div class="leg-item"><div class="leg-dot approv"></div>Sessione approvata</div>
   </div>
@@ -401,7 +419,7 @@ let oggi = new Date();
 let annoCorrente = oggi.getFullYear();
 let meseCorrente = oggi.getMonth() + 1; // 1-based
 
-let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, approvate, richieste[] } }
+let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, approvate, in_attesa, sovrapposizioni[], richieste[] } }
 
 // ─── Navigazione ─────────────────────────────────────────────────────────────
 function cambioMese(delta) {
@@ -492,7 +510,7 @@ function renderCalendario() {
       const visibili = richieste.slice(0, 3);
       visibili.forEach(r => {
         const nome = escHtml(r.osservatore.split(' ')[0]); // solo nome
-        html += `<div class="pill ${r.stato}">${nome} · ${escHtml(r.nome_ricerca)}</div>`;
+        html += `<div class="pill ${r.stato}">${ora(r.inizio)} ${nome} · ${escHtml(r.nome_ricerca)}</div>`;
       });
       if (richieste.length > 3) {
         html += `<div class="pill more">+${richieste.length - 3} altre</div>`;
@@ -503,7 +521,7 @@ function renderCalendario() {
     cell.innerHTML = html;
 
     if (richieste.length) {
-      cell.addEventListener('click', () => apriDettaglio(dataStr, stato, richieste));
+      cell.addEventListener('click', () => apriDettaglio(dataStr, stato, info));
     }
 
     grid.appendChild(cell);
@@ -511,14 +529,34 @@ function renderCalendario() {
 }
 
 // ─── Dettaglio giorno ─────────────────────────────────────────────────────────
-function apriDettaglio(dataStr, stato, richieste) {
+// Gli istanti sono già in ora locale dell'osservatorio: leggerli come stringa
+// evita che il fuso del browser li sposti.
+function ora(istante) {
+  return istante.slice(11, 16);
+}
+
+function fascia(r) {
+  const stessaNotte = r.inizio.slice(0, 10) === r.fine.slice(0, 10);
+  return `${ora(r.inizio)} → ${ora(r.fine)}${stessaNotte ? '' : ' (+1g)'}`;
+}
+
+function apriDettaglio(dataStr, stato, info) {
+  const richieste = info.richieste;
+  // Chi si sovrappone a chi: al responsabile non basta sapere che c'è un
+  // conflitto, deve sapere fra quali richieste per decidere cosa spostare.
+  const conflitti = {};
+  (info.sovrapposizioni || []).forEach(([a, b]) => {
+    (conflitti[a] = conflitti[a] || []).push(b);
+    (conflitti[b] = conflitti[b] || []).push(a);
+  });
+
   const [a, m, g] = dataStr.split('-');
   const dataLabel = `${parseInt(g)} ${MESI_IT[parseInt(m)-1]} ${a}`;
 
   document.getElementById('dp-date').textContent = dataLabel;
 
   const statoEl = document.getElementById('dp-stato');
-  const statoLabels = { bloccata: 'BLOCCATA', contesa: 'CONTESA', libera: '' };
+  const statoLabels = { bloccata: 'BLOCCATA', contesa: 'CONTESA', richiesta: 'RICHIESTA', libera: '' };
   statoEl.textContent = statoLabels[stato] || '';
   statoEl.className = `dp-stato ${stato}`;
 
@@ -536,11 +574,13 @@ function apriDettaglio(dataStr, stato, richieste) {
         <span class="dp-stato-small ${r.stato}">${r.stato === 'approvata' ? 'APPROVATA' : 'IN ATTESA'}</span>
       </div>
       <div class="dp-r-meta">
+        <span><span class="lk">Fascia</span>${fascia(r)}</span>
         <span><span class="lk">Osservatore</span>${escHtml(r.osservatore)}</span>
         ${r.co_osservatori ? `<span><span class="lk">Co-osservatori</span>${escHtml(r.co_osservatori)}</span>` : ''}
         ${r.note_responsabile ? `<span><span class="lk">Note</span>${escHtml(r.note_responsabile)}</span>` : ''}
       </div>
       ${r.descrizione ? `<div class="dp-r-descrizione">${escHtml(r.descrizione)}</div>` : ''}
+      ${conflitti[r.id] ? `<div class="dp-conflitto">⚠ Si sovrappone a ${conflitti[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
     </div>
   `).join('');
 

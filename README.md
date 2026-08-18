@@ -125,8 +125,15 @@ docker compose up -d --build
 # Log
 docker compose logs -f
 
-# Ispezione DB
-docker compose exec telescope_time sqlite3 /data/telescope_time.db
+# Ispezione DB — l'immagine non contiene sqlite3, si passa da Python
+docker compose exec telescope_time python -c \
+  "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
+   print(d.execute('SELECT id, giorno_richiesto, inizio, fine, stato FROM richieste').fetchall())"
+
+# Dati di esempio
+docker compose exec -T telescope_time python -c \
+  "import sqlite3,sys; d=sqlite3.connect('/data/telescope_time.db'); \
+   d.executescript(sys.stdin.read()); d.commit()" < seed.sql
 ```
 
 Il database è persistente nel volume Docker `telescope_db`.
@@ -157,6 +164,7 @@ con gli altri servizi *.ara.roma.it.
 | SMTP_PASSWORD        |                                | Password SMTP           |
 | EMAIL_FROM           | crac@osservatorio.it           | Mittente email          |
 | EMAIL_RESPONSABILE   | responsabile@osservatorio.it   | Destinatario notifiche  |
+| TZ                   | (fuso del sistema)             | Fuso dell'osservatorio: le fasce orarie sono ora locale |
 | AUTH_MODE            | forward-auth                   | `forward-auth` o `dev`  |
 | DEV_USER             | sviluppo                       | Utente simulato (solo AUTH_MODE=dev) |
 | DEV_GROUPS           | telescope-responsabili         | Gruppi simulati (solo AUTH_MODE=dev) |
@@ -221,18 +229,51 @@ Documentazione interattiva: /docs (Swagger UI)
 
 ---
 
+## Fasce orarie
+
+Una richiesta occupa un intervallo, non una giornata: `inizio` e `fine` sono
+due istanti completi (`2026-09-12T22:00:00`), così una sessione che attraversa
+la mezzanotte non ha bisogno di casi speciali.
+
+`giorno_richiesto` resta come **notte di riferimento** ed è la data di
+`inizio`: una sessione cominciata il 12 alle 23:00 appartiene alla notte del
+12 anche se finisce il 13. È su questo che il calendario raggruppa.
+
+Gli istanti sono **ora locale dell'osservatorio**, senza fuso: un valore con
+offset viene rifiutato con `422`, perché renderebbe le fasce salvate non più
+confrontabili fra loro. Da qui la variabile `TZ` nel compose — il server
+confronta l'inizio richiesto con il proprio orologio per rifiutare le
+osservazioni nel passato.
+
+Due richieste possono contendersi la stessa fascia finché sono in attesa: è
+normale, ed è quello che il calendario chiama `contesa`. Il vincolo scatta
+all'approvazione.
+
+---
+
 ## Flusso operativo
 
 1. Osservatore apre telescope_time_request.html: il suo nome è già noto,
    arriva da Authelia e non si digita
 2. Seleziona ricerca esistente o ne crea una nuova
-3. Indica co-osservatori e data → invia
+3. Indica co-osservatori e la fascia oraria — da quando a quando, non solo
+   in che notte — → invia
 4. Responsabile riceve email e apre telescope_time_dashboard.html
 5. Approva o rifiuta con note opzionali
-6. Il calendario riflette in tempo reale lo stato delle date
-   (libera / contesa / bloccata)
+6. Il calendario riflette in tempo reale lo stato delle notti:
+
+   | Situazione della notte                         | stato_giorno |
+   |------------------------------------------------|--------------|
+   | nessuna richiesta                              | `libera`     |
+   | richieste in attesa che non si sovrappongono   | `richiesta`  |
+   | due o più in attesa con fasce sovrapposte      | `contesa`    |
+   | almeno una approvata                           | `bloccata`   |
+
 7. Il telescopio può ospitare più programmi nella stessa notte: i giorni
-   con più di un'osservazione approvata sono segnalati nella griglia
+   con più di un'osservazione approvata sono segnalati nella griglia.
+   Quello che due programmi non possono condividere è lo stesso istante:
+   approvare una richiesta la cui fascia interseca quella di una già
+   approvata dà `409`, con il numero della richiesta in conflitto
 8. Le decisioni del responsabile sono tracciate: ogni cambio di stato
    finisce in `richieste_storico`, con chi e quando
 9. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che

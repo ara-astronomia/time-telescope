@@ -1,4 +1,5 @@
 import sys
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -64,14 +65,44 @@ def ricerca_authelia(client_authelia):
     return res.json()
 
 
-def crea_richiesta(client, ricerca_id, giorno, osservatore="Mario Rossi"):
+def notte(giorni_avanti: int = 30) -> date:
+    """Una notte futura: le osservazioni nel passato non si prenotano."""
+    return date.today() + timedelta(days=giorni_avanti)
+
+
+def fascia(giorno, ora: int = 22, durata: int = 3) -> tuple[str, str]:
+    """Fascia oraria di una notte: comincia alle `ora`, dura `durata` ore.
+
+    Il default parte alle 22 e finisce all'una, così ogni richiesta di prova
+    attraversa la mezzanotte come le osservazioni vere.
+    """
+    if isinstance(giorno, str):
+        giorno = date.fromisoformat(giorno)
+    inizio = datetime.combine(giorno, time(ora))
+    return inizio.isoformat(), (inizio + timedelta(hours=durata)).isoformat()
+
+
+@pytest.fixture
+def giorno():
+    """La notte su cui lavora la maggior parte dei test."""
+    return notte()
+
+
+@pytest.fixture
+def altro_giorno():
+    return notte(31)
+
+
+def corpo_richiesta(ricerca_id=1, giorno=None, ora=22, durata=3, **extra) -> dict:
+    """Corpo di un POST /richieste valido, da arricchire con `extra`."""
+    inizio, fine = fascia(giorno or notte(), ora, durata)
+    return {"ricerca_id": ricerca_id, "inizio": inizio, "fine": fine, **extra}
+
+
+def crea_richiesta(client, ricerca_id, giorno, ora=22, durata=3, osservatore="Mario Rossi"):
     return client.post(
         "/telescope-time/richieste",
-        json={
-            "ricerca_id": ricerca_id,
-            "osservatore": osservatore,
-            "giorno_richiesto": giorno,
-        },
+        json=corpo_richiesta(ricerca_id, giorno, ora, durata, osservatore=osservatore),
     )
 
 

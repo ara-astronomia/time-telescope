@@ -9,7 +9,9 @@
 -- Nomi e ricerche sono di fantasia.
 --
 -- Le date sono relative a oggi, così il calendario ha sempre qualcosa da
--- mostrare nel mese corrente senza dover aggiornare questo file.
+-- mostrare nel mese corrente senza dover aggiornare questo file. Ogni
+-- richiesta ha una fascia oraria: `giorno_richiesto` è la notte di
+-- riferimento, cioè la data in cui l'osservazione comincia.
 
 -- Osservatori di esempio. Chi passa da Authelia viene registrato al primo
 -- accesso; questi servono a popolare le richieste del seed, e hanno username
@@ -26,26 +28,45 @@ INSERT OR IGNORE INTO ricerche (nome, descrizione, specifiche) VALUES
     ('Monitoraggio comete',     'Curve di luce di comete periodiche',       'Filtro R, binning 2x2'),
     ('Curve di luce asteroidi', 'Determinazione periodi di rotazione',      'Senza filtro, cadenza 60s');
 
--- Giorno bloccato: una richiesta approvata.
-INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, stato, note_responsabile, aggiornata_il)
-SELECT id, (SELECT id FROM utenti WHERE nome = 'Giulia Vernier'), 'Marco Silvestri', date('now', '+3 days'), 'approvata', 'Meteo previsto stabile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
+-- Notte bloccata: una richiesta approvata, dalle 22 all'una.
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine, stato, note_responsabile, aggiornata_il)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Giulia Vernier'), 'Marco Silvestri',
+       date('now', '+3 days'),
+       date('now', '+3 days') || 'T22:00:00', date('now', '+4 days') || 'T01:00:00',
+       'approvata', 'Meteo previsto stabile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM ricerche WHERE nome = 'Survey exoplanet';
 
--- Giorno conteso: due ricerche diverse chiedono la stessa data, entrambe in attesa.
-INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
-SELECT id, (SELECT id FROM utenti WHERE nome = 'Elena Fabbri'), NULL, date('now', '+7 days')
+-- Notte contesa: due ricerche diverse chiedono fasce che si intersecano.
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Elena Fabbri'), NULL,
+       date('now', '+7 days'),
+       date('now', '+7 days') || 'T21:00:00', date('now', '+8 days') || 'T00:30:00'
 FROM ricerche WHERE nome = 'Monitoraggio comete';
 
-INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
-SELECT id, (SELECT id FROM utenti WHERE nome = 'Davide Manzoni'), 'Sara Ferretti', date('now', '+7 days')
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Davide Manzoni'), 'Sara Ferretti',
+       date('now', '+7 days'),
+       date('now', '+7 days') || 'T23:00:00', date('now', '+8 days') || 'T03:00:00'
 FROM ricerche WHERE nome = 'Curve di luce asteroidi';
 
--- Richiesta rifiutata: non compare nel calendario e libera di nuovo la data.
-INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, stato, note_responsabile, aggiornata_il)
-SELECT id, (SELECT id FROM utenti WHERE nome = 'Paolo Ranieri'), NULL, date('now', '+10 days'), 'rifiutata', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
-FROM ricerche WHERE nome = 'Survey exoplanet';
-
--- Richiesta semplice in attesa, più avanti nel mese.
-INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto)
-SELECT id, (SELECT id FROM utenti WHERE nome = 'Chiara Bellandi'), 'Luca Toselli', date('now', '+15 days')
+-- Notte solo richiesta: due turni distinti nella stessa notte non si
+-- contendono nulla.
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Chiara Bellandi'), 'Luca Toselli',
+       date('now', '+12 days'),
+       date('now', '+12 days') || 'T20:30:00', date('now', '+12 days') || 'T23:00:00'
 FROM ricerche WHERE nome = 'Monitoraggio comete';
+
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Elena Fabbri'), NULL,
+       date('now', '+12 days'),
+       date('now', '+12 days') || 'T23:00:00', date('now', '+13 days') || 'T02:00:00'
+FROM ricerche WHERE nome = 'Curve di luce asteroidi';
+
+-- Richiesta rifiutata: non compare nel calendario e libera di nuovo la notte.
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine, stato, note_responsabile, aggiornata_il)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Paolo Ranieri'), NULL,
+       date('now', '+10 days'),
+       date('now', '+10 days') || 'T22:00:00', date('now', '+11 days') || 'T02:00:00',
+       'rifiutata', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
+FROM ricerche WHERE nome = 'Survey exoplanet';

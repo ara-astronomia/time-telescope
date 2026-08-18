@@ -1,64 +1,123 @@
-"""Il calendario deve rendere visibile la compresenza di più osservazioni
-nella stessa notte (#4): il solo colore `bloccata` non la distingue."""
+"""Il calendario deve rendere visibile la compresenza di più osservazioni nella
+stessa notte (#4) e distinguere una notte semplicemente richiesta da una
+davvero contesa (#33)."""
 
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 PAGINA = "/telescope_time_calendario.html"
 
 
-def prepara_giorno(page, app_url, giorno, quante_approvate):
-    """Crea `quante_approvate` osservazioni approvate nello stesso giorno."""
-    for i in range(quante_approvate):
-        nome = f"Ricerca {giorno} {i}"
-        ricerca = page.request.post(
-            f"{app_url}/telescope-time/ricerche", data={"nome": nome}
-        ).json()
-        richiesta = page.request.post(
-            f"{app_url}/telescope-time/richieste",
-            data={"ricerca_id": ricerca["id"], "osservatore": f"Osservatore {i}",
-                  "giorno_richiesto": giorno},
-        ).json()
+def mese_prossimo() -> date:
+    """Le richieste si accettano solo nel futuro: il mese prossimo lo è per
+    intero, qualunque sia il giorno di oggi."""
+    oggi = date.today()
+    return date(oggi.year + (oggi.month == 12), oggi.month % 12 + 1, 1)
+
+
+def crea(page, app_url, giorno, ora, durata=2, nome=None, approvata=False):
+    inizio = datetime.combine(giorno, time(ora))
+    ricerca = page.request.post(
+        f"{app_url}/telescope-time/ricerche",
+        data={"nome": nome or f"Ricerca {giorno} {ora}"},
+    ).json()
+    richiesta = page.request.post(
+        f"{app_url}/telescope-time/richieste",
+        data={
+            "ricerca_id": ricerca["id"],
+            "inizio": inizio.isoformat(),
+            "fine": (inizio + timedelta(hours=durata)).isoformat(),
+        },
+    ).json()
+    if approvata:
         page.request.patch(
             f"{app_url}/telescope-time/richieste/{richiesta['id']}",
             data={"stato": "approvata"},
         )
+    return richiesta
 
 
-def cella(page, giorno):
-    return page.locator(f'.day-cell[data-giorno="{giorno}"]')
-
-
-def test_giorno_con_due_programmi_segnalato_nella_griglia(page, app_url):
-    giorno = f"{date.today().year}-{date.today().month:02d}-11"
-    prepara_giorno(page, app_url, giorno, 2)
+def apri(page, app_url, giorno):
+    """Apre il calendario sul mese di `giorno`, che non è quello corrente."""
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector(".day-cell")
+    page.click(".month-nav button:last-of-type")
+    page.wait_for_selector(f'.day-cell[data-giorno="{giorno.isoformat()}"]')
+    return page.locator(f'.day-cell[data-giorno="{giorno.isoformat()}"]')
 
-    assert cella(page, giorno).locator(".turni").count() == 1
-    assert "2" in cella(page, giorno).locator(".turni").inner_text()
+
+def classe(cella):
+    return cella.get_attribute("class") or ""
 
 
-def test_giorno_con_un_solo_programma_non_segnalato(page, app_url):
-    giorno = f"{date.today().year}-{date.today().month:02d}-12"
-    prepara_giorno(page, app_url, giorno, 1)
+# ─── Compresenza (#4) ─────────────────────────────────────────────────────────
+
+def test_notte_con_due_programmi_segnalata_nella_griglia(page, app_url):
+    giorno = mese_prossimo().replace(day=11)
+    crea(page, app_url, giorno, ora=18, approvata=True)
+    crea(page, app_url, giorno, ora=21, approvata=True)
+
+    cella = apri(page, app_url, giorno)
+    assert cella.locator(".turni").count() == 1
+    assert "2" in cella.locator(".turni").inner_text()
+
+
+def test_notte_con_un_solo_programma_non_segnalata(page, app_url):
+    giorno = mese_prossimo().replace(day=12)
+    crea(page, app_url, giorno, ora=18, approvata=True)
+
+    cella = apri(page, app_url, giorno)
+    assert cella.locator(".turni").count() == 0
+    assert "bloccata" in classe(cella)
+
+
+# ─── Richiesta ≠ contesa (#33, assorbe #42) ───────────────────────────────────
+
+def test_una_sola_richiesta_non_colora_la_notte_come_contesa(page, app_url):
+    giorno = mese_prossimo().replace(day=13)
+    crea(page, app_url, giorno, ora=21)
+
+    cella = apri(page, app_url, giorno)
+    assert "richiesta" in classe(cella)
+    assert "contesa" not in classe(cella)
+
+
+def test_due_richieste_sovrapposte_colorano_la_notte_come_contesa(page, app_url):
+    giorno = mese_prossimo().replace(day=14)
+    crea(page, app_url, giorno, ora=21, durata=3)
+    crea(page, app_url, giorno, ora=22, durata=3)
+
+    cella = apri(page, app_url, giorno)
+    assert "contesa" in classe(cella)
+
+
+def test_due_richieste_in_turni_distinti_non_sono_contesa(page, app_url):
+    giorno = mese_prossimo().replace(day=15)
+    crea(page, app_url, giorno, ora=18, durata=2)
+    crea(page, app_url, giorno, ora=21, durata=2)
+
+    cella = apri(page, app_url, giorno)
+    assert "richiesta" in classe(cella)
+    assert "contesa" not in classe(cella)
+
+
+def test_la_legenda_distingue_i_due_stati(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
-    page.wait_for_selector(".day-cell")
+    page.wait_for_selector(".legenda")
+    legenda = page.inner_text(".legenda").lower()
 
-    assert cella(page, giorno).locator(".turni").count() == 0
-    assert "bloccata" in (cella(page, giorno).get_attribute("class") or "")
+    assert "richiesta" in legenda
+    assert "contesa" in legenda
 
 
-def test_giorno_conteso_non_segnalato_come_turni(page, app_url):
-    giorno = f"{date.today().year}-{date.today().month:02d}-13"
-    ricerca = page.request.post(
-        f"{app_url}/telescope-time/ricerche", data={"nome": f"Contesa {giorno}"}
-    ).json()
-    page.request.post(
-        f"{app_url}/telescope-time/richieste",
-        data={"ricerca_id": ricerca["id"], "osservatore": "Anna", "giorno_richiesto": giorno},
-    )
-    page.goto(f"{app_url}{PAGINA}")
-    page.wait_for_selector(".day-cell")
+# ─── La fascia oraria è visibile nel dettaglio ────────────────────────────────
 
-    assert cella(page, giorno).locator(".turni").count() == 0
-    assert "contesa" in (cella(page, giorno).get_attribute("class") or "")
+def test_il_dettaglio_della_notte_mostra_la_fascia(page, app_url):
+    giorno = mese_prossimo().replace(day=16)
+    crea(page, app_url, giorno, ora=21, durata=3)
+
+    cella = apri(page, app_url, giorno)
+    cella.click()
+    page.wait_for_selector("#overlay.open")
+
+    assert "21:00" in page.inner_text("#dp-content")
+    assert "00:00" in page.inner_text("#dp-content")
