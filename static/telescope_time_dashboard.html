@@ -277,11 +277,11 @@
     transition: opacity 0.2s, transform 0.15s;
     height: 38px;
   }
-  .storico {
+  .storico-box {
     margin-top: 0.8rem; padding-top: 0.8rem;
     border-top: 1px solid var(--border);
-    font-family: var(--mono); font-size: 0.72rem;
   }
+  .storico { font-family: var(--mono); font-size: 0.72rem; margin-top: 0.4rem; }
   .storico .voce {
     display: flex; gap: 0.6rem; flex-wrap: wrap;
     padding: 0.3rem 0; color: var(--text-mid);
@@ -556,7 +556,10 @@ function renderList() {
           </div>` : ''}
         </div>
 
-        <div class="storico" id="storico-${r.id}"></div>
+        <div class="storico-box">
+          <div class="dl">STORICO</div>
+          <div class="storico" id="storico-${r.id}"></div>
+        </div>
 
         <div class="action-area">
           <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.note_responsabile)}</textarea>
