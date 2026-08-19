@@ -51,12 +51,19 @@ def test_gruppi_letti_dall_header(client_authelia):
         "gruppi": ["soci", "telescope-responsabili"],
         "email": "anna@example.test",
         "nome_completo": None,          # Authelia non ha inviato Remote-Name
+        "e_responsabile": True,
     }
 
 
 def test_header_senza_gruppi(client_authelia):
     res = client_authelia.get("/telescope-time/me", headers={"Remote-User": "solo"})
     assert res.json()["gruppi"] == []
+    assert res.json()["e_responsabile"] is False
+
+
+def test_socio_non_e_responsabile(client_authelia):
+    res = client_authelia.get("/telescope-time/me", headers=SOCIO)
+    assert res.json()["e_responsabile"] is False
 
 
 # ─── Modalità dev ─────────────────────────────────────────────────────────────
@@ -69,6 +76,7 @@ def test_dev_sintetizza_l_utente(client):
         "gruppi": ["telescope-responsabili"],
         "email": "sviluppo@example.test",
         "nome_completo": None,
+        "e_responsabile": True,
     }
 
 

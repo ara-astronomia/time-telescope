@@ -392,6 +392,7 @@
       <h1>Dashboard <span>Responsabile</span></h1>
     </div>
     <div class="header-actions">
+      <span id="utente-corrente" style="color:var(--text-dim);font-size:.85rem"></span>
       <a href="telescope_time_request.html" class="btn-link">
         ← Modulo Richiesta
       </a>
@@ -437,18 +438,25 @@ const API_BASE = '/telescope-time';
 let allRichieste = [];
 let currentFilter = 'tutte';
 let ricercheMap = {};
+// Ricaricata a ogni refresh insieme al resto: chi perde il ruolo di
+// responsabile mentre ha la pagina aperta vede sparire i comandi entro il
+// prossimo aggiornamento, non solo al prossimo login.
+let me = { e_responsabile: false };
 
 // ─── Carica dati ──────────────────────────────────────────────────────────────
 async function caricaRichieste() {
   document.getElementById('loading-bar').style.display = 'block';
   try {
-    const [riRes, rcRes] = await Promise.all([
+    const [riRes, rcRes, meRes] = await Promise.all([
       fetch(`${API_BASE}/richieste`),
-      fetch(`${API_BASE}/ricerche`)
+      fetch(`${API_BASE}/ricerche`),
+      fetch(`${API_BASE}/me`)
     ]);
     allRichieste = await riRes.json();
     const ricerche = await rcRes.json();
     ricercheMap = Object.fromEntries(ricerche.map(r => [r.id, r]));
+    me = await meRes.json();
+    renderIdentita();
 
     aggiornaStats();
     renderList();
@@ -457,6 +465,12 @@ async function caricaRichieste() {
   } finally {
     document.getElementById('loading-bar').style.display = 'none';
   }
+}
+
+function renderIdentita() {
+  const visualizzato = me.nome_completo || me.nome;
+  document.getElementById('utente-corrente').textContent =
+    visualizzato ? `Sei collegato come ${visualizzato}` : '';
 }
 
 function aggiornaStats() {
@@ -564,6 +578,7 @@ function renderList() {
           <div class="storico" id="storico-${r.id}"></div>
         </div>
 
+        ${!me.e_responsabile ? '' : `
         <div class="action-area">
           <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.note_responsabile)}</textarea>
           ${comandi.map(([stato, etichetta]) => `
@@ -583,6 +598,7 @@ function renderList() {
           <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
           <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
         </div>
+        `}
       </div>
     </div>
     `;
@@ -668,6 +684,12 @@ async function aggiornaStato(id, stato, statoAttuale) {
       showToast((await res.json()).detail, 'error');
       return;
     }
+    if (res.status === 403) {
+      // Il comando resta raggiungibile anche a pulsanti nascosti, da chi ha
+      // la pagina aperta da prima di un cambio di gruppo.
+      showToast('Solo i responsabili possono approvare o rifiutare.', 'error');
+      return;
+    }
     if (!res.ok) throw new Error();
 
     const emoji = stato === 'approvata' ? '✓' : '✗';
@@ -719,6 +741,9 @@ async function spostaOrario(id) {
     }
     if (res.status === 422) {
       showToast('Il server ha rifiutato gli orari: controlla e riprova.', 'error'); return;
+    }
+    if (res.status === 403) {
+      showToast('Solo i responsabili possono spostare una richiesta.', 'error'); return;
     }
     if (!res.ok) throw new Error();
 
