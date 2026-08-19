@@ -485,6 +485,10 @@
         </label>
         <input type="datetime-local" id="fine" required>
       </div>
+
+      <div class="field" id="notte-hint" style="display:none">
+        <small style="color:var(--text-dim)">Notte del <span id="notte-hint-data"></span></small>
+      </div>
     </div>
 
     <button class="btn-submit" id="btn-submit" onclick="inviaRichiesta()">
@@ -717,8 +721,24 @@ function localeIso(momento) {
   return momento.toISOString().slice(0, 16);
 }
 
-const campoInizio = document.getElementById('inizio');
-const campoFine   = document.getElementById('fine');
+const campoInizio    = document.getElementById('inizio');
+const campoFine      = document.getElementById('fine');
+const notteHint      = document.getElementById('notte-hint');
+const notteHintData  = document.getElementById('notte-hint-data');
+
+// Stessa soglia di router.py: mezzogiorno, per non mostrare una notte diversa
+// da quella su cui il calendario poi raggruppa davvero la richiesta (#47).
+function aggiornaNotteHint() {
+  if (!campoInizio.value) {
+    notteHint.style.display = 'none';
+    return;
+  }
+  const inizio = new Date(campoInizio.value);
+  const notte = new Date(inizio);
+  if (inizio.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  notteHintData.textContent = notte.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+  notteHint.style.display = '';
+}
 
 campoInizio.min = localeIso(new Date());
 campoInizio.addEventListener('input', () => {
@@ -730,6 +750,7 @@ campoInizio.addEventListener('input', () => {
     fine.setHours(fine.getHours() + 3);
     campoFine.value = localeIso(fine);
   }
+  aggiornaNotteHint();
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

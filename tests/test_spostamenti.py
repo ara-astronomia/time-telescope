@@ -49,6 +49,14 @@ def test_lo_spostamento_aggiorna_la_notte_di_riferimento(client, richiesta, altr
     assert res.json()["giorno_richiesto"] == altro_giorno.isoformat()
 
 
+def test_lo_spostamento_dopo_mezzanotte_aggiorna_la_notte_precedente(client, richiesta, altro_giorno):
+    """Eredita il calcolo di #47: uno spostamento verso l'01:00 aggiorna
+    `giorno_richiesto` alla notte precedente, non a quella del nuovo giorno."""
+    res = sposta(client, richiesta["id"], altro_giorno, ora=1, durata=3)
+
+    assert res.json()["giorno_richiesto"] == (altro_giorno - timedelta(days=1)).isoformat()
+
+
 def test_si_sposta_anche_una_richiesta_approvata(client, richiesta, altro_giorno):
     approva(client, richiesta["id"])
 
