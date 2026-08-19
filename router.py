@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, NaiveDatetime, ValidationInfo, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import sqlite3
 import os
 import smtplib
@@ -311,6 +311,11 @@ class RicercaOut(BaseModel):
     specifiche: Optional[str]
     creata_il: str
 
+# Mezzogiorno è la soglia convenzionale in astronomia — è dove taglia anche
+# il giorno giuliano — ed è lontana da qualunque ora di osservazione reale,
+# quindi nessuna sessione ci cade sopra per caso.
+SOGLIA_NOTTE = time(12, 0)
+
 class FasciaOraria(BaseModel):
     # NaiveDatetime valida il formato ISO e rifiuta gli istanti con fuso: gli
     # orari sono ora locale dell'osservatorio, e un offset renderebbe le fasce
@@ -335,7 +340,10 @@ class FasciaOraria(BaseModel):
 
     @property
     def notte(self) -> str:
-        return self.inizio.date().isoformat()
+        giorno = self.inizio.date()
+        if self.inizio.time() < SOGLIA_NOTTE:
+            giorno -= timedelta(days=1)
+        return giorno.isoformat()
 
 
 class RichiestaCreate(FasciaOraria):

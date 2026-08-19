@@ -41,6 +41,15 @@ def test_la_notte_di_riferimento_e_quella_di_inizio(client, ricerca):
     assert body["giorno_richiesto"] == giorno.isoformat()
 
 
+def test_la_notte_di_una_sessione_dopo_mezzanotte_e_quella_precedente(client, ricerca):
+    """Un inizio all'01:00 appartiene ancora alla notte cominciata la sera
+    prima (#47): la soglia è mezzogiorno, non la mezzanotte del calendario."""
+    giorno = notte()
+    body = crea_richiesta(client, ricerca["id"], giorno, ora=1, durata=3).json()
+
+    assert body["giorno_richiesto"] == (giorno - timedelta(days=1)).isoformat()
+
+
 def test_la_fascia_e_esposta_nella_lettura(client, ricerca):
     creata = crea_richiesta(client, ricerca["id"], notte()).json()
     letta = client.get(f"/telescope-time/richieste/{creata['id']}").json()
@@ -178,15 +187,14 @@ def test_riapprovare_la_stessa_richiesta_non_e_un_conflitto(client, ricerca):
     assert approva(client, richiesta["id"]).status_code == 200
 
 
-def test_il_conflitto_attraversa_la_mezzanotte(client, ricerca):
-    """Le due richieste stanno in notti diverse — è il confronto fra istanti a
-    scoprire che occupano lo strumento nello stesso momento."""
+def test_il_conflitto_attraversa_la_soglia_di_notte(client, ricerca):
+    """Le due richieste stanno in notti diverse (la soglia delle 12, #47) — è
+    il confronto fra istanti a scoprire che occupano lo strumento nello
+    stesso momento."""
     altra = client.post("/telescope-time/ricerche", json={"nome": "Comete"}).json()
     giorno = notte()
-    prima = crea_richiesta(client, ricerca["id"], giorno, ora=23, durata=3).json()
-    seconda = crea_richiesta(
-        client, altra["id"], giorno + timedelta(days=1), ora=1, durata=3
-    ).json()
+    prima = crea_richiesta(client, ricerca["id"], giorno, ora=11, durata=2).json()
+    seconda = crea_richiesta(client, altra["id"], giorno, ora=12, durata=2).json()
     assert prima["giorno_richiesto"] != seconda["giorno_richiesto"]
     approva(client, prima["id"])
 
