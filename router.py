@@ -7,7 +7,7 @@ Da includere nel server CRaC principale con:
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Cookie
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, NaiveDatetime, ValidationInfo, computed_field, field_validator
+from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, computed_field, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import datetime, time, timedelta
@@ -428,6 +428,7 @@ class EventoOut(BaseModel):
 class RichiestaOut(BaseModel):
     id: int
     ricerca_id: int
+    richiedente_id: int
     nome_ricerca: str
     osservatore: str
     co_osservatori: Optional[str]
@@ -545,8 +546,8 @@ Motivo:       {motivo or '—'}{avviso}
 
 # ─── Endpoint Utente ──────────────────────────────────────────────────────────
 
-@router.get("/me", response_model=Utente, response_model_exclude={"id"})
-def me(utente: Utente = Depends(utente_corrente)):
+@router.get("/me", response_model=Utente)
+def me(utente: Utente = Depends(utente_registrato)):
     """Identità dell'utente collegato: serve alle pagine per sapere se
     mostrare i comandi di approvazione."""
     return utente
@@ -757,16 +758,34 @@ def sposta_orario(
     richiesta_id: int,
     body: SpostamentoOrario,
     db: sqlite3.Connection = Depends(get_db),
-    utente: Utente = Depends(solo_responsabili),
+    utente: Utente = Depends(utente_registrato),
 ):
     """Riprogramma una richiesta, in attesa o già approvata.
 
     Separato dal PATCH dello stato perché sono due azioni distinte: una decide,
     l'altra riprogramma, e tenerle insieme renderebbe ambiguo cosa registrare
     nello storico.
+
+    Il responsabile la sposta senza restrizioni (#34); chi l'ha creata la
+    sposta solo finché è in attesa e solo verso il futuro (#36).
     """
     blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)
+
+    if not utente.e_responsabile:
+        if richiesta["richiedente_id"] != utente.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Solo il responsabile o chi ha creato la richiesta può spostarla.",
+            )
+        if richiesta["stato"] != "in_attesa":
+            raise HTTPException(
+                status_code=409,
+                detail="Solo le richieste in attesa possono essere spostate da chi le ha create.",
+            )
+        if body.inizio <= datetime.now():
+            raise HTTPException(status_code=422, detail="Il nuovo inizio deve essere nel futuro.")
+
     inizio, fine = body.inizio.isoformat(), body.fine.isoformat()
     if (inizio, fine) == (richiesta["inizio"], richiesta["fine"]):
         return richiesta

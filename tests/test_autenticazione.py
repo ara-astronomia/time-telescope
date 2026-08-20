@@ -47,6 +47,7 @@ def test_responsabile_puo_approvare(client_authelia):
 def test_gruppi_letti_dall_header(client_authelia):
     res = client_authelia.get("/telescope-time/me", headers=RESPONSABILE)
     assert res.json() == {
+        "id": 1,
         "nome": "anna",
         "gruppi": ["soci", "telescope-responsabili"],
         "email": "anna@example.test",
@@ -73,6 +74,7 @@ def test_dev_sintetizza_l_utente(client):
     res = client.get("/telescope-time/me")
     assert res.status_code == 200
     assert res.json() == {
+        "id": 1,
         "nome": "sviluppo",
         "gruppi": ["telescope-responsabili"],
         "email": "sviluppo@example.test",
