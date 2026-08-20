@@ -393,6 +393,11 @@
     </div>
     <div class="header-actions">
       <span id="utente-corrente" style="color:var(--text-dim);font-size:.85rem"></span>
+      <span id="dev-switcher" style="display:none;font-size:.8rem;gap:.4rem;align-items:center">
+        <span style="color:var(--text-dim)">dev:</span>
+        <button class="btn-link" onclick="passaA('responsabile')">responsabile</button>
+        <button class="btn-link" onclick="passaA('socio')">socio</button>
+      </span>
       <a href="telescope_time_request.html" class="btn-link">
         ← Modulo Richiesta
       </a>
@@ -471,6 +476,14 @@ function renderIdentita() {
   const visualizzato = me.nome_completo || me.nome;
   document.getElementById('utente-corrente').textContent =
     visualizzato ? `Sei collegato come ${visualizzato}` : '';
+  document.getElementById('dev-switcher').style.display = me.modalita_dev ? 'inline-flex' : 'none';
+}
+
+// Solo per AUTH_MODE=dev: passa da un utente sintetizzato all'altro senza
+// header manuali né riavviare il container (#26).
+function passaA(ruolo) {
+  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  location.reload();
 }
 
 function aggiornaStats() {

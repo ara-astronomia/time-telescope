@@ -143,3 +143,11 @@ def test_la_richiesta_parte_senza_nome(page, app_url):
     mia = [r for r in inviate if r["inizio"] == f"{inizio}:00"]
     assert mia, "la richiesta non è stata registrata"
     assert all(r["osservatore"] == "sviluppo" for r in mia)
+
+
+# ─── Identità: switcher di ruolo in dev (#26) ──────────────────────────────────
+
+def test_lo_switcher_dev_e_visibile(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert page.is_visible("#dev-switcher")

@@ -52,6 +52,7 @@ def test_gruppi_letti_dall_header(client_authelia):
         "email": "anna@example.test",
         "nome_completo": None,          # Authelia non ha inviato Remote-Name
         "e_responsabile": True,
+        "modalita_dev": False,
     }
 
 
@@ -77,6 +78,7 @@ def test_dev_sintetizza_l_utente(client):
         "email": "sviluppo@example.test",
         "nome_completo": None,
         "e_responsabile": True,
+        "modalita_dev": True,
     }
 
 
@@ -102,3 +104,41 @@ def test_dev_variabili_personalizzabili(client, monkeypatch):
     res = client.get("/telescope-time/me")
     assert res.json()["nome"] == "raniero"
     assert res.json()["gruppi"] == ["soci"]
+
+
+# ─── Switcher di ruolo in dev (#26) ────────────────────────────────────────────
+# Un solo utente sintetizzato costringeva a curl/Playwright per provare la
+# dashboard come socio. Il cookie permette di farlo da un browser normale,
+# senza riavviare il container.
+
+def test_cookie_dev_ruolo_socio_sintetizza_un_socio(client):
+    client.cookies.set("dev_ruolo", "socio")
+    res = client.get("/telescope-time/me")
+    assert res.json()["nome"] == "socio-dev"
+    assert res.json()["gruppi"] == ["soci"]
+    assert res.json()["e_responsabile"] is False
+
+
+def test_cookie_dev_ruolo_responsabile_e_il_default(client):
+    client.cookies.set("dev_ruolo", "responsabile")
+    res = client.get("/telescope-time/me")
+    assert res.json()["nome"] == "sviluppo"
+    assert res.json()["e_responsabile"] is True
+
+
+def test_header_esplicito_vince_sul_cookie(client):
+    """Il cookie è una comodità per il browser; test e script che passano
+    header espliciti (es. SOCIO/RESPONSABILE) non devono vedersene scavalcato
+    l'utente."""
+    client.cookies.set("dev_ruolo", "socio")
+    res = client.get("/telescope-time/me", headers=RESPONSABILE)
+    assert res.json()["nome"] == "anna"
+    assert res.json()["e_responsabile"] is True
+
+
+def test_cookie_dev_ruolo_ignorato_fuori_da_dev(client_authelia):
+    """Fuori da AUTH_MODE=dev il cookie non ha alcun effetto: senza header
+    resta un 401, non un login implicito come socio."""
+    client_authelia.cookies.set("dev_ruolo", "socio")
+    res = client_authelia.get("/telescope-time/me")
+    assert res.status_code == 401

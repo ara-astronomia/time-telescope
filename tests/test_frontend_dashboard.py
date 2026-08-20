@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from conftest import come_socio
+
 PAGINA = "/telescope_time_dashboard.html"
 FUSO = ZoneInfo("Europe/Rome")
 UTC = ZoneInfo("UTC")
@@ -491,12 +493,6 @@ def test_le_card_chiuse_restano_chiuse(page, app_url):
 
 # ─── Identità: nascondere i comandi a chi non è responsabile (#26) ────────────
 
-def come_socio(page):
-    """D'ora in avanti la pagina parla come un socio, non come il
-    responsabile sintetizzato di default da AUTH_MODE=dev."""
-    page.context.set_extra_http_headers({"Remote-User": "mario", "Remote-Groups": "soci"})
-
-
 def test_socio_non_vede_i_comandi_responsabili(page, app_url):
     giorno = date.today() + timedelta(days=70)
     richiesta = crea_con_fascia(page, app_url, "Nascosti", giorno, ora=21, durata=2)
@@ -572,3 +568,27 @@ def test_403_su_spostamento_raggiunto_da_pulsante_gia_nascosto(page, app_url):
     page.wait_for_selector("#toast.show")
 
     assert page.inner_text("#toast") == 'Solo i responsabili possono spostare una richiesta.'
+
+
+# ─── Switcher di ruolo in dev (#26) ────────────────────────────────────────────
+
+def test_lo_switcher_dev_e_visibile(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert page.is_visible("#dev-switcher")
+
+
+def test_passa_a_socio_nasconde_i_comandi_senza_riavviare(page, app_url):
+    giorno = date.today() + timedelta(days=73)
+    richiesta = crea_con_fascia(page, app_url, "Switcher", giorno, ora=21, durata=2)
+
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    with page.expect_navigation():
+        page.click("#dev-switcher >> text=socio")
+    page.wait_for_selector("#utente-corrente:not(:empty)")
+    assert "socio-dev" in page.inner_text("#utente-corrente")
+
+    page.click(f"#card-{richiesta['id']} .rc-header")
+    page.wait_for_timeout(200)
+    assert page.locator(f"#detail-{richiesta['id']} .action-area").count() == 0

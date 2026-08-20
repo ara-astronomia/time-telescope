@@ -142,3 +142,9 @@ def app_url(tmp_path_factory):
 
     yield f"http://127.0.0.1:{porta}"
     server.should_exit = True
+
+
+def come_socio(page):
+    """D'ora in avanti la pagina parla come un socio, non come il
+    responsabile sintetizzato di default da AUTH_MODE=dev."""
+    page.context.set_extra_http_headers({"Remote-User": "mario", "Remote-Groups": "soci"})

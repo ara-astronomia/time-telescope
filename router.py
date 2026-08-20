@@ -5,7 +5,7 @@ Da includere nel server CRaC principale con:
     app.include_router(telescope_router)
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Cookie
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, NaiveDatetime, ValidationInfo, computed_field, field_validator
 from typing import Literal, Optional, List
@@ -163,12 +163,20 @@ class Utente(BaseModel):
     def e_responsabile(self) -> bool:
         return gruppo_responsabili() in self.gruppi
 
+    @computed_field
+    @property
+    def modalita_dev(self) -> bool:
+        """Dice al frontend se mostrare lo switcher di ruolo — inutile e
+        fuorviante fuori da AUTH_MODE=dev."""
+        return auth_mode() == "dev"
+
 
 def utente_corrente(
     remote_user:   Optional[str] = Header(None, alias="Remote-User"),
     remote_groups: str           = Header("",   alias="Remote-Groups"),
     remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
     remote_name:   Optional[str] = Header(None, alias="Remote-Name"),
+    dev_ruolo:     Optional[str] = Cookie(None),
 ) -> Utente:
     """Identità dell'utente, dagli header impostati da Nginx via Authelia.
 
@@ -177,6 +185,11 @@ def utente_corrente(
     quel che vuole. Il container non deve quindi esporre la porta all'esterno.
     """
     if auth_mode() == "dev":
+        # Il cookie è una comodità per provare la dashboard come socio da un
+        # browser normale, senza header espliciti né riavviare il container.
+        # Un header esplicito (test, script) vince sempre.
+        if not remote_user and dev_ruolo == "socio":
+            remote_user, remote_groups = "socio-dev", "soci"
         remote_user   = remote_user   or dev_user()
         remote_groups = remote_groups or dev_groups()
         remote_email  = remote_email  or f"{remote_user}@example.test"

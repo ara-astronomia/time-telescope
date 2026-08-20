@@ -121,3 +121,17 @@ def test_il_dettaglio_della_notte_mostra_la_fascia(page, app_url):
 
     assert "21:00" in page.inner_text("#dp-content")
     assert "00:00" in page.inner_text("#dp-content")
+
+
+# ─── Identità: il calendario mostra anche lui chi è collegato (#26) ───────────
+
+def test_il_banner_mostra_chi_e_collegato(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#utente-corrente:not(:empty)")
+    assert "sviluppo" in page.inner_text("#utente-corrente")
+
+
+def test_lo_switcher_dev_e_visibile(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert page.is_visible("#dev-switcher")

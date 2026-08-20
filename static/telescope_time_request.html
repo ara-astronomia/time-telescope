@@ -399,6 +399,11 @@
   <div class="header">
     <div class="badge">CRaC — Osservatorio</div>
     <div class="header-actions">
+      <span id="dev-switcher" style="display:none;font-size:.8rem;gap:.4rem;align-items:center">
+        <span style="color:var(--text-dim)">dev:</span>
+        <button class="btn-link" onclick="passaA('responsabile')">responsabile</button>
+        <button class="btn-link" onclick="passaA('socio')">socio</button>
+      </span>
       <a href="telescope_time_calendario.html" class="btn-link">
         ← Calendario
       </a>
@@ -567,9 +572,17 @@ async function caricaUtente() {
       ? `${escHtml(visualizzato)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
       : escHtml(visualizzato);
     document.getElementById('utente-corrente').innerHTML = nome;
+    document.getElementById('dev-switcher').style.display = utenteCorrente.modalita_dev ? 'inline-flex' : 'none';
   } catch(e) {
     document.getElementById('utente-corrente').textContent = 'identità non disponibile';
   }
+}
+
+// Solo per AUTH_MODE=dev: passa da un utente sintetizzato all'altro senza
+// header manuali né riavviare il container (#26).
+function passaA(ruolo) {
+  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  location.reload();
 }
 
 // ─── Carica ricerche esistenti ────────────────────────────────────────────────
