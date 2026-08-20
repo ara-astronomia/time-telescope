@@ -133,7 +133,7 @@ def test_uno_spostamento_invalido_non_tocca_la_richiesta(client, richiesta, altr
     assert client.get(STORICO.format(richiesta["id"])).json() == []
 
 
-# ─── Autorizzazione (#36: anche il proprietario, con vincoli propri) ──────────
+# ─── Autorizzazione (anche il proprietario, con vincoli propri) ──────────────
 
 def crea_richiesta_di(client_authelia, ricerca_id, giorno, headers):
     inizio, fine = fascia(giorno)

@@ -766,8 +766,8 @@ def sposta_orario(
     l'altra riprogramma, e tenerle insieme renderebbe ambiguo cosa registrare
     nello storico.
 
-    Il responsabile la sposta senza restrizioni (#34); chi l'ha creata la
-    sposta solo finché è in attesa e solo verso il futuro (#36).
+    Il responsabile la sposta senza restrizioni; chi l'ha creata la sposta
+    solo finché è in attesa e solo verso il futuro.
     """
     blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)

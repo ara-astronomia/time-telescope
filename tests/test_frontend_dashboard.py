@@ -617,7 +617,7 @@ def test_link_al_modulo_richiesta_presente(page, app_url):
     assert page.locator('a[href="telescope_time_request.html"]').count() == 1
 
 
-# ─── L'osservatore sposta la propria richiesta in attesa (#36) ────────────────
+# ─── L'osservatore sposta la propria richiesta in attesa ──────────────────────
 
 def crea_richiesta_propria(page, app_url, nome, giorno, ora=21, durata=2, headers=None):
     ricerca = page.request.post(
