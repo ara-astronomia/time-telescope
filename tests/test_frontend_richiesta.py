@@ -151,3 +151,9 @@ def test_lo_switcher_dev_e_visibile(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector("#dev-switcher")
     assert page.is_visible("#dev-switcher")
+
+
+def test_link_al_calendario_e_alla_dashboard_presenti(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    assert page.locator('a[href="telescope_time_calendario.html"]').count() == 1
+    assert page.locator('a[href="telescope_time_dashboard.html"]').count() == 1

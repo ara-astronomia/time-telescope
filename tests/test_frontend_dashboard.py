@@ -578,6 +578,19 @@ def test_lo_switcher_dev_e_visibile(page, app_url):
     assert page.is_visible("#dev-switcher")
 
 
+def test_il_ruolo_attivo_e_evidenziato(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert "active" in (page.get_attribute("#dev-btn-responsabile", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-socio", "class") or "")
+
+    with page.expect_navigation():
+        page.click("#dev-btn-socio")
+    page.wait_for_selector("#dev-switcher")
+    assert "active" in (page.get_attribute("#dev-btn-socio", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-responsabile", "class") or "")
+
+
 def test_passa_a_socio_nasconde_i_comandi_senza_riavviare(page, app_url):
     giorno = date.today() + timedelta(days=73)
     richiesta = crea_con_fascia(page, app_url, "Switcher", giorno, ora=21, durata=2)
@@ -585,10 +598,20 @@ def test_passa_a_socio_nasconde_i_comandi_senza_riavviare(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector("#dev-switcher")
     with page.expect_navigation():
-        page.click("#dev-switcher >> text=socio")
+        page.click("#dev-btn-socio")
     page.wait_for_selector("#utente-corrente:not(:empty)")
     assert "socio-dev" in page.inner_text("#utente-corrente")
 
     page.click(f"#card-{richiesta['id']} .rc-header")
     page.wait_for_timeout(200)
     assert page.locator(f"#detail-{richiesta['id']} .action-area").count() == 0
+
+
+def test_link_al_calendario_presente(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    assert page.locator('a[href="telescope_time_calendario.html"]').count() == 1
+
+
+def test_link_al_modulo_richiesta_presente(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    assert page.locator('a[href="telescope_time_request.html"]').count() == 1
