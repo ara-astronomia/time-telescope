@@ -7,7 +7,7 @@ Da includere nel server CRaC principale con:
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, NaiveDatetime, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import datetime, time, timedelta
@@ -27,14 +27,17 @@ def db_path() -> str:
     """
     return os.environ.get("TELESCOPE_DB_PATH", "telescope_time.db")
 
-# Autenticazione. In produzione l'identità arriva dagli header che Nginx
-# riceve da Authelia (ForwardAuth): l'app non gestisce login né sessioni.
-# In sviluppo 'dev' sintetizza quegli header, così non serve Authelia.
-# Come per db_path(), i valori sono letti a ogni chiamata: i test possono
-# così cambiare modalità senza dipendere dall'ordine degli import.
-
 def auth_mode() -> str:
-    return os.environ.get("AUTH_MODE", "forward-auth")   # 'forward-auth' | 'dev'
+    """'forward-auth' (default) o 'dev'.
+
+    In produzione l'identità arriva dagli header che Nginx riceve da
+    Authelia (ForwardAuth): l'app non gestisce login né sessioni. In
+    sviluppo 'dev' sintetizza quegli header, così non serve Authelia.
+
+    Come db_path(), letto a ogni chiamata: i test possono così cambiare
+    modalità senza dipendere dall'ordine degli import.
+    """
+    return os.environ.get("AUTH_MODE", "forward-auth")
 
 def dev_user() -> str:
     return os.environ.get("DEV_USER", "sviluppo")
@@ -45,7 +48,6 @@ def dev_groups() -> str:
 def gruppo_responsabili() -> str:
     return os.environ.get("GRUPPO_RESPONSABILI", "telescope-responsabili")
 
-# Config SMTP — da impostare nelle variabili d'ambiente
 SMTP_HOST     = os.environ.get("SMTP_HOST", "")
 SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER     = os.environ.get("SMTP_USER", "")
@@ -56,16 +58,20 @@ EMAIL_RESPONSABILE = os.environ.get("EMAIL_RESPONSABILE", "responsabile@osservat
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 def get_db():
-    # timeout: quanto attendere se un'altra connessione sta scrivendo, prima
-    # di sollevare "database is locked". Con WAL i lettori non aspettano mai,
-    # ma le scritture restano serializzate.
-    # check_same_thread=False: FastAPI esegue la dependency e l'handler nel
-    # threadpool senza garantire che sia lo stesso thread, e con due richieste
-    # simultanee capita che non lo sia. La connessione resta comunque privata
-    # della singola richiesta, quindi non è condivisa fra thread concorrenti.
+    """Connessione SQLite privata della singola richiesta HTTP.
+
+    timeout=15: quanto attendere se un'altra connessione sta scrivendo, prima
+    di sollevare "database is locked". Con WAL i lettori non aspettano mai,
+    ma le scritture restano serializzate.
+
+    check_same_thread=False: FastAPI esegue la dependency e l'handler nel
+    threadpool senza garantire che sia lo stesso thread, e con due richieste
+    simultanee capita che non lo sia. La connessione resta comunque privata
+    della singola richiesta, quindi non è condivisa fra thread concorrenti.
+    """
     conn = sqlite3.connect(db_path(), timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")  # va impostato su ogni connessione
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
     finally:
@@ -78,9 +84,13 @@ def get_db():
 ADESSO_UTC = "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
 
 def init_db():
+    """Crea lo schema se assente e attiva il WAL journaling.
+
+    WAL fa procedere lettori e scrittore in parallelo invece di bloccarsi a
+    vicenda, ed è persistito sul file: va attivato una sola volta qui, a
+    differenza di `PRAGMA foreign_keys` in get_db(), che non lo è.
+    """
     conn = sqlite3.connect(db_path())
-    # WAL: lettori e scrittore procedono in parallelo invece di bloccarsi a
-    # vicenda. È persistente sul file, quindi basta impostarlo qui.
     conn.execute("PRAGMA journal_mode = WAL")
     cursor = conn.cursor()
     cursor.executescript("""
@@ -146,11 +156,11 @@ def init_db():
 # ─── Autenticazione ───────────────────────────────────────────────────────────
 
 class Utente(BaseModel):
-    nome: str                             # username di Authelia
+    nome: str = Field(description="Username di Authelia.")
     gruppi: List[str] = []
     email: Optional[str] = None
-    nome_completo: Optional[str] = None   # Remote-Name, se Authelia lo invia
-    id: Optional[int] = None              # valorizzato da utente_registrato
+    nome_completo: Optional[str] = Field(None, description="Remote-Name, se Authelia lo invia.")
+    id: Optional[int] = Field(None, description="Valorizzato da utente_registrato.")
 
     @property
     def nome_visualizzato(self) -> str:
@@ -181,8 +191,6 @@ def utente_corrente(
         remote_email  = remote_email  or f"{remote_user}@example.test"
 
     if not remote_user:
-        # Nessun fallback in forward-auth: header assente significa che la
-        # richiesta non è passata da Authelia.
         raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
 
     return Utente(
@@ -204,71 +212,92 @@ def registra_utente(db: sqlite3.Connection, utente: "Utente") -> int:
     ).fetchone()
 
     if riga is None:
-        try:
-            cursore = db.execute(
-                "INSERT INTO utenti (username, nome, email) VALUES (?, ?, ?)",
-                (utente.nome, utente.nome_visualizzato, utente.email),
-            )
-            db.commit()
-            return cursore.lastrowid
-        except sqlite3.IntegrityError:
-            db.rollback()
-            # Due casi finiscono qui.
-            riga = db.execute(
-                "SELECT id, nome, email FROM utenti WHERE username = ?", (utente.nome,)
-            ).fetchone()
-            if riga is not None:
-                # 1) un'altra richiesta dello stesso utente è arrivata prima:
-                #    la SELECT iniziale non la vedeva ancora.
-                return riga["id"]
-            # 2) l'email è già in anagrafica. Se appartiene a una persona
-            #    conosciuta solo per nome — un co-osservatore inserito a mano
-            #    (#40) — è la stessa persona che ora si autentica: il record
-            #    viene promosso, non duplicato, così le osservazioni a cui ha
-            #    partecipato restano collegate a lei.
-            gemello = db.execute(
-                "SELECT id, username FROM utenti WHERE email = ?", (utente.email,)
-            ).fetchone()
-
-            if gemello is not None and gemello["username"] is None:
-                db.execute(
-                    "UPDATE utenti SET username = ?, nome = ? WHERE id = ?",
-                    (utente.nome, utente.nome_visualizzato, gemello["id"]),
-                )
-                db.commit()
-                return gemello["id"]
-
-            # 3) l'email appartiene a un altro account già verificato: caso
-            #    patologico, Authelia chiede indirizzi univoci. Si registra
-            #    senza email invece di negare l'accesso.
-            print(
-                f"[anagrafica] '{utente.nome}': email {utente.email!r} già "
-                f"assegnata a un altro utente verificato, registrato senza indirizzo",
-                flush=True,
-            )
-            cursore = db.execute(
-                "INSERT INTO utenti (username, nome, email) VALUES (?, ?, NULL)",
-                (utente.nome, utente.nome_visualizzato),
-            )
-            db.commit()
-            return cursore.lastrowid
+        return _inserisci_o_concilia_utente(db, utente)
 
     if (riga["nome"], riga["email"]) != (utente.nome_visualizzato, utente.email):
-        try:
-            db.execute(
-                "UPDATE utenti SET nome = ?, email = ? WHERE id = ?",
-                (utente.nome_visualizzato, utente.email, riga["id"]),
-            )
-            db.commit()
-        except sqlite3.IntegrityError:
-            # L'email è passata a un altro account: si aggiorna il solo nome.
-            db.rollback()
-            db.execute(
-                "UPDATE utenti SET nome = ? WHERE id = ?",
-                (utente.nome_visualizzato, riga["id"]),
-            )
-            db.commit()
+        _aggiorna_nome_ed_email(db, riga["id"], utente)
     return riga["id"]
+
+
+def _inserisci_o_concilia_utente(db: sqlite3.Connection, utente: "Utente") -> int:
+    try:
+        cursore = db.execute(
+            "INSERT INTO utenti (username, nome, email) VALUES (?, ?, ?)",
+            (utente.nome, utente.nome_visualizzato, utente.email),
+        )
+        db.commit()
+        return cursore.lastrowid
+    except sqlite3.IntegrityError:
+        db.rollback()
+        return _concilia_dopo_conflitto_anagrafica(db, utente)
+
+
+def _concilia_dopo_conflitto_anagrafica(db: sqlite3.Connection, utente: "Utente") -> int:
+    """Un altro INSERT ha violato UNIQUE fra la SELECT iniziale e questa: username o email
+    sono già in anagrafica per un motivo diverso, da distinguere caso per caso."""
+    riga = db.execute(
+        "SELECT id, nome, email FROM utenti WHERE username = ?", (utente.nome,)
+    ).fetchone()
+    if riga is not None:
+        return riga["id"]  # un'altra richiesta dello stesso utente ha vinto la corsa
+
+    co_osservatore_da_promuovere = db.execute(
+        "SELECT id, username FROM utenti WHERE email = ? AND username IS NULL", (utente.email,)
+    ).fetchone()
+    if co_osservatore_da_promuovere is not None:
+        return _promuovi_co_osservatore(db, co_osservatore_da_promuovere["id"], utente)
+
+    return _registra_senza_email(db, utente)
+
+
+def _promuovi_co_osservatore(db: sqlite3.Connection, utente_id: int, utente: "Utente") -> int:
+    """Un co-osservatore inserito a mano (#40), riconosciuto ora per email: il record
+    viene aggiornato invece che duplicato, così le osservazioni a cui ha già
+    partecipato restano collegate a lui."""
+    db.execute(
+        "UPDATE utenti SET username = ?, nome = ? WHERE id = ?",
+        (utente.nome, utente.nome_visualizzato, utente_id),
+    )
+    db.commit()
+    return utente_id
+
+
+def _registra_senza_email(db: sqlite3.Connection, utente: "Utente") -> int:
+    """L'email appartiene già a un altro account verificato — Authelia le richiede
+    univoche, quindi è un caso patologico. Si registra senza indirizzo invece di
+    negare l'accesso."""
+    print(
+        f"[anagrafica] '{utente.nome}': email {utente.email!r} già "
+        f"assegnata a un altro utente verificato, registrato senza indirizzo",
+        flush=True,
+    )
+    cursore = db.execute(
+        "INSERT INTO utenti (username, nome, email) VALUES (?, ?, NULL)",
+        (utente.nome, utente.nome_visualizzato),
+    )
+    db.commit()
+    return cursore.lastrowid
+
+
+def _aggiorna_nome_ed_email(db: sqlite3.Connection, utente_id: int, utente: "Utente") -> None:
+    try:
+        db.execute(
+            "UPDATE utenti SET nome = ?, email = ? WHERE id = ?",
+            (utente.nome_visualizzato, utente.email, utente_id),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        db.rollback()
+        _aggiorna_solo_nome(db, utente_id, utente)
+
+
+def _aggiorna_solo_nome(db: sqlite3.Connection, utente_id: int, utente: "Utente") -> None:
+    """L'email è passata a un altro account: qui si allinea solo il nome."""
+    db.execute(
+        "UPDATE utenti SET nome = ? WHERE id = ?",
+        (utente.nome_visualizzato, utente_id),
+    )
+    db.commit()
 
 
 def utente_registrato(
@@ -289,8 +318,6 @@ def solo_responsabili(utente: Utente = Depends(utente_corrente)) -> Utente:
     return utente
 
 
-# Ogni endpoint richiede un utente autenticato; l'approvazione richiede in più
-# l'appartenenza al gruppo dei responsabili.
 router = APIRouter(
     prefix="/telescope-time",
     tags=["Telescope Time"],
@@ -317,9 +344,9 @@ class RicercaOut(BaseModel):
 SOGLIA_NOTTE = time(12, 0)
 
 class FasciaOraria(BaseModel):
-    # NaiveDatetime valida il formato ISO e rifiuta gli istanti con fuso: gli
-    # orari sono ora locale dell'osservatorio, e un offset renderebbe le fasce
-    # salvate non più confrontabili fra loro.
+    """inizio/fine come NaiveDatetime: rifiuta gli istanti con fuso, perché sono ora
+    locale dell'osservatorio e un offset renderebbe le fasce salvate non più
+    confrontabili fra loro."""
     inizio: NaiveDatetime
     fine: NaiveDatetime
 
@@ -347,8 +374,8 @@ class FasciaOraria(BaseModel):
 
 
 class RichiestaCreate(FasciaOraria):
-    # `osservatore` non c'è: l'identità arriva da Authelia, non dal body,
-    # quindi non è falsificabile. Un campo omonimo inviato viene ignorato.
+    """Niente campo `osservatore`: l'identità arriva da Authelia, non dal body,
+    quindi non è falsificabile. Un campo omonimo inviato nel body viene ignorato."""
     ricerca_id: int
     co_osservatori: Optional[str] = None
 
@@ -672,6 +699,11 @@ def invia_richiesta(
     return richiesta
 
 
+def note_o_esistenti(body: AggiornamentoStato, richiesta: dict) -> Optional[str]:
+    """Le note già scritte non vanno perse quando il PATCH non le include."""
+    return body.note_responsabile if body.note_responsabile is not None else richiesta["note_responsabile"]
+
+
 @router.patch("/richieste/{richiesta_id}", response_model=RichiestaOut)
 def aggiorna_stato(
     richiesta_id: int,
@@ -682,16 +714,12 @@ def aggiorna_stato(
     blocca_per_scrittura(db)
     richiesta = leggi_richiesta(db, richiesta_id)
     stato_precedente = richiesta["stato"]
-    # Ribaltare una decisione è legittimo — il meteo cambia — ma va tracciato.
-    # Se invece lo stato non cambia (doppio click sul pulsante), non si
-    # registra nulla e non si rimanda l'email.
     cambia_stato = body.stato != stato_precedente
 
     if body.stato == "approvata" and cambia_stato:
         conflitto_di_fascia(db, richiesta_id, richiesta["inizio"], richiesta["fine"])
 
-    # Le note già scritte non vanno perse quando il PATCH non le include.
-    note = body.note_responsabile if body.note_responsabile is not None else richiesta["note_responsabile"]
+    note = note_o_esistenti(body, richiesta)
 
     if cambia_stato:
         registra_evento(
@@ -763,6 +791,28 @@ def storico_richiesta(richiesta_id: int, db: sqlite3.Connection = Depends(get_db
     return [dict(r) for r in righe]
 
 
+def registra_sovrapposizioni(richieste: List[dict], giorni: dict) -> set:
+    """Annota su ogni notte le coppie di richieste le cui fasce si intersecano
+    e restituisce le notti in cui la sovrapposizione riguarda solo richieste
+    'in_attesa' (contesa).
+
+    Le richieste arrivano ordinate per `inizio`: appena una comincia dopo la
+    fine di `a`, tutte quelle che seguono fanno lo stesso, e il confronto per
+    quell'`a` può fermarsi.
+    """
+    contese = set()
+    for posizione, a in enumerate(richieste):
+        for b in richieste[posizione + 1:]:
+            if b["inizio"] >= a["fine"]:
+                break
+            notti = {a["giorno_richiesto"], b["giorno_richiesto"]}
+            for chiave in notti:
+                giorni[chiave]["sovrapposizioni"].append([a["id"], b["id"]])
+            if a["stato"] == b["stato"] == "in_attesa":
+                contese |= notti
+    return contese
+
+
 @router.get("/calendario")
 def calendario(
     anno:  Optional[int] = None,
@@ -808,18 +858,7 @@ def calendario(
         notte["richieste"].append(richiesta)
         notte["approvate" if richiesta["stato"] == "approvata" else "in_attesa"] += 1
 
-    # Le richieste sono ordinate per `inizio`: appena una comincia dopo la fine
-    # di `a`, tutte quelle che seguono fanno lo stesso e il confronto si ferma.
-    contese = set()
-    for posizione, a in enumerate(richieste):
-        for b in richieste[posizione + 1:]:
-            if b["inizio"] >= a["fine"]:
-                break
-            notti = {a["giorno_richiesto"], b["giorno_richiesto"]}
-            for chiave in notti:
-                giorni[chiave]["sovrapposizioni"].append([a["id"], b["id"]])
-            if a["stato"] == b["stato"] == "in_attesa":
-                contese |= notti
+    contese = registra_sovrapposizioni(richieste, giorni)
 
     for chiave, notte in giorni.items():
         if notte["approvate"]:

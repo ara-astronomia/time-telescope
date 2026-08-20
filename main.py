@@ -16,8 +16,6 @@ import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Il database viene creato all'avvio dell'app, non all'import di router:
-    # così importare il modulo non ha effetti collaterali sul filesystem.
     init_db()
 
     if auth_mode() == "dev":
@@ -27,7 +25,7 @@ async def lifespan(app: FastAPI):
             f"\n  Ogni richiesta senza header vale come utente '{dev_user()}'"
             f"\n  nei gruppi '{dev_groups()}'. Da non usare in produzione.\n" +
             "=" * 70 + "\n",
-            flush=True,   # stdout è bufferizzato quando non è un terminale
+            flush=True,  # senza, il messaggio resta nel buffer e non arriva ai log Docker
         )
 
     yield
@@ -42,7 +40,5 @@ app = FastAPI(
 
 app.include_router(router)
 
-# Serve le pagine HTML statiche dalla stessa directory.
-# Il path è assoluto per non dipendere dalla directory di lavoro.
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+STATIC_DIR_ASSOLUTA = Path(__file__).resolve().parent / "static"
+app.mount("/", StaticFiles(directory=STATIC_DIR_ASSOLUTA, html=True), name="static")

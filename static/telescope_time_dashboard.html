@@ -60,7 +60,6 @@
     margin: 0 auto;
   }
 
-  /* Header */
   .header {
     display: flex;
     align-items: flex-start;
@@ -92,7 +91,6 @@
   .header-left h1 span { color: var(--amber); }
   .header-actions { display: flex; gap: 0.6rem; align-items: center; }
 
-  /* Stats bar */
   .stats-bar {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -125,7 +123,6 @@
   .stat-card.approv  .val { color: var(--green); }
   .stat-card.rifiut  .val { color: var(--red); }
 
-  /* Filter bar */
   .filter-bar {
     display: flex;
     gap: 0.5rem;
@@ -151,7 +148,6 @@
   .filter-btn.active.f-approv  { background: var(--green); border-color: var(--green); }
   .filter-btn.active.f-rifiut  { background: var(--red);   border-color: var(--red); }
 
-  /* Richieste list */
   .list { animation: fadeUp 0.5s ease 0.2s both; }
 
   .richiesta-card {
@@ -209,7 +205,6 @@
   .stato-approvata  { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
   .stato-rifiutata  { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
 
-  /* Expand detail */
   .rc-detail {
     display: none;
     padding: 0 1.2rem 1.2rem;
@@ -241,7 +236,6 @@
     line-height: 1.6;
   }
 
-  /* Action area */
   .action-area {
     display: flex;
     gap: 0.6rem;
@@ -315,7 +309,6 @@
   .btn-approve:hover, .btn-reject:hover { opacity: 0.85; }
   .btn-approve:active, .btn-reject:active { transform: scale(0.97); }
 
-  /* Empty state */
   .empty {
     text-align: center;
     padding: 4rem 2rem;
@@ -325,7 +318,6 @@
   }
   .empty .icon { font-size: 2.5rem; margin-bottom: 0.8rem; opacity: 0.4; }
 
-  /* Loading */
   .loading-bar {
     height: 2px;
     background: linear-gradient(90deg, var(--accent), var(--green), var(--accent));
@@ -336,7 +328,6 @@
   }
   @keyframes slide { to { background-position: 200% } }
 
-  /* Toast */
   .toast {
     position: fixed;
     bottom: 2rem;
@@ -356,7 +347,6 @@
   .toast.success { border-color: var(--green); color: var(--green); }
   .toast.error   { border-color: var(--red);   color: var(--red); }
 
-  /* Link */
   .btn-link {
     font-family: var(--mono);
     font-size: 0.72rem;
@@ -477,10 +467,17 @@ function setFilter(btn) {
   renderList();
 }
 
+// `inizio` è ora locale dell'osservatorio: letta come stringa via `slice` in
+// `fascia()`, così il fuso del browser non la sposta. Qui invece la data (non
+// l'ora) passa da Date, perché va scritta per esteso in italiano.
+function dataEstesaItaliana(inizio) {
+  return new Date(inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
-  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: senza
-  // questo, la card su cui si sta lavorando si richiude sotto le mani.
+  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: si
+  // ricordano i dettagli aperti per riaprirli, o si richiuderebbero sotto le mani.
   const aperti = dettagliAperti();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'tutte'
@@ -494,16 +491,11 @@ function renderList() {
 
   list.innerHTML = filtered.map(r => {
     const ricerca = ricercheMap[r.ricerca_id] || {};
-    // `inizio` è ora locale dell'osservatorio: la parte oraria si legge come
-    // stringa, così il fuso del browser non la sposta. La sola data passa da
-    // Date perché va scritta per esteso in italiano.
-    const data = new Date(r.inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
+    const data = dataEstesaItaliana(r.inizio);
     const dataCreazione = new Date(r.creata_il).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    // Il comando che riporterebbe allo stato corrente non compare: il server
-    // lo tratta già come un non-evento, mostrarlo suggerirebbe un'azione che
-    // non fa niente. Una decisione si ribalta, non si ripete.
+    // Nessun comando riporta allo stato corrente: il server lo tratterebbe
+    // come un non-evento, e mostrarlo suggerirebbe un'azione che non fa niente.
     const comandi = {
       in_attesa: [['approvata', '✓ Approva'], ['rifiutata', '✗ Rifiuta']],
       approvata: [['rifiutata', '↺ Ribalta: rifiuta']],
