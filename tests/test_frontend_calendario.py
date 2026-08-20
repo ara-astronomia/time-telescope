@@ -128,7 +128,7 @@ def test_il_dettaglio_della_notte_mostra_la_fascia(page, app_url):
 def test_il_banner_mostra_chi_e_collegato(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "sviluppo" in page.inner_text("#utente-corrente")
+    assert "Marta Conti" in page.inner_text("#utente-corrente")
 
 
 def test_lo_switcher_dev_e_visibile(page, app_url):

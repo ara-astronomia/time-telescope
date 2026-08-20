@@ -187,9 +187,14 @@ def utente_corrente(
     if auth_mode() == "dev":
         # Il cookie è una comodità per provare la dashboard come socio da un
         # browser normale, senza header espliciti né riavviare il container.
-        # Un header esplicito (test, script) vince sempre.
+        # Un header esplicito (test, script) vince sempre. Il nome per esteso
+        # è solo per leggersi meglio nello switcher: lo username resta quello
+        # tecnico, su cui i test già contano.
         if not remote_user and dev_ruolo == "socio":
             remote_user, remote_groups = "socio-dev", "soci"
+            remote_name = remote_name or "Luca Bertani"
+        elif not remote_user:
+            remote_name = remote_name or "Marta Conti"
         remote_user   = remote_user   or dev_user()
         remote_groups = remote_groups or dev_groups()
         remote_email  = remote_email  or f"{remote_user}@example.test"

@@ -179,7 +179,7 @@ def test_dettaglio_richiesta_nella_notte(client, ricerca, mese):
     crea_richiesta(client, ricerca["id"], quando, ora=22, durata=3)
 
     richiesta = notte_di(client, quando)["richieste"][0]
-    assert richiesta["osservatore"] == "sviluppo"   # DEV_USER
+    assert richiesta["osservatore"] == "Marta Conti"   # nome per esteso del DEV_USER di default
     assert richiesta["nome_ricerca"] == "Supernovae"
     assert richiesta["stato"] == "in_attesa"
     assert richiesta["inizio"] == f"{quando}T22:00:00"

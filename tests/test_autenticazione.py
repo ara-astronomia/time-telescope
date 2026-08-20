@@ -76,7 +76,7 @@ def test_dev_sintetizza_l_utente(client):
         "nome": "sviluppo",
         "gruppi": ["telescope-responsabili"],
         "email": "sviluppo@example.test",
-        "nome_completo": None,
+        "nome_completo": "Marta Conti",
         "e_responsabile": True,
         "modalita_dev": True,
     }
@@ -115,6 +115,7 @@ def test_cookie_dev_ruolo_socio_sintetizza_un_socio(client):
     client.cookies.set("dev_ruolo", "socio")
     res = client.get("/telescope-time/me")
     assert res.json()["nome"] == "socio-dev"
+    assert res.json()["nome_completo"] == "Luca Bertani"
     assert res.json()["gruppi"] == ["soci"]
     assert res.json()["e_responsabile"] is False
 

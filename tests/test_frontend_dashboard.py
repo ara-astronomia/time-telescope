@@ -507,7 +507,7 @@ def test_socio_non_vede_i_comandi_responsabili(page, app_url):
 def test_il_banner_mostra_chi_e_collegato(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
     page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "sviluppo" in page.inner_text("#utente-corrente")
+    assert "Marta Conti" in page.inner_text("#utente-corrente")
 
 
 def test_il_banner_segue_il_cambio_di_utente(page, app_url):
@@ -600,7 +600,7 @@ def test_passa_a_socio_nasconde_i_comandi_senza_riavviare(page, app_url):
     with page.expect_navigation():
         page.click("#dev-btn-socio")
     page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "socio-dev" in page.inner_text("#utente-corrente")
+    assert "Luca Bertani" in page.inner_text("#utente-corrente")
 
     page.click(f"#card-{richiesta['id']} .rc-header")
     page.wait_for_timeout(200)

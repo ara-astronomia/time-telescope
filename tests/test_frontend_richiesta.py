@@ -129,7 +129,7 @@ def test_il_nome_non_si_digita_piu(page, app_url):
 def test_la_pagina_mostra_chi_sei(page, app_url):
     prepara(page, app_url)
     page.wait_for_selector("#utente-corrente")
-    assert "sviluppo" in page.inner_text("#utente-corrente")
+    assert "Marta Conti" in page.inner_text("#utente-corrente")
 
 
 def test_la_richiesta_parte_senza_nome(page, app_url):
@@ -142,7 +142,7 @@ def test_la_richiesta_parte_senza_nome(page, app_url):
     inviate = page.request.get(f"{app_url}/telescope-time/richieste").json()
     mia = [r for r in inviate if r["inizio"] == f"{inizio}:00"]
     assert mia, "la richiesta non è stata registrata"
-    assert all(r["osservatore"] == "sviluppo" for r in mia)
+    assert all(r["osservatore"] == "Marta Conti" for r in mia)
 
 
 # ─── Identità: switcher di ruolo in dev (#26) ──────────────────────────────────
