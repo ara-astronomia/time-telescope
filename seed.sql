@@ -2,21 +2,15 @@
 --
 --   sqlite3 telescope_time.db < seed.sql
 --
--- Le tabelle vengono create dall'app al primo avvio (init_db), quindi
--- lanciare prima l'app almeno una volta. Pensato per un database vuoto:
--- rilanciandolo, le ricerche non vengono duplicate ma le richieste sì.
+-- Richiede che l'app sia già stata avviata almeno una volta (init_db crea le
+-- tabelle). Pensato per un database vuoto: rilanciandolo, `utenti` e
+-- `ricerche` non vengono duplicati (INSERT OR IGNORE), ma le `richieste` sì.
 --
--- Nomi e ricerche sono di fantasia.
---
--- Le date sono relative a oggi, così il calendario ha sempre qualcosa da
--- mostrare nel mese corrente e nel successivo senza dover aggiornare questo
--- file. Ogni richiesta ha una fascia oraria: `giorno_richiesto` è la notte
--- di riferimento, cioè la data in cui l'osservazione comincia — prima delle
--- 12 appartiene ancora alla notte precedente (#47).
+-- Nomi, ricerche e username sono di fantasia: nessuno di questi osservatori
+-- esiste davvero in Authelia. Le date sono relative a oggi, così il
+-- calendario ha sempre qualcosa da mostrare nel mese corrente e nel
+-- successivo senza dover aggiornare questo file.
 
--- Osservatori di esempio. Chi passa da Authelia viene registrato al primo
--- accesso; questi servono a popolare le richieste del seed, e hanno username
--- fittizi perché nessuno di loro esiste in Authelia.
 INSERT OR IGNORE INTO utenti (username, nome, email) VALUES
     ('gvernier',  'Giulia Vernier',  'giulia.vernier@example.test'),
     ('efabbri',   'Elena Fabbri',    'elena.fabbri@example.test'),
@@ -29,7 +23,7 @@ INSERT OR IGNORE INTO ricerche (nome, descrizione, specifiche) VALUES
     ('Monitoraggio comete',     'Curve di luce di comete periodiche',       'Filtro R, binning 2x2'),
     ('Curve di luce asteroidi', 'Determinazione periodi di rotazione',      'Senza filtro, cadenza 60s');
 
--- Notte bloccata: una richiesta approvata, dalle 22 all'una.
+-- Notte bloccata.
 INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine, stato, note_responsabile, aggiornata_il)
 SELECT id, (SELECT id FROM utenti WHERE nome = 'Giulia Vernier'), 'Marco Silvestri',
        date('now', '+3 days'),
@@ -50,8 +44,7 @@ SELECT id, (SELECT id FROM utenti WHERE nome = 'Davide Manzoni'), 'Sara Ferretti
        date('now', '+7 days') || 'T23:00:00', date('now', '+8 days') || 'T03:00:00'
 FROM ricerche WHERE nome = 'Curve di luce asteroidi';
 
--- Notte solo richiesta: due turni distinti nella stessa notte non si
--- contendono nulla.
+-- Notte solo richiesta: turni distinti, non si sovrappongono.
 INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
 SELECT id, (SELECT id FROM utenti WHERE nome = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+12 days'),
@@ -72,8 +65,8 @@ SELECT id, (SELECT id FROM utenti WHERE nome = 'Paolo Ranieri'), NULL,
        'rifiutata', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM ricerche WHERE nome = 'Survey exoplanet';
 
--- Comincia nella seconda parte della notte: appartiene alla notte precedente,
--- non a quella del giorno del `inizio` — il caso che #47 corregge.
+-- Comincia dopo mezzanotte: notte precedente al giorno di `inizio`, il caso
+-- che #47 corregge.
 INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
 SELECT id, (SELECT id FROM utenti WHERE nome = 'Paolo Ranieri'), NULL,
        date('now', '+8 days'),
@@ -81,8 +74,6 @@ SELECT id, (SELECT id FROM utenti WHERE nome = 'Paolo Ranieri'), NULL,
 FROM ricerche WHERE nome = 'Curve di luce asteroidi';
 
 -- ─── Mese successivo ───────────────────────────────────────────────────────
--- Le stesse casistiche di sopra, spostate di qualche settimana, così anche
--- il mese dopo quello corrente ha di che riempire il calendario.
 
 -- Notte bloccata.
 INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine, stato, note_responsabile, aggiornata_il)
@@ -113,7 +104,7 @@ SELECT id, (SELECT id FROM utenti WHERE nome = 'Elena Fabbri'), NULL,
        'rifiutata', 'Strumento non disponibile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM ricerche WHERE nome = 'Survey exoplanet';
 
--- Comincia nella seconda parte della notte, come sopra ma più tardi.
+-- Comincia dopo mezzanotte, come sopra ma più tardi.
 INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine, stato, note_responsabile, aggiornata_il)
 SELECT id, (SELECT id FROM utenti WHERE nome = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+25 days'),

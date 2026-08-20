@@ -52,7 +52,6 @@
     padding: 2rem 1rem 5rem;
   }
 
-  /* starfield */
   body::before {
     content: '';
     position: fixed; inset: 0;
@@ -208,7 +207,6 @@
     background: var(--accent); border-radius: 50%; z-index: -1;
   }
 
-  /* stati giorno */
   .day-cell.bloccata {
     background: rgba(255,77,109,.07);
     border-color: rgba(255,77,109,.3);
@@ -242,7 +240,6 @@
   }
   .day-cell.today .day-num { color: #fff; }
 
-  /* pill richieste nella cella */
   .day-pills { margin-top: .35rem; display: flex; flex-direction: column; gap: .22rem; }
   .turni {
     margin-top: .3rem; padding: .1rem .3rem; border-radius: 4px;
@@ -449,11 +446,16 @@ const MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                  'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const GG_IT  = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
 
+function meseUmano(data) {
+  return data.getMonth() + 1;
+}
+
 let oggi = new Date();
 let annoCorrente = oggi.getFullYear();
-let meseCorrente = oggi.getMonth() + 1; // 1-based
+let meseCorrente = meseUmano(oggi);
 
-let datiGiorni = {}; // { "YYYY-MM-DD": { stato_giorno, approvate, in_attesa, sovrapposizioni[], richieste[] } }
+// datiGiorni: { "YYYY-MM-DD": { stato_giorno, approvate, in_attesa, sovrapposizioni[], richieste[] } }
+let datiGiorni = {};
 
 // ─── Navigazione ─────────────────────────────────────────────────────────────
 function cambioMese(delta) {
@@ -501,29 +503,36 @@ async function caricaMese() {
   }
 }
 
+function offsetSettimanaLunediPrima(primoGiornoDelMese) {
+  return (primoGiornoDelMese.getDay() + 6) % 7;
+}
+
+// Il colore 'bloccata' da solo non distingue una notte con un programma da una
+// con tre: sopra 1 approvazione, il conteggio compare esplicito in etichetta.
+function badgeProgrammiMultipli(approvate) {
+  if (approvate <= 1) return '';
+  return `<div class="turni" title="${approvate} osservazioni approvate per questa notte">${approvate} programmi</div>`;
+}
+
 // ─── Render griglia ───────────────────────────────────────────────────────────
 function renderCalendario() {
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = '';
 
-  // Intestazioni giorni — settimana parte da Lunedì
-  const ordine = [1,2,3,4,5,6,0]; // Lun→Dom
-  ordine.forEach(d => {
+  const ordineGiorniLunDom = [1,2,3,4,5,6,0];
+  ordineGiorniLunDom.forEach(d => {
     const h = document.createElement('div');
     h.className = 'day-header';
     h.textContent = GG_IT[d];
     grid.appendChild(h);
   });
 
-  // Primo giorno del mese (0=Dom … 6=Sab)
-  const primoGiorno = new Date(annoCorrente, meseCorrente - 1, 1).getDay();
-  // Offset per settimana Lun-Dom: Dom(0)→6, Lun(1)→0, …
-  const offset = (primoGiorno + 6) % 7;
+  const offset = offsetSettimanaLunediPrima(new Date(annoCorrente, meseCorrente - 1, 1));
 
   const giorniNelMese = new Date(annoCorrente, meseCorrente, 0).getDate();
   const totCelle = Math.ceil((offset + giorniNelMese) / 7) * 7;
 
-  const oggiStr = fmtDate(oggi.getFullYear(), oggi.getMonth()+1, oggi.getDate());
+  const oggiStr = fmtDate(oggi.getFullYear(), meseUmano(oggi), oggi.getDate());
 
   for (let i = 0; i < totCelle; i++) {
     const giorno = i - offset + 1;
@@ -548,23 +557,17 @@ function renderCalendario() {
     cell.dataset.giorno = dataStr;
     if (dataStr === oggiStr) cell.classList.add('today');
 
-    // Numero giorno
     let html = `<div class="day-num">${giorno}</div>`;
 
-    // Il telescopio può ospitare più programmi nella stessa notte: il colore
-    // 'bloccata' da solo non distingue una osservazione da tre.
     const approvate = info ? (info.approvate || 0) : 0;
-    if (approvate > 1) {
-      html += `<div class="turni" title="${approvate} osservazioni approvate per questa notte">${approvate} programmi</div>`;
-    }
+    html += badgeProgrammiMultipli(approvate);
 
-    // Pills (max 3 visibili)
     if (richieste.length) {
       html += '<div class="day-pills">';
-      const visibili = richieste.slice(0, 3);
-      visibili.forEach(r => {
-        const nome = escHtml(r.osservatore.split(' ')[0]); // solo nome
-        html += `<div class="pill ${r.stato}">${ora(r.inizio)} ${nome} · ${escHtml(r.nome_ricerca)}</div>`;
+      const visibiliMax3 = richieste.slice(0, 3);
+      visibiliMax3.forEach(r => {
+        const primoNome = escHtml(r.osservatore.split(' ')[0]);
+        html += `<div class="pill ${r.stato}">${ora(r.inizio)} ${primoNome} · ${escHtml(r.nome_ricerca)}</div>`;
       });
       if (richieste.length > 3) {
         html += `<div class="pill more">+${richieste.length - 3} altre</div>`;
@@ -583,8 +586,8 @@ function renderCalendario() {
 }
 
 // ─── Dettaglio giorno ─────────────────────────────────────────────────────────
-// Gli istanti sono già in ora locale dell'osservatorio: leggerli come stringa
-// evita che il fuso del browser li sposti.
+// `istante` è ora locale dell'osservatorio: va letta come stringa, non passata
+// a Date, o il fuso del browser la sposterebbe.
 function ora(istante) {
   return istante.slice(11, 16);
 }
@@ -596,12 +599,13 @@ function fascia(r) {
 
 function apriDettaglio(dataStr, stato, info) {
   const richieste = info.richieste;
-  // Chi si sovrappone a chi: al responsabile non basta sapere che c'è un
-  // conflitto, deve sapere fra quali richieste per decidere cosa spostare.
-  const conflitti = {};
+  // Per richiesta, gli id delle richieste con cui è in conflitto: al
+  // responsabile non basta sapere che c'è una sovrapposizione, deve sapere
+  // con chi per decidere cosa spostare.
+  const richiesteInConflittoPerId = {};
   (info.sovrapposizioni || []).forEach(([a, b]) => {
-    (conflitti[a] = conflitti[a] || []).push(b);
-    (conflitti[b] = conflitti[b] || []).push(a);
+    (richiesteInConflittoPerId[a] = richiesteInConflittoPerId[a] || []).push(b);
+    (richiesteInConflittoPerId[b] = richiesteInConflittoPerId[b] || []).push(a);
   });
 
   const [a, m, g] = dataStr.split('-');
@@ -614,7 +618,6 @@ function apriDettaglio(dataStr, stato, info) {
   statoEl.textContent = statoLabels[stato] || '';
   statoEl.className = `dp-stato ${stato}`;
 
-  // Ordina: approvate prima, poi in attesa
   const ordinate = [...richieste].sort((a, b) => {
     if (a.stato === 'approvata' && b.stato !== 'approvata') return -1;
     if (b.stato === 'approvata' && a.stato !== 'approvata') return 1;
@@ -634,7 +637,7 @@ function apriDettaglio(dataStr, stato, info) {
         ${r.note_responsabile ? `<span><span class="lk">Note</span>${escHtml(r.note_responsabile)}</span>` : ''}
       </div>
       ${r.descrizione ? `<div class="dp-r-descrizione">${escHtml(r.descrizione)}</div>` : ''}
-      ${conflitti[r.id] ? `<div class="dp-conflitto">⚠ Si sovrappone a ${conflitti[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
+      ${richiesteInConflittoPerId[r.id] ? `<div class="dp-conflitto">⚠ Si sovrappone a ${richiesteInConflittoPerId[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
     </div>
   `).join('');
 
