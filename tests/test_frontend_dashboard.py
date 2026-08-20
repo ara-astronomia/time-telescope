@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from conftest import come_socio
+
 PAGINA = "/telescope_time_dashboard.html"
 FUSO = ZoneInfo("Europe/Rome")
 UTC = ZoneInfo("UTC")
@@ -487,3 +489,129 @@ def test_le_card_chiuse_restano_chiuse(page, app_url):
     page.wait_for_timeout(400)
 
     assert not aperta(page, chiusa["id"])
+
+
+# ─── Identità: nascondere i comandi a chi non è responsabile (#26) ────────────
+
+def test_socio_non_vede_i_comandi_responsabili(page, app_url):
+    giorno = date.today() + timedelta(days=70)
+    richiesta = crea_con_fascia(page, app_url, "Nascosti", giorno, ora=21, durata=2)
+
+    come_socio(page)
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.locator(f"#detail-{richiesta['id']} .action-area").count() == 0
+    assert page.locator(f"#detail-{richiesta['id']} .sposta-area").count() == 0
+
+
+def test_il_banner_mostra_chi_e_collegato(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#utente-corrente:not(:empty)")
+    assert "Marta Conti" in page.inner_text("#utente-corrente")
+
+
+def test_il_banner_segue_il_cambio_di_utente(page, app_url):
+    come_socio(page)
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#utente-corrente:not(:empty)")
+    assert "mario" in page.inner_text("#utente-corrente")
+
+
+def test_403_su_approvazione_raggiunta_da_pulsante_gia_nascosto(page, app_url):
+    """Chi ha la pagina aperta da prima di un cambio di gruppo non vede più
+    i pulsanti, ma la funzione resta richiamabile: il messaggio deve
+    distinguersi da un errore generico di rete (#26)."""
+    giorno = date.today() + timedelta(days=71)
+    richiesta = crea_con_fascia(page, app_url, "403 stato", giorno, ora=21, durata=2)
+
+    come_socio(page)
+    apri_card(page, app_url, richiesta["id"])
+    page.on("dialog", lambda d: d.accept())
+    # `aggiornaStato` legge #note-N dal DOM, che qui non esiste perché
+    # l'area è nascosta: lo inietto per riprodurre lo scenario "pagina
+    # aperta da prima del cambio di gruppo" senza dipendere dal markup
+    # nascosto.
+    page.evaluate(f"""() => {{
+        const i = document.createElement('textarea');
+        i.id = 'note-{richiesta["id"]}';
+        document.body.appendChild(i);
+    }}""")
+    page.evaluate(f"aggiornaStato({richiesta['id']}, 'approvata', 'in_attesa')")
+    page.wait_for_selector("#toast.show")
+
+    assert page.inner_text("#toast") == 'Solo i responsabili possono approvare o rifiutare.'
+
+    dopo = page.request.get(f"{app_url}/telescope-time/richieste/{richiesta['id']}").json()
+    assert dopo["stato"] == "in_attesa"
+
+
+def test_403_su_spostamento_raggiunto_da_pulsante_gia_nascosto(page, app_url):
+    giorno = date.today() + timedelta(days=72)
+    richiesta = crea_con_fascia(page, app_url, "403 orario", giorno, ora=21, durata=2)
+
+    come_socio(page)
+    apri_card(page, app_url, richiesta["id"])
+    page.on("dialog", lambda d: d.accept())
+    # `spostaOrario` legge i campi #sposta-inizio-N/#sposta-fine-N dal DOM,
+    # che qui non esistono perché l'area è nascosta: li inietto prima di
+    # richiamare la funzione, per riprodurre lo scenario "pagina aperta da
+    # prima del cambio di gruppo" senza dipendere dal markup nascosto.
+    nuovo_inizio = datetime.combine(giorno + timedelta(days=1), time(22)).strftime("%Y-%m-%dT%H:%M")
+    nuova_fine   = datetime.combine(giorno + timedelta(days=1), time(23)).strftime("%Y-%m-%dT%H:%M")
+    page.evaluate(f"""() => {{
+        const mk = (id, val) => {{ const i = document.createElement('input'); i.id = id; i.value = val; document.body.appendChild(i); }};
+        mk('sposta-inizio-{richiesta["id"]}', '{nuovo_inizio}');
+        mk('sposta-fine-{richiesta["id"]}', '{nuova_fine}');
+        mk('sposta-motivo-{richiesta["id"]}', '');
+    }}""")
+    page.evaluate(f"spostaOrario({richiesta['id']})")
+    page.wait_for_selector("#toast.show")
+
+    assert page.inner_text("#toast") == 'Solo i responsabili possono spostare una richiesta.'
+
+
+# ─── Switcher di ruolo in dev (#26) ────────────────────────────────────────────
+
+def test_lo_switcher_dev_e_visibile(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert page.is_visible("#dev-switcher")
+
+
+def test_il_ruolo_attivo_e_evidenziato(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    assert "active" in (page.get_attribute("#dev-btn-responsabile", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-socio", "class") or "")
+
+    with page.expect_navigation():
+        page.click("#dev-btn-socio")
+    page.wait_for_selector("#dev-switcher")
+    assert "active" in (page.get_attribute("#dev-btn-socio", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-responsabile", "class") or "")
+
+
+def test_passa_a_socio_nasconde_i_comandi_senza_riavviare(page, app_url):
+    giorno = date.today() + timedelta(days=73)
+    richiesta = crea_con_fascia(page, app_url, "Switcher", giorno, ora=21, durata=2)
+
+    page.goto(f"{app_url}{PAGINA}")
+    page.wait_for_selector("#dev-switcher")
+    with page.expect_navigation():
+        page.click("#dev-btn-socio")
+    page.wait_for_selector("#utente-corrente:not(:empty)")
+    assert "Luca Bertani" in page.inner_text("#utente-corrente")
+
+    page.click(f"#card-{richiesta['id']} .rc-header")
+    page.wait_for_timeout(200)
+    assert page.locator(f"#detail-{richiesta['id']} .action-area").count() == 0
+
+
+def test_link_al_calendario_presente(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    assert page.locator('a[href="telescope_time_calendario.html"]').count() == 1
+
+
+def test_link_al_modulo_richiesta_presente(page, app_url):
+    page.goto(f"{app_url}{PAGINA}")
+    assert page.locator('a[href="telescope_time_request.html"]').count() == 1

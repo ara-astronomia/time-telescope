@@ -90,6 +90,7 @@
     letter-spacing: -.02em;
   }
   .header-left h1 span { color: var(--accent); }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
   .header-actions { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
 
   .btn-link {
@@ -108,6 +109,30 @@
     transition: background 0.2s;
   }
   .btn-link:hover { background: rgba(79,124,255,.22); }
+  .btn-link.active {
+    background: var(--green); color: #0a1a12; border-color: transparent;
+  }
+  .btn-link.active:hover { background: var(--green); }
+
+  .identita-bar {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    min-height: 1.2rem;
+    align-self: stretch;
+    text-align: left;
+  }
+
+  .dev-switcher-bar {
+    display: none;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem 0.9rem;
+    margin-bottom: 1.2rem;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 8px;
+  }
 
   /* ── Navigazione mese ────────────────────────────────────────────────────── */
   .month-nav {
@@ -360,10 +385,19 @@
       <div class="badge">CRaC — Osservatorio</div>
       <h1>Calendario <span>Sessioni</span></h1>
     </div>
-    <div class="header-actions">
-      <a href="telescope_time_request.html"   class="btn-link">+ Nuova Richiesta</a>
-      <a href="telescope_time_dashboard.html" class="btn-link">⊞ Dashboard</a>
+    <div class="header-right">
+      <div id="utente-corrente" class="identita-bar"></div>
+      <div class="header-actions">
+        <a href="telescope_time_request.html"   class="btn-link">+ Nuova Richiesta</a>
+        <a href="telescope_time_dashboard.html" class="btn-link">⊞ Dashboard</a>
+      </div>
     </div>
+  </div>
+
+  <div id="dev-switcher" class="dev-switcher-bar">
+    <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
+    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
   </div>
 
   <!-- Navigazione mese -->
@@ -429,6 +463,26 @@ function cambioMese(delta) {
   if (meseCorrente > 12) { meseCorrente = 1; annoCorrente++; }
   if (meseCorrente < 1)  { meseCorrente = 12; annoCorrente--; }
   caricaMese();
+}
+
+// ─── Identità ─────────────────────────────────────────────────────────────────
+async function caricaUtente() {
+  try {
+    const me = await (await fetch(`${API_BASE}/me`)).json();
+    const visualizzato = me.nome_completo || me.nome;
+    document.getElementById('utente-corrente').textContent =
+      visualizzato ? `Sei collegato come ${visualizzato}` : '';
+    document.getElementById('dev-switcher').style.display = me.modalita_dev ? 'flex' : 'none';
+    document.getElementById('dev-btn-responsabile').classList.toggle('active', me.e_responsabile);
+    document.getElementById('dev-btn-socio').classList.toggle('active', !me.e_responsabile);
+  } catch(e) {
+    document.getElementById('utente-corrente').textContent = 'identità non disponibile';
+  }
+}
+
+function passaAlRuoloDev(ruolo) {
+  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  location.reload();
 }
 
 // ─── Fetch dati ───────────────────────────────────────────────────────────────
@@ -615,6 +669,7 @@ function escHtml(str) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+caricaUtente();
 caricaMese();
 </script>
 </body>

@@ -89,6 +89,7 @@
     letter-spacing: -0.02em;
   }
   .header-left h1 span { color: var(--amber); }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
   .header-actions { display: flex; gap: 0.6rem; align-items: center; }
 
   .stats-bar {
@@ -363,6 +364,30 @@
     transition: background 0.2s;
   }
   .btn-link:hover { background: rgba(79,124,255,0.22); }
+  .btn-link.active {
+    background: var(--green); color: #0a1a12; border-color: transparent;
+  }
+  .btn-link.active:hover { background: var(--green); }
+
+  .identita-bar {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    min-height: 1.2rem;
+    align-self: stretch;
+    text-align: left;
+  }
+
+  .dev-switcher-bar {
+    display: none;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem 0.9rem;
+    margin-bottom: 1.2rem;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: 8px;
+  }
 
   @keyframes fadeDown { from { opacity:0; transform:translateY(-14px) } to { opacity:1; transform:none } }
   @keyframes fadeUp   { from { opacity:0; transform:translateY(14px)  } to { opacity:1; transform:none } }
@@ -381,12 +406,24 @@
       <div class="badge">CRaC — Commissione Tempo Telescopio</div>
       <h1>Dashboard <span>Responsabile</span></h1>
     </div>
-    <div class="header-actions">
-      <a href="telescope_time_request.html" class="btn-link">
-        ← Modulo Richiesta
-      </a>
-      <button class="btn-link" onclick="caricaRichieste()">↻ Aggiorna</button>
+    <div class="header-right">
+      <div id="utente-corrente" class="identita-bar"></div>
+      <div class="header-actions">
+        <a href="telescope_time_calendario.html" class="btn-link">
+          ← Calendario
+        </a>
+        <a href="telescope_time_request.html" class="btn-link">
+          ← Modulo Richiesta
+        </a>
+        <button class="btn-link" onclick="caricaRichieste()">↻ Aggiorna</button>
+      </div>
     </div>
+  </div>
+
+  <div id="dev-switcher" class="dev-switcher-bar">
+    <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
+    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
   </div>
 
   <!-- Stats -->
@@ -427,18 +464,22 @@ const API_BASE = '/telescope-time';
 let allRichieste = [];
 let currentFilter = 'tutte';
 let ricercheMap = {};
+let me = { e_responsabile: false };
 
 // ─── Carica dati ──────────────────────────────────────────────────────────────
 async function caricaRichieste() {
   document.getElementById('loading-bar').style.display = 'block';
   try {
-    const [riRes, rcRes] = await Promise.all([
+    const [riRes, rcRes, meRes] = await Promise.all([
       fetch(`${API_BASE}/richieste`),
-      fetch(`${API_BASE}/ricerche`)
+      fetch(`${API_BASE}/ricerche`),
+      fetch(`${API_BASE}/me`)
     ]);
     allRichieste = await riRes.json();
     const ricerche = await rcRes.json();
     ricercheMap = Object.fromEntries(ricerche.map(r => [r.id, r]));
+    me = await meRes.json();
+    renderIdentita();
 
     aggiornaStats();
     renderList();
@@ -447,6 +488,20 @@ async function caricaRichieste() {
   } finally {
     document.getElementById('loading-bar').style.display = 'none';
   }
+}
+
+function renderIdentita() {
+  const visualizzato = me.nome_completo || me.nome;
+  document.getElementById('utente-corrente').textContent =
+    visualizzato ? `Sei collegato come ${visualizzato}` : '';
+  document.getElementById('dev-switcher').style.display = me.modalita_dev ? 'flex' : 'none';
+  document.getElementById('dev-btn-responsabile').classList.toggle('active', me.e_responsabile);
+  document.getElementById('dev-btn-socio').classList.toggle('active', !me.e_responsabile);
+}
+
+function passaAlRuoloDev(ruolo) {
+  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  location.reload();
 }
 
 function aggiornaStats() {
@@ -556,6 +611,7 @@ function renderList() {
           <div class="storico" id="storico-${r.id}"></div>
         </div>
 
+        ${!me.e_responsabile ? '' : `
         <div class="action-area">
           <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.note_responsabile)}</textarea>
           ${comandi.map(([stato, etichetta]) => `
@@ -575,6 +631,7 @@ function renderList() {
           <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
           <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
         </div>
+        `}
       </div>
     </div>
     `;
@@ -660,6 +717,10 @@ async function aggiornaStato(id, stato, statoAttuale) {
       showToast((await res.json()).detail, 'error');
       return;
     }
+    if (res.status === 403) {
+      showToast('Solo i responsabili possono approvare o rifiutare.', 'error');
+      return;
+    }
     if (!res.ok) throw new Error();
 
     const emoji = stato === 'approvata' ? '✓' : '✗';
@@ -711,6 +772,9 @@ async function spostaOrario(id) {
     }
     if (res.status === 422) {
       showToast('Il server ha rifiutato gli orari: controlla e riprova.', 'error'); return;
+    }
+    if (res.status === 403) {
+      showToast('Solo i responsabili possono spostare una richiesta.', 'error'); return;
     }
     if (!res.ok) throw new Error();
 
