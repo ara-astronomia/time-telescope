@@ -7,7 +7,7 @@ Da includere nel server CRaC principale con:
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Cookie
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, NaiveDatetime, ValidationInfo, computed_field, field_validator
+from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, computed_field, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import datetime, time, timedelta
