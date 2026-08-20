@@ -166,8 +166,6 @@ class Utente(BaseModel):
     @computed_field
     @property
     def modalita_dev(self) -> bool:
-        """Dice al frontend se mostrare lo switcher di ruolo — inutile e
-        fuorviante fuori da AUTH_MODE=dev."""
         return auth_mode() == "dev"
 
 
@@ -185,11 +183,6 @@ def utente_corrente(
     quel che vuole. Il container non deve quindi esporre la porta all'esterno.
     """
     if auth_mode() == "dev":
-        # Il cookie è una comodità per provare la dashboard come socio da un
-        # browser normale, senza header espliciti né riavviare il container.
-        # Un header esplicito (test, script) vince sempre. Il nome per esteso
-        # è solo per leggersi meglio nello switcher: lo username resta quello
-        # tecnico, su cui i test già contano.
         if not remote_user and dev_ruolo == "socio":
             remote_user, remote_groups = "socio-dev", "soci"
             remote_name = remote_name or "Luca Bertani"

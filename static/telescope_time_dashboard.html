@@ -432,8 +432,8 @@
 
   <div id="dev-switcher" class="dev-switcher-bar">
     <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
-    <button class="btn-link" id="dev-btn-responsabile" onclick="passaA('responsabile')">responsabile</button>
-    <button class="btn-link" id="dev-btn-socio" onclick="passaA('socio')">socio</button>
+    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
   </div>
 
   <!-- Stats -->
@@ -474,9 +474,6 @@ const API_BASE = '/telescope-time';
 let allRichieste = [];
 let currentFilter = 'tutte';
 let ricercheMap = {};
-// Ricaricata a ogni refresh insieme al resto: chi perde il ruolo di
-// responsabile mentre ha la pagina aperta vede sparire i comandi entro il
-// prossimo aggiornamento, non solo al prossimo login.
 let me = { e_responsabile: false };
 
 // ─── Carica dati ──────────────────────────────────────────────────────────────
@@ -512,9 +509,7 @@ function renderIdentita() {
   document.getElementById('dev-btn-socio').classList.toggle('active', !me.e_responsabile);
 }
 
-// Solo per AUTH_MODE=dev: passa da un utente sintetizzato all'altro senza
-// header manuali né riavviare il container (#26).
-function passaA(ruolo) {
+function passaAlRuoloDev(ruolo) {
   document.cookie = `dev_ruolo=${ruolo}; path=/`;
   location.reload();
 }
@@ -731,8 +726,6 @@ async function aggiornaStato(id, stato, statoAttuale) {
       return;
     }
     if (res.status === 403) {
-      // Il comando resta raggiungibile anche a pulsanti nascosti, da chi ha
-      // la pagina aperta da prima di un cambio di gruppo.
       showToast('Solo i responsabili possono approvare o rifiutare.', 'error');
       return;
     }
