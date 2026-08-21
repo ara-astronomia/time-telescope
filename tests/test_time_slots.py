@@ -127,6 +127,24 @@ def test_timezone_offset_is_rejected(client, research_program):
     assert res.json()["detail"][0]["loc"] == ["body", "start"]
 
 
+def test_a_nonexistent_local_instant_is_rejected(client, research_program):
+    """The last Sunday of March, clocks jump from 02:00 to 03:00 CEST:
+    02:30 local never happens at the observatory that year."""
+    res = submit_slot(client, research_program["id"], "2027-03-28T02:30:00", "2027-03-28T04:30:00")
+
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"] == ["body", "start"]
+
+
+def test_an_ambiguous_local_instant_is_accepted(client, research_program):
+    """The last Sunday of October, clocks fall back from 03:00 to 02:00:
+    02:30 local happens twice that night, once as CEST and once as CET.
+    Accepted anyway, resolved to its first (CEST) occurrence."""
+    res = submit_slot(client, research_program["id"], "2026-10-25T02:30:00", "2026-10-25T04:30:00")
+
+    assert res.status_code == 201
+
+
 def test_invalid_slot_does_not_write_to_the_database(client, research_program):
     start, end = time_slot(future_night())
     submit_slot(client, research_program["id"], end, start)
