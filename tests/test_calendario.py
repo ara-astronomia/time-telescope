@@ -123,21 +123,17 @@ def test_le_coppie_sovrapposte_sono_esposte(client, ricerca, altra_ricerca, mese
     assert notte_di(client, quando)["sovrapposizioni"] == [[prima["id"], seconda["id"]]]
 
 
-def test_la_contesa_attraversa_la_soglia_di_notte(client, ricerca, altra_ricerca, mese):
-    """Due fasce in notti diverse (la soglia delle 12, #47) che si intersecano
-    contendono entrambe le notti: il conflitto sta negli istanti, non nella
-    data."""
+def test_scavalcare_la_soglia_di_notte_e_ora_impossibile_da_solo(client, ricerca, mese):
+    """Prima di #59 due fasce potevano stare in notti diverse (soglia delle
+    12, #47) e condividere comunque degli istanti — es. 11:00-13:00 e
+    12:00-14:00 dello stesso giorno, che contendevano entrambe le notti. Da
+    #59 in poi non più: due notti sono finestre da 12:00 a 12:00 consecutive
+    e disgiunte, quindi #59 rifiuta la prima fascia da sola, prima che si
+    possa anche solo parlare di contesa."""
     quando = mese.replace(day=12)
-    ieri = quando - timedelta(days=1)
-    prima = crea_richiesta(client, ricerca["id"], quando, ora=11, durata=2).json()
-    seconda = crea_richiesta(client, altra_ricerca["id"], quando, ora=12, durata=2).json()
+    res = crea_richiesta(client, ricerca["id"], quando, ora=11, durata=2)
 
-    tutte = giorni(client, mese)
-    coppia = [prima["id"], seconda["id"]]
-    assert tutte[ieri.isoformat()]["stato_giorno"] == "contesa"
-    assert tutte[quando.isoformat()]["stato_giorno"] == "contesa"
-    assert tutte[ieri.isoformat()]["sovrapposizioni"] == [coppia]
-    assert tutte[quando.isoformat()]["sovrapposizioni"] == [coppia]
+    assert res.status_code == 422
 
 
 # ─── Estremi del mese ─────────────────────────────────────────────────────────
