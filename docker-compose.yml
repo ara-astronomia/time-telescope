@@ -22,12 +22,13 @@ services:
     environment:
       - TELESCOPE_DB_PATH=/data/telescope_time.db
       # Le fasce orarie sono ora locale dell'osservatorio, e il server le
-      # confronta con la propria: senza questo il container ragionerebbe in UTC
-      # e una richiesta per fra un'ora potrebbe risultare nel passato.
+      # confronta con la propria: senza questo una richiesta per fra un'ora
+      # potrebbe risultare nel passato. Stessa variabile per il fuso di
+      # sistema del container e per quello letto esplicitamente da Python
+      # (router.now_at_observatory): tenerli distinti servirebbe solo a
+      # farli divergere per errore, e a complicare il confronto fra log e
+      # timestamp salvati in caso di debug.
       - TZ=Europe/Rome
-      # Letta esplicitamente da Python (router.now_at_observatory): a
-      # differenza di TZ, non dipende dal fuso di sistema del container.
-      - OBSERVATORY_TZ=Europe/Rome
       # I .pyc scritti dal container finirebbero nella working copy.
       - PYTHONDONTWRITEBYTECODE=1
       # Autenticazione simulata: in sviluppo non serve Authelia.

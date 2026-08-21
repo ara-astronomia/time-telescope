@@ -94,15 +94,15 @@ def test_invalid_datetime_is_rejected(client, research_program, value):
 def test_the_future_check_uses_the_observatory_timezone(
     client, research_program, observatory_far_ahead_of_the_system_clock
 ):
-    """"In the future" must mean the observatory's clock, not whatever OS
-    timezone the process happens to run under — otherwise a container
-    started without OBSERVATORY_TZ set silently falls back to system time,
-    and a slot that's already past for the observatory gets accepted (or
-    the reverse).
+    """"In the future" must read `TZ` on every call, not trust whatever
+    timezone the process happened to pick up at startup — otherwise a `TZ`
+    change without a restart goes unnoticed, and a slot that's already past
+    for the observatory gets accepted (or the reverse).
 
-    7h ahead of "now" for the UTC system clock is still hours behind "now"
-    at an observatory 14h ahead (Pacific/Kiritimati): from the observatory's
-    point of view this slot is already in the past.
+    7h ahead of what the process still believes is "now" (frozen at UTC) is
+    still hours behind "now" at an observatory 14h ahead (Pacific/Kiritimati,
+    the current value of `TZ`): from the observatory's point of view this
+    slot is already in the past.
     """
     now_system = datetime.fromisoformat(datetime.now().isoformat())
     start = now_system + timedelta(hours=7)

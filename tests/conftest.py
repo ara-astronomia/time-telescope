@@ -20,22 +20,21 @@ MEMBER = {"Remote-User": "mario", "Remote-Groups": "soci",
 
 
 @pytest.fixture
-def observatory_far_ahead_of_the_system_clock(monkeypatch):
-    """Fixes the OS timezone to UTC and the observatory's to Pacific/Kiritimati
-    (UTC+14, the furthest-ahead timezone that exists), so a test can build an
-    instant that is unambiguously in the future for one and in the past for
-    the other — deterministic regardless of the host machine's own timezone.
-
-    `monkeypatch.setenv` alone can't do this: changing the `TZ` env var has no
-    effect on `datetime.now()` without `time.tzset()`, and that call must be
-    paired with a manual restore — monkeypatch's automatic teardown runs
-    after this fixture's, so a `tzset()` in a plain teardown would re-apply
-    while `TZ` is still overridden, not after it's restored.
+def observatory_far_ahead_of_the_system_clock():
+    """Fixes what the OS actually believes "now" is to UTC, then changes
+    `TZ` again to Pacific/Kiritimati (UTC+14, the furthest-ahead timezone
+    that exists) without a matching `time.tzset()` — so `os.environ["TZ"]`
+    reads Kiritimati while `datetime.now()` (which only picks up a `TZ`
+    change through `tzset()`) keeps answering as UTC. A test can then build
+    an instant that's unambiguously in the future for one and in the past
+    for the other, deterministic regardless of the host machine's own
+    timezone: exactly the gap between reading `TZ` explicitly and trusting
+    the process's own idea of the clock.
     """
-    monkeypatch.setenv("OBSERVATORY_TZ", "Pacific/Kiritimati")
     previous_tz = os.environ.get("TZ")
     os.environ["TZ"] = "UTC"
     time_module.tzset()
+    os.environ["TZ"] = "Pacific/Kiritimati"
     try:
         yield
     finally:

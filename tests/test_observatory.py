@@ -32,7 +32,7 @@ def test_the_default_timezone_is_europe_rome(client):
 
 
 def test_the_timezone_reflects_the_environment_variable(client, monkeypatch):
-    monkeypatch.setenv("OBSERVATORY_TZ", "Pacific/Kiritimati")
+    monkeypatch.setenv("TZ", "Pacific/Kiritimati")
 
     res = client.get(OBSERVATORY)
 

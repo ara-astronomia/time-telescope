@@ -187,10 +187,9 @@ def test_without_parameters_uses_the_current_month(client):
 
 
 def test_the_default_month_is_the_observatorys_not_the_systems(client, monkeypatch):
-    """"Today" for the default year/month must be the observatory's calendar
-    day, not the process's OS timezone — otherwise a container without
-    OBSERVATORY_TZ set can default to the wrong month right around a day
-    boundary."""
+    """"Today" for the default year/month must come from `now_at_observatory`,
+    not the process's own idea of the clock — otherwise a night right
+    around a day boundary can default to the wrong month."""
     import router
     monkeypatch.setattr(router, "now_at_observatory", lambda: datetime(2027, 1, 5, 3, 0))
 

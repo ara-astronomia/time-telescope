@@ -48,14 +48,15 @@ def dev_groups() -> str:
     return os.environ.get("DEV_GROUPS", "telescope-responsabili")
 
 def observatory_tz() -> str:
-    return os.environ.get("OBSERVATORY_TZ", "Europe/Rome")
+    return os.environ.get("TZ", "Europe/Rome")
 
 def now_at_observatory() -> datetime:
     """'Now' as a naive instant in the observatory's local time, comparable
     with the naive `start`/`end` stored on requests (see `TimeSlot`): those
-    have no tzinfo by design, so a bare `datetime.now()` here would compare
-    them against the *process's* timezone instead of the observatory's —
-    correct only by accident when the two happen to match.
+    have no tzinfo by design, so a bare `datetime.now()` here would depend
+    on the OS timezone the process happened to pick up at startup, correct
+    only by accident when it matches the observatory's. `ZoneInfo(TZ)`
+    resolves it explicitly on every call instead.
     """
     return datetime.now(ZoneInfo(observatory_tz())).replace(tzinfo=None)
 
