@@ -81,6 +81,28 @@ def test_fine_precedente_all_inizio_non_viene_inviata(page, app_url):
     assert inizi_inviati(page, app_url) == [] or f"{fine}:00" not in inizi_inviati(page, app_url)
 
 
+# ─── Fine oltre la notte dell'inizio (#59) ─────────────────────────────────────
+
+def test_fine_oltre_la_notte_segnalata_all_utente(page, app_url):
+    """Il vincolo è relativo all'inizio: `max` di #fine segue la notte (#47, #59)."""
+    prepara(page, app_url)
+    inizio, fine = fascia(10, ora=22, durata=27)
+    compila(page, inizio, fine)
+    page.click("#btn-submit")
+
+    assert page.locator("#fine").evaluate("e => e.validity.rangeOverflow") is True
+
+
+def test_fine_oltre_la_notte_non_viene_inviata(page, app_url):
+    prepara(page, app_url)
+    inizio, fine = fascia(10, ora=22, durata=27)
+    compila(page, inizio, fine)
+    page.click("#btn-submit")
+    page.wait_for_timeout(500)
+
+    assert f"{inizio}:00" not in inizi_inviati(page, app_url)
+
+
 # ─── Campi obbligatori e invio ────────────────────────────────────────────────
 
 def test_campi_obbligatori_dichiarati_nel_markup(page, app_url):

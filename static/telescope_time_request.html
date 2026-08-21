@@ -743,16 +743,20 @@ const campoFine      = document.getElementById('fine');
 const notteHint      = document.getElementById('notte-hint');
 const notteHintData  = document.getElementById('notte-hint-data');
 
-// Stessa soglia di router.py: mezzogiorno, per non mostrare una notte diversa
-// da quella su cui il calendario poi raggruppa davvero la richiesta (#47).
+// Stessa soglia di router.py: mezzogiorno (#47, #59).
+function notteDi(istante) {
+  const notte = new Date(istante);
+  if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  notte.setHours(0, 0, 0, 0);
+  return notte;
+}
+
 function aggiornaNotteHint() {
   if (!campoInizio.value) {
     notteHint.style.display = 'none';
     return;
   }
-  const inizio = new Date(campoInizio.value);
-  const notte = new Date(inizio);
-  if (inizio.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  const notte = notteDi(new Date(campoInizio.value));
   notteHintData.textContent = notte.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
   notteHint.style.display = '';
 }
@@ -762,6 +766,12 @@ campoInizio.addEventListener('input', () => {
   // Il vincolo della fine è relativo all'inizio: nessun attributo statico può
   // esprimerlo, va riscritto a ogni cambiamento.
   campoFine.min = campoInizio.value;
+  if (campoInizio.value) {
+    const fineFinestra = notteDi(new Date(campoInizio.value));
+    fineFinestra.setDate(fineFinestra.getDate() + 1);
+    fineFinestra.setHours(12, 0, 0, 0);
+    campoFine.max = localeIso(fineFinestra);
+  }
   if (campoInizio.value && !campoFine.value) {
     const fine = new Date(campoInizio.value);
     fine.setHours(fine.getHours() + 3);

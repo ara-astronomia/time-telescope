@@ -231,6 +231,23 @@ def test_la_conferma_rifiutata_non_sposta_nulla(page, app_url):
     assert orari(page, app_url, richiesta["id"]) == prima
 
 
+def test_fine_oltre_la_notte_segnalata_e_non_inviata(page, app_url):
+    """Il vincolo di #59 vale anche qui: `max` di #sposta-fine segue #sposta-inizio,
+    e senza reportValidity() (niente <form> in quest'area) serve un controllo
+    esplicito prima della fetch."""
+    giorno = date.today() + timedelta(days=46)
+    richiesta = crea_con_fascia(page, app_url, "Sposta H", giorno, ora=21, durata=2)
+    prima = orari(page, app_url, richiesta["id"])
+
+    apri_card(page, app_url, richiesta["id"])
+    compila_spostamento(page, richiesta["id"], giorno + timedelta(days=2), ora=22, durata=27)
+    page.click(f"#card-{richiesta['id']} .btn-sposta")
+    page.wait_for_selector("#toast.show")
+
+    assert "notte" in page.inner_text("#toast")
+    assert orari(page, app_url, richiesta["id"]) == prima
+
+
 def test_il_conflitto_di_fascia_blocca_lo_spostamento(page, app_url):
     giorno = date.today() + timedelta(days=45)
     occupata = crea_con_fascia(page, app_url, "Sposta F", giorno, ora=21, durata=3)
