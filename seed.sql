@@ -16,7 +16,8 @@ INSERT OR IGNORE INTO utenti (username, nome, email) VALUES
     ('efabbri',   'Elena Fabbri',    'elena.fabbri@example.test'),
     ('dmanzoni',  'Davide Manzoni',  'davide.manzoni@example.test'),
     ('pranieri',  'Paolo Ranieri',   'paolo.ranieri@example.test'),
-    ('cbellandi', 'Chiara Bellandi', 'chiara.bellandi@example.test');
+    ('cbellandi', 'Chiara Bellandi', 'chiara.bellandi@example.test'),
+    ('socio-dev', 'Luca Bertani',    'socio-dev@example.test');
 
 INSERT OR IGNORE INTO ricerche (nome, descrizione, specifiche) VALUES
     ('Survey exoplanet',        'Ricerca di transiti su nane rosse vicine', 'Filtri BVRI, pose da 120s'),
@@ -133,4 +134,12 @@ INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richie
 SELECT id, (SELECT id FROM utenti WHERE nome = 'Chiara Bellandi'), 'Sara Ferretti',
        date('now', '+42 days'),
        date('now', '+42 days') || 'T21:30:00', date('now', '+42 days') || 'T23:00:00'
+FROM ricerche WHERE nome = 'Survey exoplanet';
+
+-- Del socio sintetizzato dallo switcher dev: sempre in attesa, per provare
+-- da subito se il proprietario può modificarla lui stesso.
+INSERT INTO richieste (ricerca_id, richiedente_id, co_osservatori, giorno_richiesto, inizio, fine)
+SELECT id, (SELECT id FROM utenti WHERE nome = 'Luca Bertani'), NULL,
+       date('now', '+18 days'),
+       date('now', '+18 days') || 'T21:00:00', date('now', '+18 days') || 'T23:00:00'
 FROM ricerche WHERE nome = 'Survey exoplanet';

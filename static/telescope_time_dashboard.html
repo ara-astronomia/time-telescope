@@ -557,6 +557,7 @@ function renderList() {
       rifiutata: [['approvata', '↺ Ribalta: approva']],
     }[r.stato];
     const statoLabel = { in_attesa: 'IN ATTESA', approvata: 'APPROVATA', rifiutata: 'RIFIUTATA' }[r.stato];
+    const puoSpostare = me.e_responsabile || (r.richiedente_id === me.id && r.stato === 'in_attesa');
 
     return `
     <div class="richiesta-card stato-${r.stato}" id="card-${r.id}">
@@ -618,7 +619,9 @@ function renderList() {
           <button class="${stato === 'approvata' ? 'btn-approve' : 'btn-reject'}"
                   onclick="aggiornaStato(${r.id}, '${stato}', '${r.stato}')">${etichetta}</button>`).join('')}
         </div>
+        `}
 
+        ${!puoSpostare ? '' : `
         <div class="sposta-area">
           <div class="sposta-campo">
             <div class="dl">NUOVO INIZIO</div>

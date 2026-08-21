@@ -615,3 +615,44 @@ def test_link_al_calendario_presente(page, app_url):
 def test_link_al_modulo_richiesta_presente(page, app_url):
     page.goto(f"{app_url}{PAGINA}")
     assert page.locator('a[href="telescope_time_request.html"]').count() == 1
+
+
+# ─── L'osservatore sposta la propria richiesta in attesa ──────────────────────
+
+def crea_richiesta_propria(page, app_url, nome, giorno, ora=21, durata=2, headers=None):
+    ricerca = page.request.post(
+        f"{app_url}/telescope-time/ricerche", data={"nome": nome}, headers=headers or {}
+    ).json()
+    inizio = datetime.combine(giorno, time(ora))
+    return page.request.post(
+        f"{app_url}/telescope-time/richieste",
+        data={"ricerca_id": ricerca["id"], "inizio": inizio.isoformat(),
+              "fine": (inizio + timedelta(hours=durata)).isoformat()},
+        headers=headers or {},
+    ).json()
+
+
+def test_il_proprietario_vede_lo_spostamento_sulla_propria_in_attesa(page, app_url):
+    come_socio(page)
+    giorno = date.today() + timedelta(days=74)
+    richiesta = crea_richiesta_propria(page, app_url, "Propria A", giorno)
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.locator(f"#detail-{richiesta['id']} .sposta-area").count() == 1
+    assert page.locator(f"#detail-{richiesta['id']} .action-area").count() == 0
+
+
+def test_il_proprietario_non_vede_lo_spostamento_su_una_propria_approvata(page, app_url):
+    come_socio(page)
+    giorno = date.today() + timedelta(days=75)
+    richiesta = crea_richiesta_propria(page, app_url, "Propria B", giorno)
+    page.request.patch(
+        f"{app_url}/telescope-time/richieste/{richiesta['id']}",
+        data={"stato": "approvata"},
+        headers={"Remote-User": "anna", "Remote-Groups": "soci,telescope-responsabili"},
+    )
+
+    apri_card(page, app_url, richiesta["id"])
+
+    assert page.locator(f"#detail-{richiesta['id']} .sposta-area").count() == 0

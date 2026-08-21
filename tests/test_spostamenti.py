@@ -16,6 +16,9 @@ from conftest import RESPONSABILE, SOCIO, approva, crea_richiesta, fascia, notte
 ORARIO = "/telescope-time/richieste/{}/orario"
 STORICO = "/telescope-time/richieste/{}/storico"
 
+ALTRO_SOCIO = {"Remote-User": "luigi", "Remote-Groups": "soci",
+               "Remote-Email": "luigi@example.test"}
+
 
 def sposta(client, richiesta_id, giorno, ora=22, durata=3, motivo=None, headers=None):
     inizio, fine = fascia(giorno, ora, durata)
@@ -130,37 +133,78 @@ def test_uno_spostamento_invalido_non_tocca_la_richiesta(client, richiesta, altr
     assert client.get(STORICO.format(richiesta["id"])).json() == []
 
 
-# ─── Autorizzazione ───────────────────────────────────────────────────────────
+# ─── Autorizzazione (anche il proprietario, con vincoli propri) ──────────────
 
-def test_un_socio_non_puo_spostare(client_authelia, ricerca_authelia, giorno, altro_giorno):
-    """Cross-user: chi ha aperto la richiesta non può riprogrammarla da sé —
-    quello è #36, con vincoli propri."""
+def crea_richiesta_di(client_authelia, ricerca_id, giorno, headers):
     inizio, fine = fascia(giorno)
-    propria = client_authelia.post(
+    return client_authelia.post(
         "/telescope-time/richieste",
-        json={"ricerca_id": ricerca_authelia["id"], "inizio": inizio, "fine": fine},
-        headers=SOCIO,
+        json={"ricerca_id": ricerca_id, "inizio": inizio, "fine": fine},
+        headers=headers,
     ).json()
+
+
+def test_il_proprietario_sposta_la_propria_richiesta_in_attesa(
+    client_authelia, ricerca_authelia, giorno, altro_giorno
+):
+    propria = crea_richiesta_di(client_authelia, ricerca_authelia["id"], giorno, SOCIO)
 
     res = sposta(client_authelia, propria["id"], altro_giorno, headers=SOCIO)
 
+    assert res.status_code == 200
+    assert res.json()["inizio"] == f"{altro_giorno}T22:00:00"
+
+
+def test_un_altro_socio_non_puo_spostare_una_richiesta_non_sua(
+    client_authelia, ricerca_authelia, giorno, altro_giorno
+):
+    propria = crea_richiesta_di(client_authelia, ricerca_authelia["id"], giorno, SOCIO)
+
+    res = sposta(client_authelia, propria["id"], altro_giorno, headers=ALTRO_SOCIO)
+
     assert res.status_code == 403
-    assert "telescope-responsabili" in res.json()["detail"]
-
-
-def test_il_socio_respinto_non_sposta_nulla(client_authelia, ricerca_authelia, giorno, altro_giorno):
-    inizio, fine = fascia(giorno)
-    propria = client_authelia.post(
-        "/telescope-time/richieste",
-        json={"ricerca_id": ricerca_authelia["id"], "inizio": inizio, "fine": fine},
-        headers=SOCIO,
-    ).json()
-    sposta(client_authelia, propria["id"], altro_giorno, headers=SOCIO)
-
     dopo = client_authelia.get(
         f"/telescope-time/richieste/{propria['id']}", headers=SOCIO
     ).json()
     assert dopo["inizio"] == propria["inizio"]
+
+
+def test_il_proprietario_non_puo_spostare_una_approvata(
+    client_authelia, ricerca_authelia, giorno, altro_giorno
+):
+    propria = crea_richiesta_di(client_authelia, ricerca_authelia["id"], giorno, SOCIO)
+    client_authelia.patch(
+        f"/telescope-time/richieste/{propria['id']}",
+        json={"stato": "approvata"}, headers=RESPONSABILE,
+    )
+
+    res = sposta(client_authelia, propria["id"], altro_giorno, headers=SOCIO)
+
+    assert res.status_code == 409
+
+
+def test_il_proprietario_non_puo_spostare_una_rifiutata(
+    client_authelia, ricerca_authelia, giorno, altro_giorno
+):
+    propria = crea_richiesta_di(client_authelia, ricerca_authelia["id"], giorno, SOCIO)
+    client_authelia.patch(
+        f"/telescope-time/richieste/{propria['id']}",
+        json={"stato": "rifiutata"}, headers=RESPONSABILE,
+    )
+
+    res = sposta(client_authelia, propria["id"], altro_giorno, headers=SOCIO)
+
+    assert res.status_code == 409
+
+
+def test_il_proprietario_non_puo_spostare_nel_passato(
+    client_authelia, ricerca_authelia, giorno
+):
+    propria = crea_richiesta_di(client_authelia, ricerca_authelia["id"], giorno, SOCIO)
+
+    res = sposta(client_authelia, propria["id"], notte(-5), headers=SOCIO)
+
+    assert res.status_code == 422
 
 
 # ─── Sovrapposizione ──────────────────────────────────────────────────────────
