@@ -41,8 +41,8 @@ def open_calendar(page, app_url, night):
     page.goto(f"{app_url}{PAGE}")
     page.wait_for_selector(".day-cell")
     page.click(".month-nav button:last-of-type")
-    page.wait_for_selector(f'.day-cell[data-giorno="{night.isoformat()}"]')
-    return page.locator(f'.day-cell[data-giorno="{night.isoformat()}"]')
+    page.wait_for_selector(f'.day-cell[data-date="{night.isoformat()}"]')
+    return page.locator(f'.day-cell[data-date="{night.isoformat()}"]')
 
 
 def css_class(cell):
@@ -57,8 +57,8 @@ def test_night_with_two_programs_flagged_in_grid(page, app_url):
     create_request(page, app_url, night, hour=21, approved=True)
 
     cell = open_calendar(page, app_url, night)
-    assert cell.locator(".turni").count() == 1
-    assert "2" in cell.locator(".turni").inner_text()
+    assert cell.locator(".multi-program-badge").count() == 1
+    assert "2" in cell.locator(".multi-program-badge").inner_text()
 
 
 def test_night_with_a_single_program_not_flagged(page, app_url):
@@ -66,7 +66,7 @@ def test_night_with_a_single_program_not_flagged(page, app_url):
     create_request(page, app_url, night, hour=18, approved=True)
 
     cell = open_calendar(page, app_url, night)
-    assert cell.locator(".turni").count() == 0
+    assert cell.locator(".multi-program-badge").count() == 0
     assert "booked" in css_class(cell)
 
 
@@ -102,8 +102,8 @@ def test_two_requests_in_distinct_shifts_are_not_contested(page, app_url):
 
 def test_legend_distinguishes_the_two_states(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    page.wait_for_selector(".legenda")
-    legend = page.inner_text(".legenda").lower()
+    page.wait_for_selector(".legend")
+    legend = page.inner_text(".legend").lower()
 
     assert "richiesta" in legend
     assert "contesa" in legend
@@ -127,8 +127,8 @@ def test_night_detail_shows_the_time_slot(page, app_url):
 
 def test_banner_shows_who_is_logged_in(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "Marta Conti" in page.inner_text("#utente-corrente")
+    page.wait_for_selector("#current-user:not(:empty)")
+    assert "Marta Conti" in page.inner_text("#current-user")
 
 
 def test_the_dev_switcher_is_visible(page, app_url):

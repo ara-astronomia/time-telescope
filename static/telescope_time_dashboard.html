@@ -120,9 +120,9 @@
     letter-spacing: 0.1em;
     font-family: var(--mono);
   }
-  .stat-card.attesa  .val { color: var(--amber); }
-  .stat-card.approv  .val { color: var(--green); }
-  .stat-card.rifiut  .val { color: var(--red); }
+  .stat-card.pending  .val { color: var(--amber); }
+  .stat-card.approved .val { color: var(--green); }
+  .stat-card.rejected .val { color: var(--red); }
 
   .filter-bar {
     display: flex;
@@ -151,7 +151,7 @@
 
   .list { animation: fadeUp 0.5s ease 0.2s both; }
 
-  .richiesta-card {
+  .request-card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -159,11 +159,11 @@
     overflow: hidden;
     transition: border-color 0.2s;
   }
-  .richiesta-card:hover { border-color: var(--border-hi); }
+  .request-card:hover { border-color: var(--border-hi); }
 
-  .richiesta-card.stato-pending  { border-left: 3px solid var(--amber); }
-  .richiesta-card.stato-approved { border-left: 3px solid var(--green); }
-  .richiesta-card.stato-rejected { border-left: 3px solid var(--red);   }
+  .request-card.stato-pending  { border-left: 3px solid var(--amber); }
+  .request-card.stato-approved { border-left: 3px solid var(--green); }
+  .request-card.stato-rejected { border-left: 3px solid var(--red);   }
 
   .rc-header {
     display: flex;
@@ -178,7 +178,7 @@
   .rc-header:hover { background: rgba(255,255,255,0.02); }
 
   .rc-left { display: flex; flex-direction: column; gap: 0.3rem; }
-  .rc-nome-ricerca {
+  .rc-program-name {
     font-weight: 700;
     font-size: 1rem;
     letter-spacing: -0.01em;
@@ -193,7 +193,7 @@
   }
   .rc-meta span { display: flex; align-items: center; gap: 0.35rem; }
 
-  .stato-badge {
+  .status-badge {
     font-family: var(--mono);
     font-size: 0.65rem;
     letter-spacing: 0.1em;
@@ -224,7 +224,7 @@
   .detail-item .dl { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 0.2rem; }
   .detail-item .dv { font-size: 0.9rem; color: var(--text); }
 
-  .descrizione-box {
+  .description-box {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -272,29 +272,29 @@
     transition: opacity 0.2s, transform 0.15s;
     height: 38px;
   }
-  .storico-box {
+  .history-box {
     margin-top: 0.8rem; padding-top: 0.8rem;
     border-top: 1px solid var(--border);
   }
-  .storico { font-family: var(--mono); font-size: 0.72rem; margin-top: 0.4rem; }
-  .storico .voce {
+  .history { font-family: var(--mono); font-size: 0.72rem; margin-top: 0.4rem; }
+  .history .entry {
     display: flex; gap: 0.6rem; flex-wrap: wrap;
     padding: 0.3rem 0; color: var(--text-mid);
   }
-  .storico .quando { color: var(--text-dim); min-width: 130px; }
-  .storico .chi    { color: var(--accent); }
-  .storico .nota   { color: var(--text-dim); font-style: italic; }
-  .storico .vuoto  { color: var(--text-dim); padding: 0.3rem 0; }
+  .history .when  { color: var(--text-dim); min-width: 130px; }
+  .history .who   { color: var(--accent); }
+  .history .note  { color: var(--text-dim); font-style: italic; }
+  .history .empty-state { color: var(--text-dim); padding: 0.3rem 0; }
 
-  .sposta-area {
+  .reschedule-area {
     display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap;
     margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
   }
-  .sposta-campo { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sposta-campo .dl { font-size: 0.62rem; }
-  .sposta-campo input { min-width: 190px; }
+  .reschedule-field { display: flex; flex-direction: column; gap: 0.25rem; }
+  .reschedule-field .dl { font-size: 0.62rem; }
+  .reschedule-field input { min-width: 190px; }
 
-  .btn-sposta {
+  .btn-reschedule {
     font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.05em;
     padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer;
     font-weight: 700; height: 38px;
@@ -302,8 +302,8 @@
     border: 1px solid var(--accent);
     transition: background 0.2s, transform 0.15s;
   }
-  .btn-sposta:hover  { background: var(--accent-lo); }
-  .btn-sposta:active { transform: scale(0.97); }
+  .btn-reschedule:hover  { background: var(--accent-lo); }
+  .btn-reschedule:active { transform: scale(0.97); }
 
   .btn-approve { background: var(--green); color: #0a1a12; }
   .btn-reject  { background: var(--red);   color: #1a0a0e; }
@@ -369,7 +369,7 @@
   }
   .btn-link.active:hover { background: var(--green); }
 
-  .identita-bar {
+  .identity-bar {
     font-size: 0.85rem;
     color: var(--text-dim);
     min-height: 1.2rem;
@@ -407,7 +407,7 @@
       <h1>Dashboard <span>Responsabile</span></h1>
     </div>
     <div class="header-right">
-      <div id="utente-corrente" class="identita-bar"></div>
+      <div id="current-user" class="identity-bar"></div>
       <div class="header-actions">
         <a href="telescope_time_calendario.html" class="btn-link">
           ← Calendario
@@ -415,29 +415,29 @@
         <a href="telescope_time_request.html" class="btn-link">
           ← Modulo Richiesta
         </a>
-        <button class="btn-link" onclick="caricaRichieste()">↻ Aggiorna</button>
+        <button class="btn-link" onclick="loadRequests()">↻ Aggiorna</button>
       </div>
     </div>
   </div>
 
   <div id="dev-switcher" class="dev-switcher-bar">
     <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
-    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
-    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
+    <button class="btn-link" id="dev-btn-reviewer" onclick="switchDevRole('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-member" onclick="switchDevRole('socio')">socio</button>
   </div>
 
   <!-- Stats -->
   <div class="stats-bar">
-    <div class="stat-card attesa">
-      <div class="val" id="stat-attesa">–</div>
+    <div class="stat-card pending">
+      <div class="val" id="stat-pending">–</div>
       <div class="lbl">IN ATTESA</div>
     </div>
-    <div class="stat-card approv">
-      <div class="val" id="stat-approv">–</div>
+    <div class="stat-card approved">
+      <div class="val" id="stat-approved">–</div>
       <div class="lbl">APPROVATE</div>
     </div>
-    <div class="stat-card rifiut">
-      <div class="val" id="stat-rifiut">–</div>
+    <div class="stat-card rejected">
+      <div class="val" id="stat-rejected">–</div>
       <div class="lbl">RIFIUTATE</div>
     </div>
   </div>
@@ -461,27 +461,27 @@
 <script>
 const API_BASE = '/telescope-time';
 
-let allRichieste = [];
+let allRequests = [];
 let currentFilter = 'all';
-let ricercheMap = {};
+let researchProgramsMap = {};
 let me = { is_reviewer: false };
 
 // ─── Carica dati ──────────────────────────────────────────────────────────────
-async function caricaRichieste() {
+async function loadRequests() {
   document.getElementById('loading-bar').style.display = 'block';
   try {
-    const [riRes, rcRes, meRes] = await Promise.all([
+    const [requestsRes, programsRes, meRes] = await Promise.all([
       fetch(`${API_BASE}/requests`),
       fetch(`${API_BASE}/research-programs`),
       fetch(`${API_BASE}/me`)
     ]);
-    allRichieste = await riRes.json();
-    const ricerche = await rcRes.json();
-    ricercheMap = Object.fromEntries(ricerche.map(r => [r.id, r]));
+    allRequests = await requestsRes.json();
+    const researchPrograms = await programsRes.json();
+    researchProgramsMap = Object.fromEntries(researchPrograms.map(r => [r.id, r]));
     me = await meRes.json();
-    renderIdentita();
+    renderIdentity();
 
-    aggiornaStats();
+    updateStats();
     renderList();
   } catch(e) {
     showToast('Errore caricamento dati.', 'error');
@@ -490,28 +490,28 @@ async function caricaRichieste() {
   }
 }
 
-function renderIdentita() {
-  const visualizzato = me.full_name || me.username;
-  document.getElementById('utente-corrente').textContent =
-    visualizzato ? `Sei collegato come ${visualizzato}` : '';
+function renderIdentity() {
+  const displayName = me.full_name || me.username;
+  document.getElementById('current-user').textContent =
+    displayName ? `Sei collegato come ${displayName}` : '';
   document.getElementById('dev-switcher').style.display = me.is_dev_mode ? 'flex' : 'none';
-  document.getElementById('dev-btn-responsabile').classList.toggle('active', me.is_reviewer);
-  document.getElementById('dev-btn-socio').classList.toggle('active', !me.is_reviewer);
+  document.getElementById('dev-btn-reviewer').classList.toggle('active', me.is_reviewer);
+  document.getElementById('dev-btn-member').classList.toggle('active', !me.is_reviewer);
 }
 
-function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_role=${ruolo}; path=/`;
+function switchDevRole(role) {
+  document.cookie = `dev_role=${role}; path=/`;
   location.reload();
 }
 
-function aggiornaStats() {
-  const conteggi = { pending: 0, approved: 0, rejected: 0 };
-  allRichieste.forEach(r => {
-    if (conteggi[r.status] !== undefined) conteggi[r.status]++;
+function updateStats() {
+  const counts = { pending: 0, approved: 0, rejected: 0 };
+  allRequests.forEach(r => {
+    if (counts[r.status] !== undefined) counts[r.status]++;
   });
-  document.getElementById('stat-attesa').textContent = conteggi.pending;
-  document.getElementById('stat-approv').textContent = conteggi.approved;
-  document.getElementById('stat-rifiut').textContent = conteggi.rejected;
+  document.getElementById('stat-pending').textContent = counts.pending;
+  document.getElementById('stat-approved').textContent = counts.approved;
+  document.getElementById('stat-rejected').textContent = counts.rejected;
 }
 
 // ─── Filtri ───────────────────────────────────────────────────────────────────
@@ -522,17 +522,17 @@ function setFilter(btn) {
   renderList();
 }
 
-function dataEstesaItaliana(inizio) {
-  return new Date(inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+function longItalianDate(start) {
+  return new Date(start).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
-  const idDaRiaprireDopoIlRender = dettagliAperti();
+  const idsToReopenAfterRender = openDetailIds();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'all'
-    ? allRichieste
-    : allRichieste.filter(r => r.status === currentFilter);
+    ? allRequests
+    : allRequests.filter(r => r.status === currentFilter);
 
   if (!filtered.length) {
     list.innerHTML = `<div class="empty"><div class="icon">🔭</div>Nessuna richiesta${currentFilter !== 'all' ? ' con questo stato' : ''}.</div>`;
@@ -540,35 +540,35 @@ function renderList() {
   }
 
   list.innerHTML = filtered.map(r => {
-    const ricerca = ricercheMap[r.research_program_id] || {};
-    const data = dataEstesaItaliana(r.start);
-    const dataCreazione = new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const researchProgram = researchProgramsMap[r.research_program_id] || {};
+    const formattedDate = longItalianDate(r.start);
+    const createdLabel = new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     // Nessun comando riporta allo stato corrente: il server lo tratterebbe
     // come un non-evento, e mostrarlo suggerirebbe un'azione che non fa niente.
-    const comandi = {
+    const actions = {
       pending:  [['approved', '✓ Approva'], ['rejected', '✗ Rifiuta']],
       approved: [['rejected', '↺ Ribalta: rifiuta']],
       rejected: [['approved', '↺ Ribalta: approva']],
     }[r.status];
-    const statoLabel = { pending: 'IN ATTESA', approved: 'APPROVATA', rejected: 'RIFIUTATA' }[r.status];
-    const puoSpostare = me.is_reviewer || (r.requester_id === me.id && r.status === 'pending');
+    const statusLabel = { pending: 'IN ATTESA', approved: 'APPROVATA', rejected: 'RIFIUTATA' }[r.status];
+    const canReschedule = me.is_reviewer || (r.requester_id === me.id && r.status === 'pending');
 
     return `
-    <div class="richiesta-card stato-${r.status}" id="card-${r.id}">
+    <div class="request-card stato-${r.status}" id="card-${r.id}">
       <div class="rc-header" onclick="toggleDetail(${r.id})">
         <div class="rc-left">
-          <div class="rc-nome-ricerca">${escHtml(r.research_program_name)}</div>
+          <div class="rc-program-name">${escHtml(r.research_program_name)}</div>
           <div class="rc-meta">
             <span>👤 ${escHtml(r.observer)}</span>
-            <span>📅 ${data}</span>
-            <span>🔭 ${fascia(r.start, r.end)}</span>
-            <span>🕐 ${dataCreazione}</span>
+            <span>📅 ${formattedDate}</span>
+            <span>🔭 ${timeRange(r.start, r.end)}</span>
+            <span>🕐 ${createdLabel}</span>
             ${r.co_observers ? `<span>👥 ${escHtml(r.co_observers)}</span>` : ''}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.6rem">
-          <span class="stato-badge stato-${r.status}">${statoLabel}</span>
+          <span class="status-badge stato-${r.status}">${statusLabel}</span>
           <svg id="chevron-${r.id}" width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--text-dim);transition:transform 0.2s">
             <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
@@ -585,15 +585,15 @@ function renderList() {
             <div class="dl">ID RICHIESTA</div>
             <div class="dv" style="font-family:var(--mono)">#${r.id}</div>
           </div>
-          ${ricerca.description ? `
+          ${researchProgram.description ? `
           <div class="detail-item" style="grid-column:1/-1">
             <div class="dl">DESCRIZIONE RICERCA</div>
-            <div class="descrizione-box">${escHtml(ricerca.description)}</div>
+            <div class="description-box">${escHtml(researchProgram.description)}</div>
           </div>` : ''}
-          ${ricerca.specs ? `
+          ${researchProgram.specs ? `
           <div class="detail-item" style="grid-column:1/-1">
             <div class="dl">SPECIFICHE TECNICHE</div>
-            <div class="descrizione-box">${escHtml(ricerca.specs)}</div>
+            <div class="description-box">${escHtml(researchProgram.specs)}</div>
           </div>` : ''}
           ${r.reviewer_notes ? `
           <div class="detail-item" style="grid-column:1/-1">
@@ -602,34 +602,34 @@ function renderList() {
           </div>` : ''}
         </div>
 
-        <div class="storico-box">
+        <div class="history-box">
           <div class="dl">STORICO</div>
-          <div class="storico" id="storico-${r.id}"></div>
+          <div class="history" id="history-${r.id}"></div>
         </div>
 
         ${!me.is_reviewer ? '' : `
         <div class="action-area">
-          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.reviewer_notes)}</textarea>
-          ${comandi.map(([stato, etichetta]) => `
-          <button class="${stato === 'approved' ? 'btn-approve' : 'btn-reject'}"
-                  onclick="aggiornaStato(${r.id}, '${stato}', '${r.status}')">${etichetta}</button>`).join('')}
+          <textarea class="note-input" id="notes-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.reviewer_notes)}</textarea>
+          ${actions.map(([status, label]) => `
+          <button class="${status === 'approved' ? 'btn-approve' : 'btn-reject'}"
+                  onclick="updateStatus(${r.id}, '${status}', '${r.status}')">${label}</button>`).join('')}
         </div>
         `}
 
-        ${!puoSpostare ? '' : `
-        <div class="sposta-area">
-          <div class="sposta-campo">
+        ${!canReschedule ? '' : `
+        <div class="reschedule-area">
+          <div class="reschedule-field">
             <div class="dl">NUOVO INIZIO</div>
-            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.start.slice(0,16)}"
-                   oninput="aggiornaMaxSposta(${r.id})">
+            <input class="note-input" type="datetime-local" id="reschedule-start-${r.id}" value="${r.start.slice(0,16)}"
+                   oninput="updateRescheduleMax(${r.id})">
           </div>
-          <div class="sposta-campo">
+          <div class="reschedule-field">
             <div class="dl">NUOVA FINE</div>
-            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.end.slice(0,16)}"
-                   max="${fineFinestraDi(r.start)}">
+            <input class="note-input" type="datetime-local" id="reschedule-end-${r.id}" value="${r.end.slice(0,16)}"
+                   max="${nightWindowEnd(r.start)}">
           </div>
-          <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
-          <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
+          <input class="note-input" type="text" id="reschedule-reason-${r.id}" placeholder="Motivo dello spostamento…">
+          <button class="btn-reschedule" onclick="rescheduleRequest(${r.id})">🕒 Sposta</button>
         </div>
         `}
       </div>
@@ -637,77 +637,77 @@ function renderList() {
     `;
   }).join('');
 
-  idDaRiaprireDopoIlRender
+  idsToReopenAfterRender
     .filter(id => document.getElementById(`detail-${id}`))
-    .forEach(id => mostraDettaglio(id, true));
+    .forEach(id => showDetail(id, true));
 }
 
 function toggleDetail(id) {
-  const aperto = document.getElementById(`detail-${id}`).classList.contains('open');
-  mostraDettaglio(id, !aperto);
+  const isOpen = document.getElementById(`detail-${id}`).classList.contains('open');
+  showDetail(id, !isOpen);
 }
 
-function mostraDettaglio(id, apri) {
-  document.getElementById(`detail-${id}`).classList.toggle('open', apri);
-  document.getElementById(`chevron-${id}`).style.transform = apri ? 'rotate(180deg)' : '';
+function showDetail(id, open) {
+  document.getElementById(`detail-${id}`).classList.toggle('open', open);
+  document.getElementById(`chevron-${id}`).style.transform = open ? 'rotate(180deg)' : '';
   // Ricaricato a ogni apertura: dopo una decisione o uno spostamento la
   // cronologia è cambiata. Solo per le richieste che si aprono davvero —
   // caricarlo in lista significherebbe una chiamata per riga.
-  if (apri) caricaStorico(id);
+  if (open) loadHistory(id);
 }
 
-function dettagliAperti() {
+function openDetailIds() {
   return [...document.querySelectorAll('.rc-detail.open')]
     .map(d => d.id.slice('detail-'.length));
 }
 
-async function caricaStorico(id) {
-  const box = document.getElementById(`storico-${id}`);
+async function loadHistory(id) {
+  const box = document.getElementById(`history-${id}`);
   try {
-    const voci = await (await fetch(`${API_BASE}/requests/${id}/history`)).json();
-    box.innerHTML = voci.length
-      ? voci.map(voceStorico).join('')
-      : '<div class="vuoto">Nessuna decisione presa finora.</div>';
+    const entries = await (await fetch(`${API_BASE}/requests/${id}/history`)).json();
+    box.innerHTML = entries.length
+      ? entries.map(historyEntry).join('')
+      : '<div class="empty-state">Nessuna decisione presa finora.</div>';
   } catch(e) {
-    box.innerHTML = '<div class="vuoto">Storico non disponibile.</div>';
+    box.innerHTML = '<div class="empty-state">Storico non disponibile.</div>';
   }
 }
 
-function voceStorico(v) {
-  const quando = new Date(v.decided_at).toLocaleString('it-IT',
+function historyEntry(v) {
+  const when = new Date(v.decided_at).toLocaleString('it-IT',
     { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const cosa = v.type === 'reschedule'
-    ? `spostata da ${fascia(v.previous_start, v.previous_end)}`
-      + ` a ${fascia(v.new_start, v.new_end)}`
+  const what = v.type === 'reschedule'
+    ? `spostata da ${timeRange(v.previous_start, v.previous_end)}`
+      + ` a ${timeRange(v.new_start, v.new_end)}`
     : `${v.previous_status} → ${v.new_status}`;
-  return `<div class="voce">
-    <span class="quando">${quando}</span>
-    <span>${escHtml(cosa)}</span>
-    <span class="chi">${escHtml(v.decided_by || '—')}</span>
-    ${v.notes ? `<span class="nota">${escHtml(v.notes)}</span>` : ''}
+  return `<div class="entry">
+    <span class="when">${when}</span>
+    <span>${escHtml(what)}</span>
+    <span class="who">${escHtml(v.decided_by || '—')}</span>
+    ${v.notes ? `<span class="note">${escHtml(v.notes)}</span>` : ''}
   </div>`;
 }
 
 // ─── Approva / Rifiuta ────────────────────────────────────────────────────────
-async function aggiornaStato(id, stato, statoAttuale) {
+async function updateStatus(id, status, currentStatus) {
   // Il campo si apre già compilato con le note esistenti, quindi il suo
   // contenuto è la volontà dell'utente — stringa vuota compresa. Inviare
   // `null` al posto del vuoto direbbe al server "non toccarle", e svuotarle
   // diventerebbe impossibile.
-  const note = document.getElementById(`note-${id}`).value.trim();
+  const note = document.getElementById(`notes-${id}`).value.trim();
 
-  const label = stato === 'approved' ? 'approvare' : 'rifiutare';
-  const deciso = statoAttuale === 'pending'
+  const label = status === 'approved' ? 'approvare' : 'rifiutare';
+  const confirmMsg = currentStatus === 'pending'
     ? `Vuoi ${label} questa richiesta?`
     : `Stai annullando una decisione già comunicata all'osservatore, che riceverà`
       + ` una seconda email.\n\nVuoi ${label} questa richiesta?`;
-  if (!confirm(deciso)) return;
+  if (!confirm(confirmMsg)) return;
 
   try {
     const res = await fetch(`${API_BASE}/requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: stato, reviewer_notes: note })
+      body: JSON.stringify({ status: status, reviewer_notes: note })
     });
     if (res.status === 409) {
       // Sovrapposizione di fascia: il messaggio nomina la richiesta in
@@ -721,76 +721,76 @@ async function aggiornaStato(id, stato, statoAttuale) {
     }
     if (!res.ok) throw new Error();
 
-    const statoItaliano = stato === 'approved' ? 'approvata' : 'rifiutata';
-    const emoji = stato === 'approved' ? '✓' : '✗';
-    showToast(`${emoji} Richiesta ${statoItaliano} con successo.`, stato === 'approved' ? 'success' : 'error');
-    await caricaRichieste();
+    const statusWordIt = status === 'approved' ? 'approvata' : 'rifiutata';
+    const emoji = status === 'approved' ? '✓' : '✗';
+    showToast(`${emoji} Richiesta ${statusWordIt} con successo.`, status === 'approved' ? 'success' : 'error');
+    await loadRequests();
 
   } catch(e) {
     showToast('Errore durante l\'aggiornamento.', 'error');
   }
 }
 
-// `inizio` e `fine` sono ora locale dell'osservatorio: le ore si leggono come
+// `start` e `end` sono ora locale dell'osservatorio: le ore si leggono come
 // stringa, così il fuso del browser non le sposta.
-function fascia(inizio, fine) {
-  return `${inizio.slice(11,16)} → ${fine.slice(11,16)}`
-       + (inizio.slice(0,10) === fine.slice(0,10) ? '' : ' (+1g)');
+function timeRange(start, end) {
+  return `${start.slice(11,16)} → ${end.slice(11,16)}`
+       + (start.slice(0,10) === end.slice(0,10) ? '' : ' (+1g)');
 }
 
 // ─── Sposta data e orari ──────────────────────────────────────────────────────
-function isoLocaleFusoCorretto(momento) {
-  momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
-  return momento.toISOString().slice(0, 16);
+function localIsoWithTimezone(date) {
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
 }
 
-function notteDi(istante) {
-  const notte = new Date(istante);
-  if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
-  notte.setHours(0, 0, 0, 0);
-  return notte;
+function nightOf(instant) {
+  const night = new Date(instant);
+  if (instant.getHours() < 12) night.setDate(night.getDate() - 1);
+  night.setHours(0, 0, 0, 0);
+  return night;
 }
 
-function fineFinestraDi(inizioStr) {
-  const fineFinestra = notteDi(new Date(inizioStr));
-  fineFinestra.setDate(fineFinestra.getDate() + 1);
-  fineFinestra.setHours(12, 0, 0, 0);
-  return isoLocaleFusoCorretto(fineFinestra);
+function nightWindowEnd(startStr) {
+  const windowEnd = nightOf(new Date(startStr));
+  windowEnd.setDate(windowEnd.getDate() + 1);
+  windowEnd.setHours(12, 0, 0, 0);
+  return localIsoWithTimezone(windowEnd);
 }
 
-function aggiornaMaxSposta(id) {
-  const inizio = document.getElementById(`sposta-inizio-${id}`).value;
-  if (inizio) document.getElementById(`sposta-fine-${id}`).max = fineFinestraDi(inizio);
+function updateRescheduleMax(id) {
+  const start = document.getElementById(`reschedule-start-${id}`).value;
+  if (start) document.getElementById(`reschedule-end-${id}`).max = nightWindowEnd(start);
 }
 
-async function spostaOrario(id) {
-  const inizio = document.getElementById(`sposta-inizio-${id}`).value;
-  const fine   = document.getElementById(`sposta-fine-${id}`).value;
-  const motivo = document.getElementById(`sposta-motivo-${id}`).value.trim();
+async function rescheduleRequest(id) {
+  const start  = document.getElementById(`reschedule-start-${id}`).value;
+  const end    = document.getElementById(`reschedule-end-${id}`).value;
+  const reason = document.getElementById(`reschedule-reason-${id}`).value.trim();
 
-  if (!inizio || !fine) {
+  if (!start || !end) {
     showToast('Indica il nuovo inizio e la nuova fine.', 'error'); return;
   }
-  if (fine <= inizio) {
+  if (end <= start) {
     showToast('La fine deve essere successiva all\'inizio.', 'error'); return;
   }
-  if (fine > fineFinestraDi(inizio)) {
+  if (end > nightWindowEnd(start)) {
     showToast('La fine deve stare nella stessa notte dell\'inizio: non oltre le 12:00 del giorno dopo.', 'error'); return;
   }
 
   // Spostare nel passato è permesso — serve a registrare a posteriori
   // un'osservazione davvero fatta — ma va detto, altrimenti un errore di
   // battitura sull'anno passa in silenzio.
-  const conferma = new Date(inizio) < new Date()
+  const confirmMsg = new Date(start) < new Date()
     ? 'Stai spostando questa osservazione in una data già trascorsa.\n\nConfermi?'
     : 'Confermi lo spostamento? L\'osservatore riceverà un avviso via email.';
-  if (!confirm(conferma)) return;
+  if (!confirm(confirmMsg)) return;
 
   try {
     const res = await fetch(`${API_BASE}/requests/${id}/schedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ start: inizio, end: fine, reason: motivo || null })
+      body: JSON.stringify({ start: start, end: end, reason: reason || null })
     });
 
     if (res.status === 409) {
@@ -805,7 +805,7 @@ async function spostaOrario(id) {
     if (!res.ok) throw new Error();
 
     showToast('🕒 Osservazione riprogrammata, avviso inviato all\'osservatore.', 'success');
-    await caricaRichieste();
+    await loadRequests();
 
   } catch(e) {
     showToast('Errore durante lo spostamento.', 'error');
@@ -828,8 +828,8 @@ function showToast(msg, type = 'success') {
 }
 
 // ─── Auto-refresh ogni 60s ────────────────────────────────────────────────────
-caricaRichieste();
-setInterval(caricaRichieste, 60000);
+loadRequests();
+setInterval(loadRequests, 60000);
 </script>
 </body>
 </html>

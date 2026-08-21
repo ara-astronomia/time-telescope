@@ -54,7 +54,7 @@ def create_request_with_slot(page, app_url, name, day, hour, duration):
 
 def meta_row(page, app_url, request_id):
     page.goto(f"{app_url}{PAGE}")
-    page.wait_for_selector(".richiesta-card")
+    page.wait_for_selector(".request-card")
     return page.locator(f"#card-{request_id} .rc-meta").inner_text()
 
 
@@ -144,11 +144,11 @@ def open_card(page, app_url, request_id):
 
 def fill_reschedule(page, request_id, day, hour=23, duration=4, reason=""):
     start = datetime.combine(day, time(hour))
-    page.fill(f"#sposta-inizio-{request_id}", start.strftime("%Y-%m-%dT%H:%M"))
-    page.fill(f"#sposta-fine-{request_id}",
+    page.fill(f"#reschedule-start-{request_id}", start.strftime("%Y-%m-%dT%H:%M"))
+    page.fill(f"#reschedule-end-{request_id}",
               (start + timedelta(hours=duration)).strftime("%Y-%m-%dT%H:%M"))
     if reason:
-        page.fill(f"#sposta-motivo-{request_id}", reason)
+        page.fill(f"#reschedule-reason-{request_id}", reason)
 
 
 def test_the_reschedule_command_is_also_on_approved_requests(page, app_url):
@@ -162,8 +162,8 @@ def test_the_reschedule_command_is_also_on_approved_requests(page, app_url):
 
     open_card(page, app_url, request["id"])
 
-    assert page.locator(f"#sposta-inizio-{request['id']}").count() == 1
-    assert page.locator(f"#card-{request['id']} .btn-sposta").count() == 1
+    assert page.locator(f"#reschedule-start-{request['id']}").count() == 1
+    assert page.locator(f"#card-{request['id']} .btn-reschedule").count() == 1
 
 
 def test_rejected_requests_can_also_be_rescheduled(page, app_url):
@@ -180,7 +180,7 @@ def test_rejected_requests_can_also_be_rescheduled(page, app_url):
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], day + timedelta(days=1))
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_selector("#toast.show")
 
     start, _ = times_of(page, app_url, request["id"])
@@ -194,7 +194,7 @@ def test_rescheduling_changes_the_times(page, app_url):
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], day + timedelta(days=1), reason="Manutenzione")
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_selector("#toast.show")
 
     start, _ = times_of(page, app_url, request["id"])
@@ -212,7 +212,7 @@ def test_a_past_date_is_stated_before_confirming(page, app_url):
     page.on("dialog", lambda d: (messages.append(d.message), d.dismiss()))
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], date.today() - timedelta(days=5))
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_timeout(400)
 
     assert messages, "no confirmation requested"
@@ -227,22 +227,22 @@ def test_declining_the_confirmation_reschedules_nothing(page, app_url):
     page.on("dialog", lambda d: d.dismiss())
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], day + timedelta(days=1))
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_timeout(400)
 
     assert times_of(page, app_url, request["id"]) == before
 
 
 def test_end_past_the_night_is_flagged_and_not_sent(page, app_url):
-    """`max` on #sposta-fine follows #sposta-inizio; with no `<form>` in
-    this area, the check before the fetch is explicit."""
+    """`max` on #reschedule-end follows #reschedule-start; with no `<form>`
+    in this area, the check before the fetch is explicit."""
     day = date.today() + timedelta(days=46)
     request = create_request_with_slot(page, app_url, "Sposta H", day, hour=21, duration=2)
     before = times_of(page, app_url, request["id"])
 
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], day + timedelta(days=2), hour=22, duration=27)
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_selector("#toast.show")
 
     assert "notte" in page.inner_text("#toast")
@@ -261,7 +261,7 @@ def test_slot_conflict_blocks_the_reschedule(page, app_url):
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, movable["id"])
     fill_reschedule(page, movable["id"], day, hour=22, duration=2)
-    page.click(f"#card-{movable['id']} .btn-sposta")
+    page.click(f"#card-{movable['id']} .btn-reschedule")
     page.wait_for_selector("#toast.show")
 
     text = page.inner_text("#toast")
@@ -355,7 +355,7 @@ def test_notes_remain_editable_on_a_decided_request(page, app_url):
 
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, request["id"])
-    page.fill(f"#note-{request['id']}", "Previsioni peggiorate")
+    page.fill(f"#notes-{request['id']}", "Previsioni peggiorate")
     page.click(f"#card-{request['id']} .btn-reject")
     page.wait_for_selector("#toast.show")
 
@@ -377,9 +377,9 @@ def test_the_history_is_shown_in_the_detail(page, app_url):
     )
 
     open_card(page, app_url, request["id"])
-    page.wait_for_selector(f"#storico-{request['id']} .voce")
+    page.wait_for_selector(f"#history-{request['id']} .entry")
 
-    text = page.inner_text(f"#storico-{request['id']}")
+    text = page.inner_text(f"#history-{request['id']}")
     assert "approved" in text.lower()
     assert "rejected" in text.lower()
     assert "Meteo peggiorato" in text
@@ -397,9 +397,9 @@ def test_the_history_also_shows_reschedules(page, app_url):
     )
 
     open_card(page, app_url, request["id"])
-    page.wait_for_selector(f"#storico-{request['id']} .voce")
+    page.wait_for_selector(f"#history-{request['id']} .entry")
 
-    text = page.inner_text(f"#storico-{request['id']}")
+    text = page.inner_text(f"#history-{request['id']}")
     assert "23:00" in text, text
     assert "Manutenzione" in text
 
@@ -409,10 +409,10 @@ def test_a_never_decided_request_declares_an_empty_history(page, app_url):
     request = create_request_with_slot(page, app_url, "Storico C", day, hour=21, duration=2)
 
     open_card(page, app_url, request["id"])
-    page.wait_for_selector(f"#storico-{request['id']}")
+    page.wait_for_selector(f"#history-{request['id']}")
 
-    assert page.locator(f"#storico-{request['id']} .voce").count() == 0
-    assert page.inner_text(f"#storico-{request['id']}").strip() != ""
+    assert page.locator(f"#history-{request['id']} .entry").count() == 0
+    assert page.inner_text(f"#history-{request['id']}").strip() != ""
 
 
 def test_clearing_the_notes_deletes_them(page, app_url):
@@ -426,7 +426,7 @@ def test_clearing_the_notes_deletes_them(page, app_url):
 
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, request["id"])
-    page.fill(f"#note-{request['id']}", "")
+    page.fill(f"#notes-{request['id']}", "")
     page.click(f"#card-{request['id']} .btn-reject")
     page.wait_for_selector("#toast.show")
 
@@ -445,7 +445,7 @@ def test_existing_notes_appear_in_the_field(page, app_url):
 
     open_card(page, app_url, request["id"])
 
-    assert page.input_value(f"#note-{request['id']}") == "Meteo stabile"
+    assert page.input_value(f"#notes-{request['id']}") == "Meteo stabile"
 
 
 # ─── The detail panel doesn't collapse out from under you ─────────────────────
@@ -477,10 +477,10 @@ def test_the_history_updates_without_reopening(page, app_url):
     page.click(f"#card-{request['id']} .btn-reject")
     page.wait_for_selector("#toast.show")
     page.wait_for_function(
-        f"document.querySelectorAll('#storico-{request['id']} .voce').length === 2"
+        f"document.querySelectorAll('#history-{request['id']} .entry').length === 2"
     )
 
-    assert "rejected" in page.inner_text(f"#storico-{request['id']}")
+    assert "rejected" in page.inner_text(f"#history-{request['id']}")
 
 
 def test_the_card_stays_open_after_a_reschedule(page, app_url):
@@ -490,7 +490,7 @@ def test_the_card_stays_open_after_a_reschedule(page, app_url):
     page.on("dialog", lambda d: d.accept())
     open_card(page, app_url, request["id"])
     fill_reschedule(page, request["id"], day + timedelta(days=1))
-    page.click(f"#card-{request['id']} .btn-sposta")
+    page.click(f"#card-{request['id']} .btn-reschedule")
     page.wait_for_selector("#toast.show")
     page.wait_for_timeout(400)
 
@@ -521,20 +521,20 @@ def test_a_member_does_not_see_reviewer_commands(page, app_url):
     open_card(page, app_url, request["id"])
 
     assert page.locator(f"#detail-{request['id']} .action-area").count() == 0
-    assert page.locator(f"#detail-{request['id']} .sposta-area").count() == 0
+    assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 0
 
 
 def test_the_banner_shows_who_is_logged_in(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "Marta Conti" in page.inner_text("#utente-corrente")
+    page.wait_for_selector("#current-user:not(:empty)")
+    assert "Marta Conti" in page.inner_text("#current-user")
 
 
 def test_the_banner_follows_the_user_switch(page, app_url):
     as_member(page)
     page.goto(f"{app_url}{PAGE}")
-    page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "mario" in page.inner_text("#utente-corrente")
+    page.wait_for_selector("#current-user:not(:empty)")
+    assert "mario" in page.inner_text("#current-user")
 
 
 def test_403_on_approval_reached_via_an_already_hidden_button(page, app_url):
@@ -547,16 +547,16 @@ def test_403_on_approval_reached_via_an_already_hidden_button(page, app_url):
     as_member(page)
     open_card(page, app_url, request["id"])
     page.on("dialog", lambda d: d.accept())
-    # `aggiornaStato` reads #note-N from the DOM, which doesn't exist here
+    # `updateStatus` reads #notes-N from the DOM, which doesn't exist here
     # because the area is hidden: it's injected to reproduce the "page open
     # from before the group change" scenario without depending on the
     # hidden markup.
     page.evaluate(f"""() => {{
         const i = document.createElement('textarea');
-        i.id = 'note-{request["id"]}';
+        i.id = 'notes-{request["id"]}';
         document.body.appendChild(i);
     }}""")
-    page.evaluate(f"aggiornaStato({request['id']}, 'approved', 'pending')")
+    page.evaluate(f"updateStatus({request['id']}, 'approved', 'pending')")
     page.wait_for_selector("#toast.show")
 
     assert page.inner_text("#toast") == 'Solo i responsabili possono approvare o rifiutare.'
@@ -572,7 +572,7 @@ def test_403_on_reschedule_reached_via_an_already_hidden_button(page, app_url):
     as_member(page)
     open_card(page, app_url, request["id"])
     page.on("dialog", lambda d: d.accept())
-    # `spostaOrario` reads the #sposta-inizio-N/#sposta-fine-N fields from
+    # `rescheduleRequest` reads the #reschedule-start-N/#reschedule-end-N fields from
     # the DOM, which don't exist here because the area is hidden: they are
     # injected before calling the function, to reproduce the "page open
     # from before the group change" scenario without depending on the
@@ -581,11 +581,11 @@ def test_403_on_reschedule_reached_via_an_already_hidden_button(page, app_url):
     new_end   = datetime.combine(day + timedelta(days=1), time(23)).strftime("%Y-%m-%dT%H:%M")
     page.evaluate(f"""() => {{
         const mk = (id, val) => {{ const i = document.createElement('input'); i.id = id; i.value = val; document.body.appendChild(i); }};
-        mk('sposta-inizio-{request["id"]}', '{new_start}');
-        mk('sposta-fine-{request["id"]}', '{new_end}');
-        mk('sposta-motivo-{request["id"]}', '');
+        mk('reschedule-start-{request["id"]}', '{new_start}');
+        mk('reschedule-end-{request["id"]}', '{new_end}');
+        mk('reschedule-reason-{request["id"]}', '');
     }}""")
-    page.evaluate(f"spostaOrario({request['id']})")
+    page.evaluate(f"rescheduleRequest({request['id']})")
     page.wait_for_selector("#toast.show")
 
     assert page.inner_text("#toast") == 'Solo i responsabili possono spostare una richiesta.'
@@ -602,14 +602,14 @@ def test_the_dev_switcher_is_visible(page, app_url):
 def test_the_active_role_is_highlighted(page, app_url):
     page.goto(f"{app_url}{PAGE}")
     page.wait_for_selector("#dev-switcher")
-    assert "active" in (page.get_attribute("#dev-btn-responsabile", "class") or "")
-    assert "active" not in (page.get_attribute("#dev-btn-socio", "class") or "")
+    assert "active" in (page.get_attribute("#dev-btn-reviewer", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-member", "class") or "")
 
     with page.expect_navigation():
-        page.click("#dev-btn-socio")
+        page.click("#dev-btn-member")
     page.wait_for_selector("#dev-switcher")
-    assert "active" in (page.get_attribute("#dev-btn-socio", "class") or "")
-    assert "active" not in (page.get_attribute("#dev-btn-responsabile", "class") or "")
+    assert "active" in (page.get_attribute("#dev-btn-member", "class") or "")
+    assert "active" not in (page.get_attribute("#dev-btn-reviewer", "class") or "")
 
 
 def test_switching_to_member_hides_the_commands_without_restarting(page, app_url):
@@ -619,9 +619,9 @@ def test_switching_to_member_hides_the_commands_without_restarting(page, app_url
     page.goto(f"{app_url}{PAGE}")
     page.wait_for_selector("#dev-switcher")
     with page.expect_navigation():
-        page.click("#dev-btn-socio")
-    page.wait_for_selector("#utente-corrente:not(:empty)")
-    assert "Luca Bertani" in page.inner_text("#utente-corrente")
+        page.click("#dev-btn-member")
+    page.wait_for_selector("#current-user:not(:empty)")
+    assert "Luca Bertani" in page.inner_text("#current-user")
 
     page.click(f"#card-{request['id']} .rc-header")
     page.wait_for_timeout(200)
@@ -660,7 +660,7 @@ def test_the_owner_sees_the_reschedule_on_their_own_pending_request(page, app_ur
 
     open_card(page, app_url, request["id"])
 
-    assert page.locator(f"#detail-{request['id']} .sposta-area").count() == 1
+    assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 1
     assert page.locator(f"#detail-{request['id']} .action-area").count() == 0
 
 
@@ -676,4 +676,4 @@ def test_the_owner_does_not_see_the_reschedule_on_their_own_approved_request(pag
 
     open_card(page, app_url, request["id"])
 
-    assert page.locator(f"#detail-{request['id']} .sposta-area").count() == 0
+    assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 0

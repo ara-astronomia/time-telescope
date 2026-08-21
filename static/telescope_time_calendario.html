@@ -114,7 +114,7 @@
   }
   .btn-link.active:hover { background: var(--green); }
 
-  .identita-bar {
+  .user-identity-bar {
     font-size: 0.85rem;
     color: var(--text-dim);
     min-height: 1.2rem;
@@ -134,7 +134,7 @@
     border-radius: 8px;
   }
 
-  /* ── Navigazione mese ────────────────────────────────────────────────────── */
+  /* ── Month navigation ──────────────────────────────────────────────────── */
   .month-nav {
     display: flex; align-items: center; justify-content: center; gap: 1.2rem;
     margin-bottom: 1.6rem;
@@ -154,8 +154,8 @@
     text-transform: uppercase;
   }
 
-  /* ── Legenda ─────────────────────────────────────────────────────────────── */
-  .legenda {
+  /* ── Legend ─────────────────────────────────────────────────────────────── */
+  .legend {
     display: flex; gap: 1.2rem; flex-wrap: wrap;
     justify-content: center; margin-bottom: 1.4rem;
     animation: fadeUp .5s ease .12s both;
@@ -173,7 +173,7 @@
   .leg-dot.booked    { background: var(--red); }
   .leg-dot.approv   { background: var(--green); }
 
-  /* ── Griglia calendario ──────────────────────────────────────────────────── */
+  /* ── Calendar grid ──────────────────────────────────────────────────────── */
   .cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -241,7 +241,7 @@
   .day-cell.today .day-num { color: #fff; }
 
   .day-pills { margin-top: .35rem; display: flex; flex-direction: column; gap: .22rem; }
-  .turni {
+  .multi-program-badge {
     margin-top: .3rem; padding: .1rem .3rem; border-radius: 4px;
     font-size: .62rem; font-weight: 600; letter-spacing: .02em;
     background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
@@ -260,7 +260,7 @@
     text-align: center;
   }
 
-  /* ── Pannello dettaglio ──────────────────────────────────────────────────── */
+  /* ── Detail panel ───────────────────────────────────────────────────────── */
   .detail-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.6);
     backdrop-filter: blur(4px); z-index: 50;
@@ -291,15 +291,15 @@
     font-family: var(--mono); font-size: .95rem; font-weight: 700;
     letter-spacing: .04em;
   }
-  .dp-stato {
+  .dp-status {
     font-family: var(--mono); font-size: .65rem; letter-spacing: .1em;
     padding: .25rem .8rem; border-radius: 999px; font-weight: 700;
   }
-  .dp-stato.booked    { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
-  .dp-stato.contested { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
-  .dp-stato.pending   { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
+  .dp-status.booked    { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
+  .dp-status.contested { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+  .dp-status.pending   { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
 
-  .dp-conflitto {
+  .dp-conflict {
     margin-top: .5rem; font-family: var(--mono); font-size: .68rem;
     color: var(--amber);
   }
@@ -312,26 +312,26 @@
   }
   .dp-close:hover { color: var(--text); background: var(--border); }
 
-  .dp-richiesta {
+  .dp-request {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem;
     margin-bottom: .8rem;
   }
-  .dp-richiesta:last-child { margin-bottom: 0; }
+  .dp-request:last-child { margin-bottom: 0; }
 
   .dp-r-top {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: .6rem; flex-wrap: wrap; gap: .4rem;
   }
-  .dp-r-ricerca { font-weight: 700; font-size: .95rem; }
-  .dp-stato-small {
+  .dp-r-program { font-weight: 700; font-size: .95rem; }
+  .dp-status-small {
     font-family: var(--mono); font-size: .6rem; letter-spacing: .08em;
     padding: .18rem .65rem; border-radius: 999px; font-weight: 700;
   }
-  .dp-stato-small.approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,.25); }
-  .dp-stato-small.pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+  .dp-status-small.approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,.25); }
+  .dp-status-small.pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
 
   .dp-r-meta {
     font-family: var(--mono); font-size: .71rem; color: var(--text-mid);
@@ -340,7 +340,7 @@
   .dp-r-meta span { display: flex; gap: .4rem; align-items: flex-start; }
   .dp-r-meta .lk { color: var(--text-dim); min-width: 90px; flex-shrink: 0; }
 
-  .dp-r-descrizione {
+  .dp-r-description {
     margin-top: .7rem;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -386,7 +386,7 @@
       <h1>Calendario <span>Sessioni</span></h1>
     </div>
     <div class="header-right">
-      <div id="utente-corrente" class="identita-bar"></div>
+      <div id="current-user" class="user-identity-bar"></div>
       <div class="header-actions">
         <a href="telescope_time_request.html"   class="btn-link">+ Nuova Richiesta</a>
         <a href="telescope_time_dashboard.html" class="btn-link">⊞ Dashboard</a>
@@ -396,19 +396,19 @@
 
   <div id="dev-switcher" class="dev-switcher-bar">
     <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
-    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
-    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
+    <button class="btn-link" id="dev-btn-reviewer" onclick="switchDevRole('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-member" onclick="switchDevRole('socio')">socio</button>
   </div>
 
-  <!-- Navigazione mese -->
+  <!-- Month navigation -->
   <div class="month-nav">
-    <button onclick="cambioMese(-1)" title="Mese precedente">‹</button>
+    <button onclick="changeMonth(-1)" title="Mese precedente">‹</button>
     <div class="month-title" id="month-title">—</div>
-    <button onclick="cambioMese(+1)" title="Mese successivo">›</button>
+    <button onclick="changeMonth(+1)" title="Mese successivo">›</button>
   </div>
 
-  <!-- Legenda -->
-  <div class="legenda">
+  <!-- Legend -->
+  <div class="legend">
     <div class="leg-item"><div class="leg-dot free"></div>Libera</div>
     <div class="leg-item"><div class="leg-dot pending"></div>Richiesta (in attesa)</div>
     <div class="leg-item"><div class="leg-dot contested"></div>Contesa (fasce sovrapposte)</div>
@@ -418,21 +418,21 @@
 
   <div id="loading-bar" class="loading-bar" style="display:none"></div>
 
-  <!-- Griglia calendario -->
+  <!-- Calendar grid -->
   <div class="cal-grid" id="cal-grid"></div>
 
 </div><!-- /wrapper -->
 
-<!-- Pannello dettaglio giorno -->
-<div class="detail-overlay" id="overlay" onclick="chiudiOverlay(event)">
+<!-- Day detail panel -->
+<div class="detail-overlay" id="overlay" onclick="closeOverlay(event)">
   <div class="detail-panel" id="detail-panel">
     <div class="dp-header">
       <div>
         <div class="dp-date" id="dp-date">—</div>
       </div>
       <div style="display:flex;align-items:center;gap:.6rem">
-        <span class="dp-stato" id="dp-stato"></span>
-        <button class="dp-close" onclick="chiudiDettaglio()">×</button>
+        <span class="dp-status" id="dp-status"></span>
+        <button class="dp-close" onclick="closeDetail()">×</button>
       </div>
     </div>
     <div id="dp-content"></div>
@@ -442,60 +442,60 @@
 <script>
 const API_BASE = '/telescope-time';
 
-const MESI_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+const MONTH_NAMES_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                  'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-const GG_IT  = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+const DAY_NAMES_IT  = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
 
-function meseUmano(data) {
-  return data.getMonth() + 1;
+function humanMonth(date) {
+  return date.getMonth() + 1;
 }
 
-let oggi = new Date();
-let annoCorrente = oggi.getFullYear();
-let meseCorrente = meseUmano(oggi);
+let today = new Date();
+let currentYear = today.getFullYear();
+let currentMonth = humanMonth(today);
 
-// datiGiorni: { "YYYY-MM-DD": { night_status, approved_count, pending_count, overlaps[], requests[] } }
-let datiGiorni = {};
+// nightsByDate: { "YYYY-MM-DD": { night_status, approved_count, pending_count, overlaps[], requests[] } }
+let nightsByDate = {};
 
-// ─── Navigazione ─────────────────────────────────────────────────────────────
-function cambioMese(delta) {
-  meseCorrente += delta;
-  if (meseCorrente > 12) { meseCorrente = 1; annoCorrente++; }
-  if (meseCorrente < 1)  { meseCorrente = 12; annoCorrente--; }
-  caricaMese();
+// ─── Navigation ─────────────────────────────────────────────────────────────
+function changeMonth(delta) {
+  currentMonth += delta;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  if (currentMonth < 1)  { currentMonth = 12; currentYear--; }
+  loadMonth();
 }
 
-// ─── Identità ─────────────────────────────────────────────────────────────────
-async function caricaUtente() {
+// ─── Identity ─────────────────────────────────────────────────────────────────
+async function loadUser() {
   try {
     const me = await (await fetch(`${API_BASE}/me`)).json();
-    const visualizzato = me.full_name || me.username;
-    document.getElementById('utente-corrente').textContent =
-      visualizzato ? `Sei collegato come ${visualizzato}` : '';
+    const displayName = me.full_name || me.username;
+    document.getElementById('current-user').textContent =
+      displayName ? `Sei collegato come ${displayName}` : '';
     document.getElementById('dev-switcher').style.display = me.is_dev_mode ? 'flex' : 'none';
-    document.getElementById('dev-btn-responsabile').classList.toggle('active', me.is_reviewer);
-    document.getElementById('dev-btn-socio').classList.toggle('active', !me.is_reviewer);
+    document.getElementById('dev-btn-reviewer').classList.toggle('active', me.is_reviewer);
+    document.getElementById('dev-btn-member').classList.toggle('active', !me.is_reviewer);
   } catch(e) {
-    document.getElementById('utente-corrente').textContent = 'identità non disponibile';
+    document.getElementById('current-user').textContent = 'identità non disponibile';
   }
 }
 
-function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_role=${ruolo}; path=/`;
+function switchDevRole(role) {
+  document.cookie = `dev_role=${role}; path=/`;
   location.reload();
 }
 
-// ─── Fetch dati ───────────────────────────────────────────────────────────────
-async function caricaMese() {
+// ─── Data fetch ───────────────────────────────────────────────────────────────
+async function loadMonth() {
   document.getElementById('loading-bar').style.display = 'block';
   document.getElementById('month-title').textContent =
-    `${MESI_IT[meseCorrente-1]} ${annoCorrente}`;
+    `${MONTH_NAMES_IT[currentMonth-1]} ${currentYear}`;
 
   try {
-    const res = await fetch(`${API_BASE}/calendar?year=${annoCorrente}&month=${meseCorrente}`);
+    const res = await fetch(`${API_BASE}/calendar?year=${currentYear}&month=${currentMonth}`);
     const data = await res.json();
-    datiGiorni = data.nights || {};
-    renderCalendario();
+    nightsByDate = data.nights || {};
+    renderCalendar();
   } catch(e) {
     console.error('Errore caricamento calendario:', e);
   } finally {
@@ -503,141 +503,141 @@ async function caricaMese() {
   }
 }
 
-function offsetSettimanaLunediPrima(primoGiornoDelMese) {
-  return (primoGiornoDelMese.getDay() + 6) % 7;
+function mondayOffset(firstDayOfMonth) {
+  return (firstDayOfMonth.getDay() + 6) % 7;
 }
 
 // Il colore 'bloccata' da solo non distingue una notte con un programma da una
 // con tre: sopra 1 approvazione, il conteggio compare esplicito in etichetta.
-function badgeProgrammiMultipli(approvate) {
-  if (approvate <= 1) return '';
-  return `<div class="turni" title="${approvate} osservazioni approvate per questa notte">${approvate} programmi</div>`;
+function multiProgramBadge(approvedCount) {
+  if (approvedCount <= 1) return '';
+  return `<div class="multi-program-badge" title="${approvedCount} osservazioni approvate per questa notte">${approvedCount} programmi</div>`;
 }
 
-// ─── Render griglia ───────────────────────────────────────────────────────────
-function renderCalendario() {
+// ─── Grid render ───────────────────────────────────────────────────────────
+function renderCalendar() {
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = '';
 
-  const ordineGiorniLunDom = [1,2,3,4,5,6,0];
-  ordineGiorniLunDom.forEach(d => {
+  const mondayFirstOrder = [1,2,3,4,5,6,0];
+  mondayFirstOrder.forEach(d => {
     const h = document.createElement('div');
     h.className = 'day-header';
-    h.textContent = GG_IT[d];
+    h.textContent = DAY_NAMES_IT[d];
     grid.appendChild(h);
   });
 
-  const offset = offsetSettimanaLunediPrima(new Date(annoCorrente, meseCorrente - 1, 1));
+  const offset = mondayOffset(new Date(currentYear, currentMonth - 1, 1));
 
-  const giorniNelMese = new Date(annoCorrente, meseCorrente, 0).getDate();
-  const totCelle = Math.ceil((offset + giorniNelMese) / 7) * 7;
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
 
-  const oggiStr = fmtDate(oggi.getFullYear(), meseUmano(oggi), oggi.getDate());
+  const todayStr = fmtDate(today.getFullYear(), humanMonth(today), today.getDate());
 
-  for (let i = 0; i < totCelle; i++) {
-    const giorno = i - offset + 1;
+  for (let i = 0; i < totalCells; i++) {
+    const day = i - offset + 1;
     const cell = document.createElement('div');
 
-    if (giorno < 1 || giorno > giorniNelMese) {
+    if (day < 1 || day > daysInMonth) {
       cell.className = 'day-cell other-month';
-      const phantom = giorno < 1
-        ? new Date(annoCorrente, meseCorrente-1, giorno)
-        : new Date(annoCorrente, meseCorrente-1, giorno);
-      cell.innerHTML = `<div class="day-num">${phantom.getDate ? phantom.getDate() : ''}</div>`;
+      const ghostDate = day < 1
+        ? new Date(currentYear, currentMonth-1, day)
+        : new Date(currentYear, currentMonth-1, day);
+      cell.innerHTML = `<div class="day-num">${ghostDate.getDate ? ghostDate.getDate() : ''}</div>`;
       grid.appendChild(cell);
       continue;
     }
 
-    const dataStr = fmtDate(annoCorrente, meseCorrente, giorno);
-    const info = datiGiorni[dataStr];
-    const stato = info ? info.night_status : 'free';
-    const richieste = info ? info.requests : [];
+    const dateStr = fmtDate(currentYear, currentMonth, day);
+    const info = nightsByDate[dateStr];
+    const status = info ? info.night_status : 'free';
+    const requests = info ? info.requests : [];
 
-    cell.className = `day-cell ${stato}${richieste.length ? ' has-requests' : ''}`;
-    cell.dataset.giorno = dataStr;
-    if (dataStr === oggiStr) cell.classList.add('today');
+    cell.className = `day-cell ${status}${requests.length ? ' has-requests' : ''}`;
+    cell.dataset.date = dateStr;
+    if (dateStr === todayStr) cell.classList.add('today');
 
-    let html = `<div class="day-num">${giorno}</div>`;
+    let html = `<div class="day-num">${day}</div>`;
 
-    const approvate = info ? (info.approved_count || 0) : 0;
-    html += badgeProgrammiMultipli(approvate);
+    const approvedCount = info ? (info.approved_count || 0) : 0;
+    html += multiProgramBadge(approvedCount);
 
-    if (richieste.length) {
+    if (requests.length) {
       html += '<div class="day-pills">';
-      const visibiliMax3 = richieste.slice(0, 3);
-      visibiliMax3.forEach(r => {
-        const primoNome = escHtml(r.observer.split(' ')[0]);
-        html += `<div class="pill ${r.status}">${ora(r.start)} ${primoNome} · ${escHtml(r.research_program_name)}</div>`;
+      const visibleMax3 = requests.slice(0, 3);
+      visibleMax3.forEach(r => {
+        const firstName = escHtml(r.observer.split(' ')[0]);
+        html += `<div class="pill ${r.status}">${formatTime(r.start)} ${firstName} · ${escHtml(r.research_program_name)}</div>`;
       });
-      if (richieste.length > 3) {
-        html += `<div class="pill more">+${richieste.length - 3} altre</div>`;
+      if (requests.length > 3) {
+        html += `<div class="pill more">+${requests.length - 3} altre</div>`;
       }
       html += '</div>';
     }
 
     cell.innerHTML = html;
 
-    if (richieste.length) {
-      cell.addEventListener('click', () => apriDettaglio(dataStr, stato, info));
+    if (requests.length) {
+      cell.addEventListener('click', () => openDetail(dateStr, status, info));
     }
 
     grid.appendChild(cell);
   }
 }
 
-// ─── Dettaglio giorno ─────────────────────────────────────────────────────────
-// `istante` è ora locale dell'osservatorio: va letta come stringa, non passata
+// ─── Day detail ─────────────────────────────────────────────────────────
+// `instant` è ora locale dell'osservatorio: va letta come stringa, non passata
 // a Date, o il fuso del browser la sposterebbe.
-function ora(istante) {
-  return istante.slice(11, 16);
+function formatTime(instant) {
+  return instant.slice(11, 16);
 }
 
-function fascia(r) {
-  const stessaNotte = r.start.slice(0, 10) === r.end.slice(0, 10);
-  return `${ora(r.start)} → ${ora(r.end)}${stessaNotte ? '' : ' (+1g)'}`;
+function timeRange(r) {
+  const sameNight = r.start.slice(0, 10) === r.end.slice(0, 10);
+  return `${formatTime(r.start)} → ${formatTime(r.end)}${sameNight ? '' : ' (+1g)'}`;
 }
 
-function apriDettaglio(dataStr, stato, info) {
-  const richieste = info.requests;
+function openDetail(dateStr, status, info) {
+  const requests = info.requests;
   // Per richiesta, gli id delle richieste con cui è in conflitto: al
   // responsabile non basta sapere che c'è una sovrapposizione, deve sapere
   // con chi per decidere cosa spostare.
-  const richiesteInConflittoPerId = {};
+  const conflictingRequestsById = {};
   (info.overlaps || []).forEach(([a, b]) => {
-    (richiesteInConflittoPerId[a] = richiesteInConflittoPerId[a] || []).push(b);
-    (richiesteInConflittoPerId[b] = richiesteInConflittoPerId[b] || []).push(a);
+    (conflictingRequestsById[a] = conflictingRequestsById[a] || []).push(b);
+    (conflictingRequestsById[b] = conflictingRequestsById[b] || []).push(a);
   });
 
-  const [a, m, g] = dataStr.split('-');
-  const dataLabel = `${parseInt(g)} ${MESI_IT[parseInt(m)-1]} ${a}`;
+  const [y, m, d] = dateStr.split('-');
+  const dateLabel = `${parseInt(d)} ${MONTH_NAMES_IT[parseInt(m)-1]} ${y}`;
 
-  document.getElementById('dp-date').textContent = dataLabel;
+  document.getElementById('dp-date').textContent = dateLabel;
 
-  const statoEl = document.getElementById('dp-stato');
-  const statoLabels = { booked: 'BLOCCATA', contested: 'CONTESA', pending: 'RICHIESTA', free: '' };
-  statoEl.textContent = statoLabels[stato] || '';
-  statoEl.className = `dp-stato ${stato}`;
+  const statusEl = document.getElementById('dp-status');
+  const statusLabels = { booked: 'BLOCCATA', contested: 'CONTESA', pending: 'RICHIESTA', free: '' };
+  statusEl.textContent = statusLabels[status] || '';
+  statusEl.className = `dp-status ${status}`;
 
-  const ordinate = [...richieste].sort((a, b) => {
+  const sortedRequests = [...requests].sort((a, b) => {
     if (a.status === 'approved' && b.status !== 'approved') return -1;
     if (b.status === 'approved' && a.status !== 'approved') return 1;
     return 0;
   });
 
-  document.getElementById('dp-content').innerHTML = ordinate.map(r => `
-    <div class="dp-richiesta">
+  document.getElementById('dp-content').innerHTML = sortedRequests.map(r => `
+    <div class="dp-request">
       <div class="dp-r-top">
-        <div class="dp-r-ricerca">${escHtml(r.research_program_name)}</div>
-        <span class="dp-stato-small ${r.status}">${r.status === 'approved' ? 'APPROVATA' : 'IN ATTESA'}</span>
+        <div class="dp-r-program">${escHtml(r.research_program_name)}</div>
+        <span class="dp-status-small ${r.status}">${r.status === 'approved' ? 'APPROVATA' : 'IN ATTESA'}</span>
       </div>
       <div class="dp-r-meta">
-        <span><span class="lk">Fascia</span>${fascia(r)}</span>
+        <span><span class="lk">Fascia</span>${timeRange(r)}</span>
         <span><span class="lk">Osservatore</span>${escHtml(r.observer)}</span>
         ${r.co_observers ? `<span><span class="lk">Co-osservatori</span>${escHtml(r.co_observers)}</span>` : ''}
         ${r.reviewer_notes ? `<span><span class="lk">Note</span>${escHtml(r.reviewer_notes)}</span>` : ''}
       </div>
-      ${r.description ? `<div class="dp-r-descrizione">${escHtml(r.description)}</div>` : ''}
-      ${richiesteInConflittoPerId[r.id] ? `<div class="dp-conflitto">⚠ Si sovrappone a ${richiesteInConflittoPerId[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
+      ${r.description ? `<div class="dp-r-description">${escHtml(r.description)}</div>` : ''}
+      ${conflictingRequestsById[r.id] ? `<div class="dp-conflict">⚠ Si sovrappone a ${conflictingRequestsById[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
     </div>
   `).join('');
 
@@ -645,22 +645,22 @@ function apriDettaglio(dataStr, stato, info) {
   document.body.style.overflow = 'hidden';
 }
 
-function chiudiDettaglio() {
+function closeDetail() {
   document.getElementById('overlay').classList.remove('open');
   document.body.style.overflow = '';
 }
 
-function chiudiOverlay(e) {
-  if (e.target === document.getElementById('overlay')) chiudiDettaglio();
+function closeOverlay(e) {
+  if (e.target === document.getElementById('overlay')) closeDetail();
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') chiudiDettaglio();
+  if (e.key === 'Escape') closeDetail();
 });
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
-function fmtDate(a, m, g) {
-  return `${a}-${String(m).padStart(2,'0')}-${String(g).padStart(2,'0')}`;
+function fmtDate(y, m, d) {
+  return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
 
 function escHtml(str) {
@@ -669,8 +669,8 @@ function escHtml(str) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-caricaUtente();
-caricaMese();
+loadUser();
+loadMonth();
 </script>
 </body>
 </html>
