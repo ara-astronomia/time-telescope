@@ -62,11 +62,11 @@ A *research program* is a reusable observation project; a *request* (`time_reque
 
 Request states: `pending` (default) → `approved` | `rejected`, via `PATCH /telescope-time/requests/{id}` (`reviewers_only`). A status change or a reschedule (`PATCH .../schedule`) logs an event in `decision_log`, exposed via `GET .../history`. Whoever created the request can reschedule it only while it's `pending` and only into the future; the reviewer (`user.is_reviewer`) reschedules without restrictions, even after the fact.
 
-`GET /calendar` derives each night's `night_status` from the `approved`/`pending` requests occupying it: at least one `approved` → `booked`; overlapping slots among `pending` only → `contested`; no request → the night doesn't appear (the frontend treats it as free). `rejected` requests are excluded. The uniqueness constraint is application-level: a second request for the **same** research program on the same night is blocked (`409`), while different programs can share a night as long as their slots don't overlap (checked only on approval, in `time_slot_conflict`).
+`GET /calendar` derives each night's `night_status` from the `approved`/`pending` requests occupying it: at least one `approved` → `booked`; overlapping slots among `pending` only → `contested`; any other request present → `pending`; no request at all → the night doesn't appear (the frontend treats it as free). `rejected` requests are excluded. The uniqueness constraint is application-level: a second request for the **same** research program on the same night is blocked (`409`), while different programs can share a night as long as their slots don't overlap (checked only on approval, in `time_slot_conflict`).
 
 ### Email
 
-`send_notification_email` / `send_outcome_email` / `send_reschedule_email` in `router.py` are synchronous and called inline in the handler: a slow SMTP server slows down the HTTP response. Without `SMTP_HOST`/`SMTP_USER` they just `print`, which is the default configuration. SMTP exceptions are caught and logged, never propagated. `send_outcome_email` sends to both the observer (if they have an email in the registry) and `REVIEWER_EMAIL`.
+`send_notification_email` / `send_outcome_email` / `send_reschedule_email` in `router.py` are synchronous and called inline in the handler: a slow SMTP server slows down the HTTP response. Without `SMTP_HOST`/`SMTP_USER` they just `print`, which is the default configuration. SMTP exceptions are caught and logged, never propagated. `send_outcome_email` sends to the observer if they have an email in the registry, otherwise to `REVIEWER_EMAIL` — never both.
 
 ## Conventions
 
