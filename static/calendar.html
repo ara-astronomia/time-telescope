@@ -597,9 +597,9 @@ function timeRange(r) {
 
 function openDetail(dateStr, status, info) {
   const requests = info.requests;
-  // Per richiesta, gli id delle richieste con cui è in conflitto: al
-  // responsabile non basta sapere che c'è una sovrapposizione, deve sapere
-  // con chi per decidere cosa spostare.
+  // Per request, the ids of the requests it conflicts with: knowing there's
+  // an overlap isn't enough for the reviewer, they need to know with whom
+  // to decide what to move.
   const conflictingRequestsById = {};
   (info.overlaps || []).forEach(([a, b]) => {
     (conflictingRequestsById[a] = conflictingRequestsById[a] || []).push(b);

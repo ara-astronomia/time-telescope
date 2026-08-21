@@ -1,8 +1,8 @@
-"""I timestamp sono scritti in UTC: devono dirlo (#7).
+"""Timestamps are written in UTC: they must say so (#7).
 
-`datetime('now')` di SQLite produce '2026-08-17 06:30:00', che non è ISO 8601
-valido — spazio invece di T, nessun fuso — e i browser lo interpretano come ora
-locale, sfalsando di un'ora in inverno e due in estate.
+SQLite's `datetime('now')` produces '2026-08-17 06:30:00', which isn't valid
+ISO 8601 — a space instead of T, no timezone — and browsers interpret it as
+local time, off by one hour in winter and two in summer.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -11,9 +11,9 @@ from conftest import review, submit_time_request
 
 
 def parse(value):
-    """Fallisce se il timestamp non è ISO 8601 con fuso esplicito."""
+    """Fails if the timestamp isn't ISO 8601 with an explicit timezone."""
     instant = datetime.fromisoformat(value)
-    assert instant.tzinfo is not None, f"timestamp senza fuso: {value!r}"
+    assert instant.tzinfo is not None, f"timestamp without timezone: {value!r}"
     return instant
 
 
@@ -58,8 +58,8 @@ def test_created_at_in_the_calendar(client, research_program, night):
 
 
 def test_creation_order_stays_consistent(client, research_program, night, other_night):
-    """Il formato cambia: l'ordinamento lessicografico usato dalle query deve
-    continuare a coincidere con quello cronologico."""
+    """The format changes: the lexicographic ordering the queries rely on
+    must keep matching chronological order."""
     first = submit_time_request(client, research_program["id"], night).json()
     second = submit_time_request(client, research_program["id"], other_night).json()
     assert first["created_at"] <= second["created_at"]

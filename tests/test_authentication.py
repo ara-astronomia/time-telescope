@@ -1,5 +1,5 @@
-"""L'identità arriva dagli header che Nginx riceve da Authelia; in sviluppo
-AUTH_MODE=dev li sintetizza."""
+"""Identity comes from the headers Nginx receives from Authelia; in
+development AUTH_MODE=dev synthesizes them."""
 
 from conftest import REVIEWER, MEMBER, request_body
 
@@ -85,7 +85,7 @@ def test_dev_synthesizes_the_user(client):
 
 
 def test_dev_explicit_headers_win(client):
-    """Serve a provare un utente diverso senza riavviare l'app."""
+    """Lets you try a different user without restarting the app."""
     res = client.get("/telescope-time/me", headers=MEMBER)
     assert res.json()["username"] == "mario"
     assert res.json()["groups"] == ["soci"]
@@ -130,9 +130,9 @@ def test_dev_role_cookie_reviewer_is_the_default(client):
 
 
 def test_explicit_header_wins_over_cookie(client):
-    """Il cookie è una comodità per il browser; test e script che passano
-    header espliciti (es. MEMBER/REVIEWER) non devono vedersene scavalcato
-    l'utente."""
+    """The cookie is a convenience for the browser; tests and scripts that
+    pass explicit headers (e.g. MEMBER/REVIEWER) must not have the user
+    overridden by it."""
     client.cookies.set("dev_role", "socio")
     res = client.get("/telescope-time/me", headers=REVIEWER)
     assert res.json()["username"] == "anna"
@@ -140,8 +140,8 @@ def test_explicit_header_wins_over_cookie(client):
 
 
 def test_dev_role_cookie_ignored_outside_dev(client_authelia):
-    """Fuori da AUTH_MODE=dev il cookie non ha alcun effetto: senza header
-    resta un 401, non un login implicito come socio."""
+    """Outside AUTH_MODE=dev the cookie has no effect: without headers it
+    stays a 401, not an implicit login as a member."""
     client_authelia.cookies.set("dev_role", "socio")
     res = client_authelia.get("/telescope-time/me")
     assert res.status_code == 401
