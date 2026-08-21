@@ -161,9 +161,9 @@
   }
   .request-card:hover { border-color: var(--border-hi); }
 
-  .request-card.stato-pending  { border-left: 3px solid var(--amber); }
-  .request-card.stato-approved { border-left: 3px solid var(--green); }
-  .request-card.stato-rejected { border-left: 3px solid var(--red);   }
+  .request-card.status-pending  { border-left: 3px solid var(--amber); }
+  .request-card.status-approved { border-left: 3px solid var(--green); }
+  .request-card.status-rejected { border-left: 3px solid var(--red);   }
 
   .rc-header {
     display: flex;
@@ -202,9 +202,9 @@
     font-weight: 700;
     flex-shrink: 0;
   }
-  .stato-pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,0.25); }
-  .stato-approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
-  .stato-rejected { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
+  .status-pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,0.25); }
+  .status-approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
+  .status-rejected { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
 
   .rc-detail {
     display: none;
@@ -409,10 +409,10 @@
     <div class="header-right">
       <div id="current-user" class="identity-bar"></div>
       <div class="header-actions">
-        <a href="telescope_time_calendario.html" class="btn-link">
+        <a href="calendar.html" class="btn-link">
           ← Calendario
         </a>
-        <a href="telescope_time_request.html" class="btn-link">
+        <a href="request.html" class="btn-link">
           ← Modulo Richiesta
         </a>
         <button class="btn-link" onclick="loadRequests()">↻ Aggiorna</button>
@@ -466,7 +466,7 @@ let currentFilter = 'all';
 let researchProgramsMap = {};
 let me = { is_reviewer: false };
 
-// ─── Carica dati ──────────────────────────────────────────────────────────────
+// ─── Load data ─────────────────────────────────────────────────────────────
 async function loadRequests() {
   document.getElementById('loading-bar').style.display = 'block';
   try {
@@ -514,7 +514,7 @@ function updateStats() {
   document.getElementById('stat-rejected').textContent = counts.rejected;
 }
 
-// ─── Filtri ───────────────────────────────────────────────────────────────────
+// ─── Filters ───────────────────────────────────────────────────────────────
 function setFilter(btn) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -526,7 +526,7 @@ function longItalianDate(start) {
   return new Date(start).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// ─── Render ───────────────────────────────────────────────────────────────────
+// ─── Render ────────────────────────────────────────────────────────────────
 function renderList() {
   const idsToReopenAfterRender = openDetailIds();
   const list = document.getElementById('list');
@@ -544,8 +544,8 @@ function renderList() {
     const formattedDate = longItalianDate(r.start);
     const createdLabel = new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    // Nessun comando riporta allo stato corrente: il server lo tratterebbe
-    // come un non-evento, e mostrarlo suggerirebbe un'azione che non fa niente.
+    // No command leads back to the current status: the server would treat
+    // it as a non-event, and showing it would suggest an action that does nothing.
     const actions = {
       pending:  [['approved', '✓ Approva'], ['rejected', '✗ Rifiuta']],
       approved: [['rejected', '↺ Ribalta: rifiuta']],
@@ -555,7 +555,7 @@ function renderList() {
     const canReschedule = me.is_reviewer || (r.requester_id === me.id && r.status === 'pending');
 
     return `
-    <div class="request-card stato-${r.status}" id="card-${r.id}">
+    <div class="request-card status-${r.status}" id="card-${r.id}">
       <div class="rc-header" onclick="toggleDetail(${r.id})">
         <div class="rc-left">
           <div class="rc-program-name">${escHtml(r.research_program_name)}</div>
@@ -568,7 +568,7 @@ function renderList() {
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.6rem">
-          <span class="status-badge stato-${r.status}">${statusLabel}</span>
+          <span class="status-badge status-${r.status}">${statusLabel}</span>
           <svg id="chevron-${r.id}" width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--text-dim);transition:transform 0.2s">
             <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
@@ -650,9 +650,9 @@ function toggleDetail(id) {
 function showDetail(id, open) {
   document.getElementById(`detail-${id}`).classList.toggle('open', open);
   document.getElementById(`chevron-${id}`).style.transform = open ? 'rotate(180deg)' : '';
-  // Ricaricato a ogni apertura: dopo una decisione o uno spostamento la
-  // cronologia è cambiata. Solo per le richieste che si aprono davvero —
-  // caricarlo in lista significherebbe una chiamata per riga.
+  // Reloaded on every open: after a decision or a reschedule the history
+  // has changed. Only for requests that actually get opened — loading it
+  // for every row in the list would mean one call per row.
   if (open) loadHistory(id);
 }
 
@@ -688,12 +688,12 @@ function historyEntry(v) {
   </div>`;
 }
 
-// ─── Approva / Rifiuta ────────────────────────────────────────────────────────
+// ─── Approve / Reject ───────────────────────────────────────────────────────
 async function updateStatus(id, status, currentStatus) {
-  // Il campo si apre già compilato con le note esistenti, quindi il suo
-  // contenuto è la volontà dell'utente — stringa vuota compresa. Inviare
-  // `null` al posto del vuoto direbbe al server "non toccarle", e svuotarle
-  // diventerebbe impossibile.
+  // The field opens already filled with the existing notes, so its content
+  // is the user's intent — an empty string included. Sending `null` instead
+  // of empty would tell the server "don't touch them", making it impossible
+  // to clear them.
   const note = document.getElementById(`notes-${id}`).value.trim();
 
   const label = status === 'approved' ? 'approvare' : 'rifiutare';
@@ -710,8 +710,8 @@ async function updateStatus(id, status, currentStatus) {
       body: JSON.stringify({ status: status, reviewer_notes: note })
     });
     if (res.status === 409) {
-      // Sovrapposizione di fascia: il messaggio nomina la richiesta in
-      // conflitto, ed è l'unica cosa che dice al responsabile cosa spostare.
+      // Time slot overlap: the message names the conflicting request, and
+      // that's the only thing that tells the reviewer what to move.
       showToast((await res.json()).detail, 'error');
       return;
     }
@@ -731,14 +731,14 @@ async function updateStatus(id, status, currentStatus) {
   }
 }
 
-// `start` e `end` sono ora locale dell'osservatorio: le ore si leggono come
-// stringa, così il fuso del browser non le sposta.
+// `start` and `end` are observatory local time: the times are read as
+// strings, so the browser's timezone doesn't shift them.
 function timeRange(start, end) {
   return `${start.slice(11,16)} → ${end.slice(11,16)}`
        + (start.slice(0,10) === end.slice(0,10) ? '' : ' (+1g)');
 }
 
-// ─── Sposta data e orari ──────────────────────────────────────────────────────
+// ─── Reschedule date and times ────────────────────────────────────────────
 function localIsoWithTimezone(date) {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
@@ -778,9 +778,9 @@ async function rescheduleRequest(id) {
     showToast('La fine deve stare nella stessa notte dell\'inizio: non oltre le 12:00 del giorno dopo.', 'error'); return;
   }
 
-  // Spostare nel passato è permesso — serve a registrare a posteriori
-  // un'osservazione davvero fatta — ma va detto, altrimenti un errore di
-  // battitura sull'anno passa in silenzio.
+  // Rescheduling into the past is allowed — it's needed to log an
+  // observation that actually happened, after the fact — but it must be
+  // stated, or a typo in the year would slip through silently.
   const confirmMsg = new Date(start) < new Date()
     ? 'Stai spostando questa osservazione in una data già trascorsa.\n\nConfermi?'
     : 'Confermi lo spostamento? L\'osservatore riceverà un avviso via email.';
@@ -812,7 +812,7 @@ async function rescheduleRequest(id) {
   }
 }
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// ─── Utility ───────────────────────────────────────────────────────────────
 function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -827,7 +827,7 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
-// ─── Auto-refresh ogni 60s ────────────────────────────────────────────────────
+// ─── Auto-refresh every 60s ───────────────────────────────────────────────
 loadRequests();
 setInterval(loadRequests, 60000);
 </script>

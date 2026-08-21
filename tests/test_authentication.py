@@ -108,7 +108,7 @@ def test_dev_variables_are_customizable(client, monkeypatch):
     assert res.json()["groups"] == ["soci"]
 
 
-# ─── Dev role switcher (#26) ────────────────────────────────────────────────────
+# ─── Dev role switcher ────────────────────────────────────────────────────
 # A single synthesized user forced curl/Playwright to try the dashboard as a
 # member. The cookie makes that possible from a regular browser, without
 # restarting the container.

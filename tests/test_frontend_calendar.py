@@ -4,7 +4,7 @@ truly contested (#33)."""
 
 from datetime import date, datetime, time, timedelta
 
-PAGE = "/telescope_time_calendario.html"
+PAGE = "/calendar.html"
 
 
 def next_month() -> date:
@@ -123,7 +123,7 @@ def test_night_detail_shows_the_time_slot(page, app_url):
     assert "00:00" in page.inner_text("#dp-content")
 
 
-# ─── Identity: the calendar also shows who's logged in (#26) ──────────────────
+# ─── Identity: the calendar also shows who's logged in ──────────────────
 
 def test_banner_shows_who_is_logged_in(page, app_url):
     page.goto(f"{app_url}{PAGE}")
@@ -139,5 +139,5 @@ def test_the_dev_switcher_is_visible(page, app_url):
 
 def test_links_to_dashboard_and_request_form_are_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    assert page.locator('a[href="telescope_time_request.html"]').count() == 1
-    assert page.locator('a[href="telescope_time_dashboard.html"]').count() == 1
+    assert page.locator('a[href="request.html"]').count() == 1
+    assert page.locator('a[href="dashboard.html"]').count() == 1

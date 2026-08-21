@@ -8,7 +8,7 @@ import pytest
 
 from conftest import as_member
 
-PAGE = "/telescope_time_dashboard.html"
+PAGE = "/dashboard.html"
 TZ = ZoneInfo("Europe/Rome")
 UTC = ZoneInfo("UTC")
 
@@ -511,7 +511,7 @@ def test_closed_cards_stay_closed(page, app_url):
     assert not is_open(page, closed_one["id"])
 
 
-# ─── Identity: hiding reviewer commands from non-reviewers (#26) ──────────────
+# ─── Identity: hiding reviewer commands from non-reviewers ──────────────
 
 def test_a_member_does_not_see_reviewer_commands(page, app_url):
     day = date.today() + timedelta(days=70)
@@ -540,7 +540,7 @@ def test_the_banner_follows_the_user_switch(page, app_url):
 def test_403_on_approval_reached_via_an_already_hidden_button(page, app_url):
     """Someone who had the page open before a group change no longer sees
     the buttons, but the function is still callable: the message must be
-    distinct from a generic network error (#26)."""
+    distinct from a generic network error."""
     day = date.today() + timedelta(days=71)
     request = create_request_with_slot(page, app_url, "403 stato", day, hour=21, duration=2)
 
@@ -591,7 +591,7 @@ def test_403_on_reschedule_reached_via_an_already_hidden_button(page, app_url):
     assert page.inner_text("#toast") == 'Solo i responsabili possono spostare una richiesta.'
 
 
-# ─── Dev role switcher (#26) ────────────────────────────────────────────────────
+# ─── Dev role switcher ────────────────────────────────────────────────────
 
 def test_the_dev_switcher_is_visible(page, app_url):
     page.goto(f"{app_url}{PAGE}")
@@ -630,12 +630,12 @@ def test_switching_to_member_hides_the_commands_without_restarting(page, app_url
 
 def test_link_to_the_calendar_is_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    assert page.locator('a[href="telescope_time_calendario.html"]').count() == 1
+    assert page.locator('a[href="calendar.html"]').count() == 1
 
 
 def test_link_to_the_request_form_is_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    assert page.locator('a[href="telescope_time_request.html"]').count() == 1
+    assert page.locator('a[href="request.html"]').count() == 1
 
 
 # ─── The observer reschedules their own pending request ───────────────────────

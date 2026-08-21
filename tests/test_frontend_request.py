@@ -7,7 +7,7 @@ requests don't even get sent.
 
 from datetime import date, datetime, time, timedelta
 
-PAGE = "/telescope_time_request.html"
+PAGE = "/request.html"
 
 # `datetime-local` doesn't accept seconds: the value is 'YYYY-MM-DDTHH:MM'.
 FORMAT = "%Y-%m-%dT%H:%M"
@@ -168,7 +168,7 @@ def test_the_request_is_submitted_without_a_name(page, app_url):
     assert all(r["observer"] == "Marta Conti" for r in mine)
 
 
-# ─── Identity: role switcher in dev (#26) ──────────────────────────────────────
+# ─── Identity: role switcher in dev ──────────────────────────────────────
 
 def test_the_dev_switcher_is_visible(page, app_url):
     page.goto(f"{app_url}{PAGE}")
@@ -178,5 +178,5 @@ def test_the_dev_switcher_is_visible(page, app_url):
 
 def test_links_to_calendar_and_dashboard_are_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
-    assert page.locator('a[href="telescope_time_calendario.html"]').count() == 1
-    assert page.locator('a[href="telescope_time_dashboard.html"]').count() == 1
+    assert page.locator('a[href="calendar.html"]').count() == 1
+    assert page.locator('a[href="dashboard.html"]').count() == 1

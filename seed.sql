@@ -1,16 +1,16 @@
--- Dati di esempio per lo sviluppo locale.
+-- Sample data for local development.
 --
 --   sqlite3 telescope_time.db < seed.sql
 --
--- Richiede che l'app sia già stata avviata almeno una volta (init_db crea le
--- tabelle). Pensato per un database vuoto: rilanciandolo, `users` e
--- `research_programs` non vengono duplicati (INSERT OR IGNORE), ma le
--- `time_requests` sì.
+-- Requires the app to have started at least once already (init_db creates
+-- the tables). Meant for an empty database: rerunning it, `users` and
+-- `research_programs` don't get duplicated (INSERT OR IGNORE), but
+-- `time_requests` do.
 --
--- Nomi, ricerche e username sono di fantasia: nessuno di questi osservatori
--- esiste davvero in Authelia. Le date sono relative a oggi, così il
--- calendario ha sempre qualcosa da mostrare nel mese corrente e nel
--- successivo senza dover aggiornare questo file.
+-- Names, research programs and usernames are made up: none of these
+-- observers really exist in Authelia. Dates are relative to today, so the
+-- calendar always has something to show in the current month and the next
+-- one without needing to update this file.
 
 INSERT OR IGNORE INTO users (username, name, email) VALUES
     ('gvernier',  'Giulia Vernier',  'giulia.vernier@example.test'),
@@ -25,7 +25,7 @@ INSERT OR IGNORE INTO research_programs (name, description, specs) VALUES
     ('Monitoraggio comete',     'Curve di luce di comete periodiche',       'Filtro R, binning 2x2'),
     ('Curve di luce asteroidi', 'Determinazione periodi di rotazione',      'Senza filtro, cadenza 60s');
 
--- Notte bloccata.
+-- Booked night.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Giulia Vernier'), 'Marco Silvestri',
        date('now', '+3 days'),
@@ -33,7 +33,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Giulia Vernier'), 'Marco Silvestr
        'approved', 'Meteo previsto stabile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Notte contesa: due ricerche diverse chiedono fasce che si intersecano.
+-- Contested night: two different research programs request overlapping slots.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+7 days'),
@@ -46,7 +46,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), 'Sara Ferretti'
        date('now', '+7 days') || 'T23:00:00', date('now', '+8 days') || 'T03:00:00'
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
--- Notte solo richiesta: turni distinti, non si sovrappongono.
+-- Pending-only night: distinct shifts, no overlap.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+12 days'),
@@ -59,7 +59,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+12 days') || 'T23:00:00', date('now', '+13 days') || 'T02:00:00'
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
--- Richiesta rifiutata: non compare nel calendario e libera di nuovo la notte.
+-- Rejected request: doesn't show up on the calendar and frees the night again.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+10 days'),
@@ -67,17 +67,17 @@ SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        'rejected', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Comincia dopo mezzanotte: notte precedente al giorno di `start`, il caso
--- che #47 corregge.
+-- Starts after midnight: the previous night to the day of `start`, the case
+-- #47 fixes.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+8 days'),
        date('now', '+9 days') || 'T02:00:00', date('now', '+9 days') || 'T04:30:00'
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
--- ─── Mese successivo ───────────────────────────────────────────────────────
+-- ─── Next month ────────────────────────────────────────────────────────────
 
--- Notte bloccata.
+-- Booked night.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+15 days'),
@@ -85,7 +85,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        'approved', 'Confermato.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Notte contesa.
+-- Contested night.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+20 days'),
@@ -98,7 +98,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), NULL,
        date('now', '+20 days') || 'T23:00:00', date('now', '+21 days') || 'T01:30:00'
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
--- Richiesta rifiutata.
+-- Rejected request.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+30 days'),
@@ -106,7 +106,7 @@ SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        'rejected', 'Strumento non disponibile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Comincia dopo mezzanotte, come sopra ma più tardi.
+-- Starts after midnight, like above but later.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+25 days'),
@@ -114,15 +114,15 @@ SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli'
        'approved', 'Ok.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Comincia dopo mezzanotte: appartiene alla notte precedente, non a quella
--- del giorno del `start` — il caso che #47 corregge.
+-- Starts after midnight: belongs to the previous night, not the one for the
+-- day of `start` — the case #47 fixes.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Giulia Vernier'), 'Marco Silvestri',
        date('now', '+35 days'),
        date('now', '+36 days') || 'T01:00:00', date('now', '+36 days') || 'T03:30:00'
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
--- Notte bloccata, fine mese.
+-- Booked night, end of month.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), NULL,
        date('now', '+40 days'),
@@ -130,15 +130,15 @@ SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), NULL,
        'approved', 'Ok.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Monitoraggio comete';
 
--- Notte solo richiesta, ultimo giorno del mese.
+-- Pending-only night, last day of the month.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Sara Ferretti',
        date('now', '+42 days'),
        date('now', '+42 days') || 'T21:30:00', date('now', '+42 days') || 'T23:00:00'
 FROM research_programs WHERE name = 'Survey exoplanet';
 
--- Del socio sintetizzato dallo switcher dev: sempre in attesa, per provare
--- da subito se il proprietario può modificarla lui stesso.
+-- Belongs to the member synthesized by the dev switcher: always pending, to
+-- immediately test whether the owner can edit it themselves.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Luca Bertani'), NULL,
        date('now', '+18 days'),

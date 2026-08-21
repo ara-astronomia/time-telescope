@@ -388,8 +388,8 @@
     <div class="header-right">
       <div id="current-user" class="user-identity-bar"></div>
       <div class="header-actions">
-        <a href="telescope_time_request.html"   class="btn-link">+ Nuova Richiesta</a>
-        <a href="telescope_time_dashboard.html" class="btn-link">⊞ Dashboard</a>
+        <a href="request.html"   class="btn-link">+ Nuova Richiesta</a>
+        <a href="dashboard.html" class="btn-link">⊞ Dashboard</a>
       </div>
     </div>
   </div>
@@ -507,8 +507,8 @@ function mondayOffset(firstDayOfMonth) {
   return (firstDayOfMonth.getDay() + 6) % 7;
 }
 
-// Il colore 'bloccata' da solo non distingue una notte con un programma da una
-// con tre: sopra 1 approvazione, il conteggio compare esplicito in etichetta.
+// The 'booked' color alone doesn't tell a night with one program apart from
+// one with three: above 1 approval, the count shows up explicitly in a badge.
 function multiProgramBadge(approvedCount) {
   if (approvedCount <= 1) return '';
   return `<div class="multi-program-badge" title="${approvedCount} osservazioni approvate per questa notte">${approvedCount} programmi</div>`;
@@ -586,8 +586,8 @@ function renderCalendar() {
 }
 
 // ─── Day detail ─────────────────────────────────────────────────────────
-// `instant` è ora locale dell'osservatorio: va letta come stringa, non passata
-// a Date, o il fuso del browser la sposterebbe.
+// `instant` is observatory local time: it must be read as a string, not
+// passed to Date, or the browser's timezone would shift it.
 function formatTime(instant) {
   return instant.slice(11, 16);
 }

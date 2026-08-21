@@ -18,9 +18,9 @@ time-telescope/
 ├── docker-compose.yml
 ├── nginx_time_telescope.conf       ← blocco Nginx da copiare
 ├── static/                         ← pagine HTML
-│   ├── telescope_time_request.html
-│   ├── telescope_time_dashboard.html
-│   └── telescope_time_calendario.html
+│   ├── request.html
+│   ├── dashboard.html
+│   └── calendar.html
 └── README.md
 ```
 
@@ -50,9 +50,9 @@ uv add --dev <pacchetto>            # solo per i test
 ```
 
 Apri il browser su:
-- http://localhost:8010/telescope_time_request.html
-- http://localhost:8010/telescope_time_dashboard.html
-- http://localhost:8010/telescope_time_calendario.html
+- http://localhost:8010/request.html
+- http://localhost:8010/dashboard.html
+- http://localhost:8010/calendar.html
 
 > La root `/` risponde `404`: non esiste un `index.html`, le pagine vanno
 > chiamate con il loro nome.
@@ -69,7 +69,7 @@ dispositivo — tablet in cupola, telefono — serve `--host 0.0.0.0`:
 AUTH_MODE=dev uv run uvicorn main:app --reload --host 0.0.0.0 --port 8010
 ```
 
-Poi `http://<ip-della-macchina>:8010/telescope_time_request.html`.
+Poi `http://<ip-della-macchina>:8010/request.html`.
 Serve `AUTH_MODE=dev`: senza Nginx e Authelia davanti, ogni richiesta
 senza header di identità riceve `401`.
 
@@ -104,8 +104,8 @@ uv run python -c "import sqlite3; d=sqlite3.connect('telescope_time.db'); \
 
 ```bash
 uv run pytest                              # tutta la suite
-uv run pytest tests/test_calendario.py     # un singolo file
-uv run pytest -k rifiutate                 # un singolo test per nome
+uv run pytest tests/test_calendar.py       # un singolo file
+uv run pytest -k rejected                  # un singolo test per nome
 ```
 
 `uv run` installa da solo quel che manca, incluse le dipendenze del
@@ -254,12 +254,12 @@ all'approvazione.
 
 ## Flusso operativo
 
-1. Osservatore apre telescope_time_request.html: il suo nome è già noto,
+1. Osservatore apre request.html: il suo nome è già noto,
    arriva da Authelia e non si digita
 2. Seleziona ricerca esistente o ne crea una nuova
 3. Indica co-osservatori e la fascia oraria — da quando a quando, non solo
    in che notte — → invia
-4. Responsabile riceve email e apre telescope_time_dashboard.html
+4. Responsabile riceve email e apre dashboard.html
 5. Approva o rifiuta con note opzionali
 6. Il calendario riflette in tempo reale lo stato delle notti:
 
