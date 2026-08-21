@@ -3,7 +3,7 @@ measurable instead of assumed — two research programs can share a night,
 not the same instant on the same instrument.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -86,6 +86,29 @@ def test_start_in_the_past_is_rejected(client, research_program):
 def test_invalid_datetime_is_rejected(client, research_program, value):
     _, end = time_slot(future_night())
     res = submit_slot(client, research_program["id"], value, end)
+
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"] == ["body", "start"]
+
+
+def test_the_future_check_uses_the_observatory_timezone(
+    client, research_program, observatory_far_ahead_of_the_system_clock
+):
+    """"In the future" must mean the observatory's clock, not whatever OS
+    timezone the process happens to run under — otherwise a container
+    started without OBSERVATORY_TZ set silently falls back to system time,
+    and a slot that's already past for the observatory gets accepted (or
+    the reverse).
+
+    7h ahead of "now" for the UTC system clock is still hours behind "now"
+    at an observatory 14h ahead (Pacific/Kiritimati): from the observatory's
+    point of view this slot is already in the past.
+    """
+    now_system = datetime.fromisoformat(datetime.now().isoformat())
+    start = now_system + timedelta(hours=7)
+    end = start + timedelta(hours=1)
+
+    res = submit_slot(client, research_program["id"], start.isoformat(), end.isoformat())
 
     assert res.status_code == 422
     assert res.json()["detail"][0]["loc"] == ["body", "start"]

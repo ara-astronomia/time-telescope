@@ -1,4 +1,6 @@
+import os
 import sys
+import time as time_module
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
@@ -15,6 +17,33 @@ REVIEWER = {
 }
 MEMBER = {"Remote-User": "mario", "Remote-Groups": "soci",
           "Remote-Email": "mario@example.test"}
+
+
+@pytest.fixture
+def observatory_far_ahead_of_the_system_clock(monkeypatch):
+    """Fixes the OS timezone to UTC and the observatory's to Pacific/Kiritimati
+    (UTC+14, the furthest-ahead timezone that exists), so a test can build an
+    instant that is unambiguously in the future for one and in the past for
+    the other — deterministic regardless of the host machine's own timezone.
+
+    `monkeypatch.setenv` alone can't do this: changing the `TZ` env var has no
+    effect on `datetime.now()` without `time.tzset()`, and that call must be
+    paired with a manual restore — monkeypatch's automatic teardown runs
+    after this fixture's, so a `tzset()` in a plain teardown would re-apply
+    while `TZ` is still overridden, not after it's restored.
+    """
+    monkeypatch.setenv("OBSERVATORY_TZ", "Pacific/Kiritimati")
+    previous_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time_module.tzset()
+    try:
+        yield
+    finally:
+        if previous_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous_tz
+        time_module.tzset()
 
 
 @pytest.fixture

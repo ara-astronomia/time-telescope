@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, computed_f
 from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 import sqlite3
 import os
 import smtplib
@@ -45,6 +46,18 @@ def dev_user() -> str:
 
 def dev_groups() -> str:
     return os.environ.get("DEV_GROUPS", "telescope-responsabili")
+
+def observatory_tz() -> str:
+    return os.environ.get("OBSERVATORY_TZ", "Europe/Rome")
+
+def now_at_observatory() -> datetime:
+    """'Now' as a naive instant in the observatory's local time, comparable
+    with the naive `start`/`end` stored on requests (see `TimeSlot`): those
+    have no tzinfo by design, so a bare `datetime.now()` here would compare
+    them against the *process's* timezone instead of the observatory's —
+    correct only by accident when the two happen to match.
+    """
+    return datetime.now(ZoneInfo(observatory_tz())).replace(tzinfo=None)
 
 def reviewers_group() -> str:
     return os.environ.get("REVIEWERS_GROUP", "telescope-responsabili")
@@ -416,7 +429,7 @@ class TimeRequestCreate(TimeSlot):
     @field_validator("start")
     @classmethod
     def in_the_future(cls, instant: datetime) -> datetime:
-        if instant <= datetime.now():
+        if instant <= now_at_observatory():
             raise ValueError("L'osservazione deve cominciare nel futuro.")
         return instant
 
@@ -461,6 +474,9 @@ class TimeRequestOut(BaseModel):
     reviewer_notes: Optional[str]
     created_at: str
     updated_at: Optional[str]
+
+class ObservatoryOut(BaseModel):
+    timezone: str
 
 # ─── Email utility ────────────────────────────────────────────────────────────
 
@@ -548,7 +564,7 @@ def send_reschedule_email(request: dict, previous: dict, reason: Optional[str]):
     """The observer got assigned a different time than requested: not
     something they should stumble on by chance opening the calendar."""
     warning = ""
-    if datetime.fromisoformat(request["start"]) < datetime.now():
+    if datetime.fromisoformat(request["start"]) < now_at_observatory():
         warning = "\n\nAttenzione: la nuova fascia cade in una data passata."
 
     body = f"""
@@ -574,6 +590,13 @@ def me(user: User = Depends(registered_user)):
     """Identity of the connected user: lets the pages know whether to show
     the review commands."""
     return user
+
+@router.get("/observatory", response_model=ObservatoryOut)
+def observatory():
+    """The observatory's timezone, so the frontend can compute "now" the
+    same way the server does instead of using the visiting browser's own
+    timezone."""
+    return ObservatoryOut(timezone=observatory_tz())
 
 # ─── Research programs endpoints ───────────────────────────────────────────────
 
@@ -807,7 +830,7 @@ def reschedule_request(
                 status_code=409,
                 detail="Solo le richieste in attesa possono essere spostate da chi le ha create.",
             )
-        if body.start <= datetime.now():
+        if body.start <= now_at_observatory():
             raise HTTPException(status_code=422, detail="Il nuovo inizio deve essere nel futuro.")
 
     start, end = body.start.isoformat(), body.end.isoformat()
@@ -884,7 +907,7 @@ def calendar(
     disputing the same instants: two sessions in distinct shifts share the
     night without contesting it.
     """
-    today = datetime.now()
+    today = now_at_observatory()
     year = year or today.year
     month = month or today.month
     first, last = month_bounds(year, month)

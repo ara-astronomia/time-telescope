@@ -10,7 +10,7 @@ status of each night from the time slots of the requests that occupy it.
 """
 
 from calendar import isleap, monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -184,3 +184,16 @@ def test_without_parameters_uses_the_current_month(client):
 
     today = date.today()
     assert (res.json()["year"], res.json()["month"]) == (today.year, today.month)
+
+
+def test_the_default_month_is_the_observatorys_not_the_systems(client, monkeypatch):
+    """"Today" for the default year/month must be the observatory's calendar
+    day, not the process's OS timezone — otherwise a container without
+    OBSERVATORY_TZ set can default to the wrong month right around a day
+    boundary."""
+    import router
+    monkeypatch.setattr(router, "now_at_observatory", lambda: datetime(2027, 1, 5, 3, 0))
+
+    res = client.get("/telescope-time/calendar")
+
+    assert (res.json()["year"], res.json()["month"]) == (2027, 1)

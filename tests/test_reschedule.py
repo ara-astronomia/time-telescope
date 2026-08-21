@@ -6,7 +6,7 @@ request. It is also how two requests contending for the same slot get
 unblocked: rescheduling one, not rejecting one.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -211,6 +211,26 @@ def test_the_owner_cannot_reschedule_into_the_past(
     own = submit_request_as(client_authelia, research_program_authelia["id"], night, MEMBER)
 
     res = reschedule(client_authelia, own["id"], future_night(-5), headers=MEMBER)
+
+    assert res.status_code == 422
+
+
+def test_the_owner_reschedule_future_check_uses_the_observatory_timezone(
+    client_authelia, research_program_authelia, night, observatory_far_ahead_of_the_system_clock
+):
+    """On the owner's reschedule path too, "into the future" must be the
+    observatory's clock, not the process's OS timezone."""
+    own = submit_request_as(client_authelia, research_program_authelia["id"], night, MEMBER)
+
+    now_system = datetime.fromisoformat(datetime.now().isoformat())
+    start = now_system + timedelta(hours=7)
+    end = start + timedelta(hours=1)
+
+    res = client_authelia.patch(
+        SCHEDULE.format(own["id"]),
+        json={"start": start.isoformat(), "end": end.isoformat()},
+        headers=MEMBER,
+    )
 
     assert res.status_code == 422
 

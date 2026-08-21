@@ -486,6 +486,7 @@
     <!-- SECTION 3: Requested session -->
     <div class="section">
       <div class="section-label"><span>03</span> Sessione Richiesta</div>
+      <small style="color:var(--text-dim)" id="observatory-tz-note"></small>
 
       <div class="field">
         <label>Inizio Osservazione <span class="req">*</span></label>
@@ -764,7 +765,31 @@ function updateEndConstraints() {
   endField.max = localIsoWithTimezone(windowEnd);
 }
 
-startField.min = localIsoWithTimezone(new Date());
+// ─── Observatory timezone ───────────────────────────────────────────────────
+let observatoryTz = 'Europe/Rome';
+
+/** Now, as a `datetime-local` value in the observatory's timezone rather
+ * than the visiting browser's — 'sv-SE' is the built-in locale that
+ * formats closest to ISO 8601 (YYYY-MM-DD HH:mm:ss). */
+function nowAtObservatory() {
+  return new Date().toLocaleString('sv-SE', { timeZone: observatoryTz }).slice(0, 16).replace(' ', 'T');
+}
+
+/** Sets #start's minimum and states the observatory-local convention on the
+ * form, both from the server's timezone instead of a default that would
+ * otherwise reflect whoever is looking at the page. */
+async function loadObservatory() {
+  try {
+    const res = await fetch(`${API_BASE}/observatory`);
+    observatoryTz = (await res.json()).timezone;
+  } catch(e) {
+    console.error('Errore caricamento fuso osservatorio:', e);
+  }
+  startField.min = nowAtObservatory();
+  document.getElementById('observatory-tz-note').textContent =
+    `Orari in ora locale dell'osservatorio — ${observatoryTz}.`;
+}
+
 startField.addEventListener('input', () => {
   updateEndConstraints();
   if (startField.value && !endField.value) {
@@ -778,6 +803,7 @@ startField.addEventListener('input', () => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadUser();
 loadResearchPrograms();
+loadObservatory();
 </script>
 </body>
 </html>

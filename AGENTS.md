@@ -70,4 +70,6 @@ Request states: `pending` (default) → `approved` | `rejected`, via `PATCH /tel
 
 ## Conventions
 
-As of PR #66 (issue #38), code, comments, docstrings, and identifiers (schema, endpoints, functions, HTML/test file names) are in **English**. User-facing messages stay in **Italian**: HTTP error details (`detail=...`), the text and comments in the `static/*.html` UI, and comments in infrastructure files (`docker-compose.yml`, `nginx_time_telescope.conf`). Don't mix the two: an Italian identifier or an English error message breaks this convention.
+Code, docstrings, and identifiers (schema, endpoints, functions, HTML/test file names) are in **English**. User-facing messages stay in **Italian**: HTTP error details (`detail=...`), the text and comments in the `static/*.html` UI, and comments in infrastructure files (`docker-compose.yml`, `nginx_time_telescope.conf`). Don't mix the two: an Italian identifier or an English error message breaks this convention.
+
+**No comments in code** (`#`, `//`). If a line seems to need one, that's a signal to rewrite it instead — a clearer name, an extracted function, a better structure. A docstring is the only accepted fallback, and only when there's truly no other way to convey something (FastAPI route/model docstrings double as Swagger documentation, so those stay); it must describe the current behavior only, never an issue number, a past state, or "before X / after X" narrative — same rule for test docstrings and test names.

@@ -6,6 +6,7 @@ requests don't even get sent.
 """
 
 from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 PAGE = "/request.html"
 
@@ -19,13 +20,16 @@ def time_slot(days_ahead, hour=22, duration=3):
 
 
 def prepare(page, app_url):
-    """Opens the page with a research program already available in the menu."""
+    """Opens the page with a research program already available in the menu,
+    and #start's `min` already set — it's populated once GET /observatory
+    resolves, asynchronously after the page loads."""
     page.request.post(
         f"{app_url}/telescope-time/research-programs",
         data={"name": f"Research {datetime.now()}"},
     )
     page.goto(f"{app_url}{PAGE}")
     page.wait_for_selector("#research_program_id option", state="attached")
+    page.wait_for_function("document.getElementById('start').min !== ''")
     return page
 
 
@@ -180,3 +184,24 @@ def test_links_to_calendar_and_dashboard_are_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
     assert page.locator('a[href="calendar.html"]').count() == 1
     assert page.locator('a[href="dashboard.html"]').count() == 1
+
+
+# ─── Observatory timezone ────────────────────────────────────────────────
+
+def test_the_start_minimum_reflects_the_observatory_not_the_browser(browser, app_url):
+    """#start's `min` and the copy above it must both come from the
+    observatory's clock (Europe/Rome, default), regardless of the visiting
+    browser's own timezone — here emulated as Pacific/Kiritimati, 13 hours
+    ahead of Rome."""
+    context = browser.new_context(timezone_id="Pacific/Kiritimati")
+    page = context.new_page()
+    try:
+        prepare(page, app_url)
+        shown_min = datetime.strptime(page.locator("#start").evaluate("e => e.min"), FORMAT)
+        note = page.locator("#observatory-tz-note").inner_text()
+
+        expected = datetime.now(ZoneInfo("Europe/Rome")).replace(tzinfo=None)
+        assert abs((shown_min - expected).total_seconds()) < 120
+        assert "Europe/Rome" in note
+    finally:
+        context.close()

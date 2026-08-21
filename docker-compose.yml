@@ -25,6 +25,9 @@ services:
       # confronta con la propria: senza questo il container ragionerebbe in UTC
       # e una richiesta per fra un'ora potrebbe risultare nel passato.
       - TZ=Europe/Rome
+      # Letta esplicitamente da Python (router.now_at_observatory): a
+      # differenza di TZ, non dipende dal fuso di sistema del container.
+      - OBSERVATORY_TZ=Europe/Rome
       # I .pyc scritti dal container finirebbero nella working copy.
       - PYTHONDONTWRITEBYTECODE=1
       # Autenticazione simulata: in sviluppo non serve Authelia.
