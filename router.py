@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, computed_field, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 import sqlite3
 import os
 import smtplib
@@ -355,6 +355,12 @@ class RicercaOut(BaseModel):
 # quindi nessuna sessione ci cade sopra per caso.
 SOGLIA_NOTTE = time(12, 0)
 
+def notte_di(istante: datetime) -> date:
+    giorno = istante.date()
+    if istante.time() < SOGLIA_NOTTE:
+        giorno -= timedelta(days=1)
+    return giorno
+
 class FasciaOraria(BaseModel):
     """inizio/fine come NaiveDatetime: rifiuta gli istanti con fuso, perché sono ora
     locale dell'osservatorio e un offset renderebbe le fasce salvate non più
@@ -377,12 +383,23 @@ class FasciaOraria(BaseModel):
             raise ValueError("La fine deve essere successiva all'inizio.")
         return istante
 
+    @field_validator("fine")
+    @classmethod
+    def dentro_una_notte(cls, istante: datetime, info: ValidationInfo) -> datetime:
+        inizio = info.data.get("inizio")
+        if inizio is None:
+            return istante
+        fine_finestra = datetime.combine(notte_di(inizio) + timedelta(days=1), SOGLIA_NOTTE)
+        if istante > fine_finestra:
+            raise ValueError(
+                "La fine deve stare nella stessa notte dell'inizio: "
+                "non oltre le 12:00 del giorno successivo."
+            )
+        return istante
+
     @property
     def notte(self) -> str:
-        giorno = self.inizio.date()
-        if self.inizio.time() < SOGLIA_NOTTE:
-            giorno -= timedelta(days=1)
-        return giorno.isoformat()
+        return notte_di(self.inizio).isoformat()
 
 
 class RichiestaCreate(FasciaOraria):

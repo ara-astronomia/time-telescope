@@ -110,6 +110,48 @@ def test_fascia_non_valida_non_scrive_sul_database(client, ricerca):
     assert client.get("/telescope-time/richieste").json() == []
 
 
+# ─── Una sola notte per richiesta (#59) ────────────────────────────────────────
+
+def test_fascia_dentro_la_notte_ammessa(client, ricerca):
+    inizio, fine = fascia(notte(), ora=22, durata=4)
+    res = invia(client, ricerca["id"], inizio, fine)
+
+    assert res.status_code == 201
+
+
+def test_fascia_nella_seconda_parte_della_notte_ammessa(client, ricerca):
+    """Una sessione che comincia dopo mezzanotte appartiene alla notte
+    precedente ed è ammessa."""
+    inizio, fine = fascia(notte(), ora=1, durata=3)
+    res = invia(client, ricerca["id"], inizio, fine)
+
+    assert res.status_code == 201
+
+
+def test_fascia_di_esattamente_24_ore_ammessa(client, ricerca):
+    inizio, fine = fascia(notte(), ora=12, durata=24)
+    res = invia(client, ricerca["id"], inizio, fine)
+
+    assert res.status_code == 201
+
+
+def test_fascia_che_scavalca_due_notti_rifiutata(client, ricerca):
+    inizio, fine = fascia(notte(), ora=22, durata=27)
+    res = invia(client, ricerca["id"], inizio, fine)
+
+    assert res.status_code == 422
+    assert res.json()["detail"][0]["loc"] == ["body", "fine"]
+
+
+def test_fascia_oltre_la_soglia_rifiutata_anche_se_dura_meno_di_24_ore(client, ricerca):
+    """17 ore di durata, ben sotto il limite — ma finisce oltre le 12:00 del
+    giorno dopo: il vincolo è sulla finestra, non sulla durata totale."""
+    inizio, fine = fascia(notte(), ora=20, durata=17)
+    res = invia(client, ricerca["id"], inizio, fine)
+
+    assert res.status_code == 422
+
+
 # ─── Sovrapposizione: ammessa in attesa, bloccata all'approvazione ────────────
 
 def test_due_richieste_possono_contendersi_la_stessa_fascia(client, ricerca):
@@ -187,18 +229,13 @@ def test_riapprovare_la_stessa_richiesta_non_e_un_conflitto(client, ricerca):
     assert approva(client, richiesta["id"]).status_code == 200
 
 
-def test_il_conflitto_attraversa_la_soglia_di_notte(client, ricerca):
-    """Le due richieste stanno in notti diverse (la soglia delle 12, #47) — è
-    il confronto fra istanti a scoprire che occupano lo strumento nello
-    stesso momento."""
-    altra = client.post("/telescope-time/ricerche", json={"nome": "Comete"}).json()
-    giorno = notte()
-    prima = crea_richiesta(client, ricerca["id"], giorno, ora=11, durata=2).json()
-    seconda = crea_richiesta(client, altra["id"], giorno, ora=12, durata=2).json()
-    assert prima["giorno_richiesto"] != seconda["giorno_richiesto"]
-    approva(client, prima["id"])
+def test_una_fascia_a_cavallo_della_soglia_e_rifiutata(client, ricerca):
+    """Due notti sono finestre da 12:00 a 12:00 consecutive e disgiunte: una
+    fascia dentro la propria notte non può mai toccare quella successiva."""
+    inizio, fine = fascia(notte(), ora=11, durata=2)
+    res = invia(client, ricerca["id"], inizio, fine)
 
-    assert approva(client, seconda["id"]).status_code == 409
+    assert res.status_code == 422
 
 
 def test_fasce_contigue_non_si_sovrappongono(client, ricerca):

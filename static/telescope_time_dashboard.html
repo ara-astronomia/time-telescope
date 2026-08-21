@@ -522,18 +522,13 @@ function setFilter(btn) {
   renderList();
 }
 
-// `inizio` è ora locale dell'osservatorio: letta come stringa via `slice` in
-// `fascia()`, così il fuso del browser non la sposta. Qui invece la data (non
-// l'ora) passa da Date, perché va scritta per esteso in italiano.
 function dataEstesaItaliana(inizio) {
   return new Date(inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
-  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: si
-  // ricordano i dettagli aperti per riaprirli, o si richiuderebbero sotto le mani.
-  const aperti = dettagliAperti();
+  const idDaRiaprireDopoIlRender = dettagliAperti();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'tutte'
     ? allRichieste
@@ -625,11 +620,13 @@ function renderList() {
         <div class="sposta-area">
           <div class="sposta-campo">
             <div class="dl">NUOVO INIZIO</div>
-            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.inizio.slice(0,16)}">
+            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.inizio.slice(0,16)}"
+                   oninput="aggiornaMaxSposta(${r.id})">
           </div>
           <div class="sposta-campo">
             <div class="dl">NUOVA FINE</div>
-            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.fine.slice(0,16)}">
+            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.fine.slice(0,16)}"
+                   max="${fineFinestraDi(r.inizio)}">
           </div>
           <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
           <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
@@ -640,11 +637,9 @@ function renderList() {
     `;
   }).join('');
 
-  aperti.forEach(id => {
-    // Una richiesta può essere uscita dal filtro attivo proprio per l'azione
-    // appena fatta: in quel caso non c'è più nulla da riaprire.
-    if (document.getElementById(`detail-${id}`)) mostraDettaglio(id, true);
-  });
+  idDaRiaprireDopoIlRender
+    .filter(id => document.getElementById(`detail-${id}`))
+    .forEach(id => mostraDettaglio(id, true));
 }
 
 function toggleDetail(id) {
@@ -743,6 +738,30 @@ function fascia(inizio, fine) {
 }
 
 // ─── Sposta data e orari ──────────────────────────────────────────────────────
+function isoLocaleFusoCorretto(momento) {
+  momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
+  return momento.toISOString().slice(0, 16);
+}
+
+function notteDi(istante) {
+  const notte = new Date(istante);
+  if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  notte.setHours(0, 0, 0, 0);
+  return notte;
+}
+
+function fineFinestraDi(inizioStr) {
+  const fineFinestra = notteDi(new Date(inizioStr));
+  fineFinestra.setDate(fineFinestra.getDate() + 1);
+  fineFinestra.setHours(12, 0, 0, 0);
+  return isoLocaleFusoCorretto(fineFinestra);
+}
+
+function aggiornaMaxSposta(id) {
+  const inizio = document.getElementById(`sposta-inizio-${id}`).value;
+  if (inizio) document.getElementById(`sposta-fine-${id}`).max = fineFinestraDi(inizio);
+}
+
 async function spostaOrario(id) {
   const inizio = document.getElementById(`sposta-inizio-${id}`).value;
   const fine   = document.getElementById(`sposta-fine-${id}`).value;
@@ -753,6 +772,9 @@ async function spostaOrario(id) {
   }
   if (fine <= inizio) {
     showToast('La fine deve essere successiva all\'inizio.', 'error'); return;
+  }
+  if (fine > fineFinestraDi(inizio)) {
+    showToast('La fine deve stare nella stessa notte dell\'inizio: non oltre le 12:00 del giorno dopo.', 'error'); return;
   }
 
   // Spostare nel passato è permesso — serve a registrare a posteriori

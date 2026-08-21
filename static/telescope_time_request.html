@@ -653,18 +653,15 @@ async function salvaRicerca() {
   }
 }
 
+function passanoLaValidazioneNativa(ids) {
+  return ids.every(id => document.getElementById(id).reportValidity());
+}
+
 // ─── Invia richiesta ──────────────────────────────────────────────────────────
 async function inviaRichiesta() {
   const ricercaId = document.getElementById('ricerca_id').value;
 
-  // Validazione nativa del browser: copre campi vuoti, formato degli orari e
-  // i vincoli `min` (niente nel passato, fine dopo inizio). L'invio avviene
-  // via fetch, quindi va invocata a mano: senza, `min` e `required` sono
-  // decorativi.
-  for (const id of ['ricerca_id', 'inizio', 'fine']) {
-    const campo = document.getElementById(id);
-    if (!campo.reportValidity()) return;
-  }
+  if (!passanoLaValidazioneNativa(['ricerca_id', 'inizio', 'fine'])) return;
 
   const btn = document.getElementById('btn-submit');
   btn.classList.add('loading');
@@ -731,9 +728,7 @@ function showToast(msg, type = 'success') {
 }
 
 // ─── Vincoli sulla fascia oraria ──────────────────────────────────────────────
-// `datetime-local` parla in ora locale: toISOString() è UTC e sfaserebbe il
-// vincolo di un'ora in inverno e due in estate.
-function localeIso(momento) {
+function isoLocaleFusoCorretto(momento) {
   momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
   return momento.toISOString().slice(0, 16);
 }
@@ -743,29 +738,39 @@ const campoFine      = document.getElementById('fine');
 const notteHint      = document.getElementById('notte-hint');
 const notteHintData  = document.getElementById('notte-hint-data');
 
-// Stessa soglia di router.py: mezzogiorno, per non mostrare una notte diversa
-// da quella su cui il calendario poi raggruppa davvero la richiesta (#47).
+function notteDi(istante) {
+  const notte = new Date(istante);
+  if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  notte.setHours(0, 0, 0, 0);
+  return notte;
+}
+
 function aggiornaNotteHint() {
   if (!campoInizio.value) {
     notteHint.style.display = 'none';
     return;
   }
-  const inizio = new Date(campoInizio.value);
-  const notte = new Date(inizio);
-  if (inizio.getHours() < 12) notte.setDate(notte.getDate() - 1);
+  const notte = notteDi(new Date(campoInizio.value));
   notteHintData.textContent = notte.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
   notteHint.style.display = '';
 }
 
-campoInizio.min = localeIso(new Date());
-campoInizio.addEventListener('input', () => {
-  // Il vincolo della fine è relativo all'inizio: nessun attributo statico può
-  // esprimerlo, va riscritto a ogni cambiamento.
+function aggiornaVincoliFine() {
   campoFine.min = campoInizio.value;
+  if (!campoInizio.value) return;
+  const fineFinestra = notteDi(new Date(campoInizio.value));
+  fineFinestra.setDate(fineFinestra.getDate() + 1);
+  fineFinestra.setHours(12, 0, 0, 0);
+  campoFine.max = isoLocaleFusoCorretto(fineFinestra);
+}
+
+campoInizio.min = isoLocaleFusoCorretto(new Date());
+campoInizio.addEventListener('input', () => {
+  aggiornaVincoliFine();
   if (campoInizio.value && !campoFine.value) {
     const fine = new Date(campoInizio.value);
     fine.setHours(fine.getHours() + 3);
-    campoFine.value = localeIso(fine);
+    campoFine.value = isoLocaleFusoCorretto(fine);
   }
   aggiornaNotteHint();
 });
