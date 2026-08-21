@@ -38,7 +38,7 @@ services:
       # - SMTP_USER=crac@osservatorio.it
       # - SMTP_PASSWORD=secret
       # - EMAIL_FROM=crac@osservatorio.it
-      # - EMAIL_RESPONSABILE=responsabile@osservatorio.it
+      # - REVIEWER_EMAIL=responsabile@osservatorio.it
 
 volumes:
   telescope_db:

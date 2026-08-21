@@ -183,13 +183,13 @@
     cursor: pointer;
   }
 
-  .ricerca-row {
+  .research-program-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.6rem;
     align-items: end;
   }
-  .btn-new-ricerca {
+  .btn-new-research-program {
     background: var(--accent-lo);
     border: 1px solid rgba(79,124,255,0.3);
     border-radius: var(--radius);
@@ -203,7 +203,7 @@
     height: 40px;
     display: flex; align-items: center; gap: 0.4rem;
   }
-  .btn-new-ricerca:hover { background: rgba(79,124,255,0.22); }
+  .btn-new-research-program:hover { background: rgba(79,124,255,0.22); }
 
   .btn-link {
     font-family: var(--mono);
@@ -238,7 +238,7 @@
     border-radius: 8px;
   }
 
-  .nuova-ricerca-panel {
+  .new-research-program-panel {
     display: none;
     background: rgba(79,124,255,0.05);
     border: 1px dashed rgba(79,124,255,0.3);
@@ -247,8 +247,8 @@
     margin-top: 0.8rem;
     animation: fadeUp 0.3s ease both;
   }
-  .nuova-ricerca-panel.visible { display: block; }
-  .nuova-ricerca-panel .panel-title {
+  .new-research-program-panel.visible { display: block; }
+  .new-research-program-panel .panel-title {
     font-family: var(--mono);
     font-size: 0.7rem;
     color: var(--accent);
@@ -272,12 +272,12 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-lo);
   }
-  .utente-corrente {
+  .current-user {
     padding: .55rem .7rem; border-radius: 6px;
     background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
     font-size: .85rem; color: var(--text);
   }
-  .utente-corrente .username { color: var(--text-dim); font-family: var(--mono); font-size: .78rem; }
+  .current-user .username { color: var(--text-dim); font-family: var(--mono); font-size: .78rem; }
 
   .chip {
     display: inline-flex;
@@ -393,7 +393,7 @@
 
   @media (max-width: 480px) {
     .card { padding: 1.4rem; }
-    .ricerca-row { grid-template-columns: 1fr; }
+    .research-program-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -403,10 +403,10 @@
   <div class="header">
     <div class="badge">CRaC — Osservatorio</div>
     <div class="header-actions">
-      <a href="telescope_time_calendario.html" class="btn-link">
+      <a href="calendar.html" class="btn-link">
         ← Calendario
       </a>
-      <a href="telescope_time_dashboard.html" class="btn-link">
+      <a href="dashboard.html" class="btn-link">
         ⊞ Dashboard
       </a>
     </div>
@@ -416,19 +416,19 @@
 
   <div id="dev-switcher" class="dev-switcher-bar">
     <span style="color:var(--text-dim)">Modalità sviluppo — provo come:</span>
-    <button class="btn-link" id="dev-btn-responsabile" onclick="passaAlRuoloDev('responsabile')">responsabile</button>
-    <button class="btn-link" id="dev-btn-socio" onclick="passaAlRuoloDev('socio')">socio</button>
+    <button class="btn-link" id="dev-btn-reviewer" onclick="switchDevRole('responsabile')">responsabile</button>
+    <button class="btn-link" id="dev-btn-member" onclick="switchDevRole('socio')">socio</button>
   </div>
 
   <div class="card">
 
-    <!-- SEZIONE 1: Osservatori -->
+    <!-- SECTION 1: Observers -->
     <div class="section">
       <div class="section-label"><span>01</span> Osservatori</div>
 
       <div class="field">
         <label>Osservatore principale</label>
-        <div id="utente-corrente" class="utente-corrente">…</div>
+        <div id="current-user" class="current-user">…</div>
       </div>
 
       <div class="field">
@@ -438,21 +438,21 @@
                  placeholder="Scrivi un nome e premi Invio…">
         </div>
         <div class="chips-hint">Premi Invio o virgola dopo ogni nome</div>
-        <input type="hidden" id="co_osservatori">
+        <input type="hidden" id="co_observers">
       </div>
     </div>
 
-    <!-- SEZIONE 2: Ricerca -->
+    <!-- SECTION 2: Research program -->
     <div class="section">
       <div class="section-label"><span>02</span> Programma di Ricerca</div>
 
       <div class="field">
         <label>Seleziona Ricerca <span class="req">*</span></label>
-        <div class="ricerca-row">
-          <select id="ricerca_id" required>
+        <div class="research-program-row">
+          <select id="research_program_id" required>
             <option value="">— Scegli ricerca esistente —</option>
           </select>
-          <button class="btn-new-ricerca" onclick="toggleNuovaRicerca()">
+          <button class="btn-new-research-program" onclick="toggleNewResearchProgram()">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
@@ -461,50 +461,50 @@
         </div>
       </div>
 
-      <!-- Panel nuova ricerca -->
-      <div class="nuova-ricerca-panel" id="nuova-ricerca-panel">
+      <!-- New research program panel -->
+      <div class="new-research-program-panel" id="new-research-program-panel">
         <div class="panel-title">// NUOVA RICERCA</div>
         <div class="field">
           <label>Nome Ricerca <span class="req">*</span> <small style="color:var(--text-dim)">(deve essere univoco)</small></label>
-          <input type="text" id="nr-nome" placeholder="es. Survey variabili RR Lyrae">
+          <input type="text" id="nr-name" placeholder="es. Survey variabili RR Lyrae">
         </div>
         <div class="field">
           <label>Descrizione</label>
-          <textarea id="nr-descrizione" placeholder="Obiettivi scientifici, contesto…"></textarea>
+          <textarea id="nr-description" placeholder="Obiettivi scientifici, contesto…"></textarea>
         </div>
         <div class="field">
           <label>Specifiche Tecniche</label>
-          <textarea id="nr-specifiche" placeholder="Strumentazione richiesta, filtri, tempi di posa, risoluzione…" style="min-height:70px"></textarea>
+          <textarea id="nr-specs" placeholder="Strumentazione richiesta, filtri, tempi di posa, risoluzione…" style="min-height:70px"></textarea>
         </div>
-        <button class="btn-new-ricerca" style="width:100%; justify-content:center; height:38px; margin-top:0.2rem"
-                onclick="salvaRicerca()">
+        <button class="btn-new-research-program" style="width:100%; justify-content:center; height:38px; margin-top:0.2rem"
+                onclick="saveResearchProgram()">
           ✓ Salva e seleziona questa ricerca
         </button>
       </div>
     </div>
 
-    <!-- SEZIONE 3: Sessione -->
+    <!-- SECTION 3: Requested session -->
     <div class="section">
       <div class="section-label"><span>03</span> Sessione Richiesta</div>
 
       <div class="field">
         <label>Inizio Osservazione <span class="req">*</span></label>
-        <input type="datetime-local" id="inizio" required>
+        <input type="datetime-local" id="start" required>
       </div>
 
       <div class="field">
         <label>Fine Osservazione <span class="req">*</span>
           <small style="color:var(--text-dim)">(può cadere dopo la mezzanotte)</small>
         </label>
-        <input type="datetime-local" id="fine" required>
+        <input type="datetime-local" id="end" required>
       </div>
 
-      <div class="field" id="notte-hint" style="display:none">
-        <small style="color:var(--text-dim)">Notte del <span id="notte-hint-data"></span></small>
+      <div class="field" id="night-hint" style="display:none">
+        <small style="color:var(--text-dim)">Notte del <span id="night-hint-date"></span></small>
       </div>
     </div>
 
-    <button class="btn-submit" id="btn-submit" onclick="inviaRichiesta()">
+    <button class="btn-submit" id="btn-submit" onclick="submitRequest()">
       <span class="btn-text">Invia Richiesta</span>
       <span class="spinner"></span>
     </button>
@@ -518,36 +518,36 @@
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = '/telescope-time';
 
-// ─── Co-osservatori chips ─────────────────────────────────────────────────────
+// ─── Co-observer chips ─────────────────────────────────────────────────────────
 const chipsContainer = document.getElementById('chips-container');
 const coInput = document.getElementById('co-input');
-const coHidden = document.getElementById('co_osservatori');
-let coOsservatori = [];
+const coHidden = document.getElementById('co_observers');
+let coObservers = [];
 
 function renderChips() {
   chipsContainer.querySelectorAll('.chip').forEach(c => c.remove());
 
-  coOsservatori.forEach((name, i) => {
+  coObservers.forEach((name, i) => {
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.innerHTML = `${name} <button onclick="removeChip(${i})" title="Rimuovi">×</button>`;
     chipsContainer.insertBefore(chip, coInput);
   });
 
-  coHidden.value = coOsservatori.join(', ');
+  coHidden.value = coObservers.join(', ');
 }
 
 function addChip(val) {
   const name = val.trim().replace(/,$/, '');
-  if (name && !coOsservatori.includes(name)) {
-    coOsservatori.push(name);
+  if (name && !coObservers.includes(name)) {
+    coObservers.push(name);
     renderChips();
   }
   coInput.value = '';
 }
 
 function removeChip(i) {
-  coOsservatori.splice(i, 1);
+  coObservers.splice(i, 1);
   renderChips();
 }
 
@@ -556,8 +556,8 @@ coInput.addEventListener('keydown', e => {
     e.preventDefault();
     addChip(coInput.value);
   }
-  if (e.key === 'Backspace' && coInput.value === '' && coOsservatori.length) {
-    coOsservatori.pop();
+  if (e.key === 'Backspace' && coInput.value === '' && coObservers.length) {
+    coObservers.pop();
     renderChips();
   }
 });
@@ -565,45 +565,45 @@ coInput.addEventListener('blur', () => {
   if (coInput.value.trim()) addChip(coInput.value);
 });
 
-// ─── Chi sono ─────────────────────────────────────────────────────────────────
-// L'identità arriva da Authelia: non si digita e non si può falsificare.
-let utenteCorrente = null;
+// ─── Who am I ────────────────────────────────────────────────────────────────
+// Identity comes from Authelia: it isn't typed and can't be forged.
+let currentUser = null;
 
-async function caricaUtente() {
+async function loadUser() {
   try {
     const res = await fetch(`${API_BASE}/me`);
-    utenteCorrente = await res.json();
-    const visualizzato = utenteCorrente.nome_completo || utenteCorrente.nome;
-    const nome = utenteCorrente.email
-      ? `${escHtml(visualizzato)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
-      : escHtml(visualizzato);
-    document.getElementById('utente-corrente').innerHTML = nome;
-    document.getElementById('dev-switcher').style.display = utenteCorrente.modalita_dev ? 'flex' : 'none';
-    document.getElementById('dev-btn-responsabile').classList.toggle('active', utenteCorrente.e_responsabile);
-    document.getElementById('dev-btn-socio').classList.toggle('active', !utenteCorrente.e_responsabile);
+    currentUser = await res.json();
+    const displayName = currentUser.full_name || currentUser.username;
+    const nameHtml = currentUser.email
+      ? `${escHtml(displayName)} <span class="username">${escHtml(currentUser.email)}</span>`
+      : escHtml(displayName);
+    document.getElementById('current-user').innerHTML = nameHtml;
+    document.getElementById('dev-switcher').style.display = currentUser.is_dev_mode ? 'flex' : 'none';
+    document.getElementById('dev-btn-reviewer').classList.toggle('active', currentUser.is_reviewer);
+    document.getElementById('dev-btn-member').classList.toggle('active', !currentUser.is_reviewer);
   } catch(e) {
-    document.getElementById('utente-corrente').textContent = 'identità non disponibile';
+    document.getElementById('current-user').textContent = 'identità non disponibile';
   }
 }
 
-function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+function switchDevRole(role) {
+  document.cookie = `dev_role=${role}; path=/`;
   location.reload();
 }
 
-// ─── Carica ricerche esistenti ────────────────────────────────────────────────
-async function caricaRicerche() {
+// ─── Load existing research programs ──────────────────────────────────────────
+async function loadResearchPrograms() {
   try {
-    const res = await fetch(`${API_BASE}/ricerche`);
+    const res = await fetch(`${API_BASE}/research-programs`);
     const data = await res.json();
-    const sel = document.getElementById('ricerca_id');
+    const sel = document.getElementById('research_program_id');
     sel.innerHTML = '<option value="">— Scegli ricerca esistente —</option>';
     data.forEach(r => {
       const opt = document.createElement('option');
       opt.value = r.id;
-      opt.textContent = r.nome;
-      opt.dataset.descrizione = r.descrizione || '';
-      opt.dataset.specifiche  = r.specifiche  || '';
+      opt.textContent = r.name;
+      opt.dataset.description = r.description || '';
+      opt.dataset.specs       = r.specs  || '';
       sel.appendChild(opt);
     });
   } catch(e) {
@@ -611,27 +611,27 @@ async function caricaRicerche() {
   }
 }
 
-// ─── Nuova ricerca panel ──────────────────────────────────────────────────────
-function toggleNuovaRicerca() {
-  const panel = document.getElementById('nuova-ricerca-panel');
+// ─── New research program panel ────────────────────────────────────────────────
+function toggleNewResearchProgram() {
+  const panel = document.getElementById('new-research-program-panel');
   panel.classList.toggle('visible');
   if (panel.classList.contains('visible')) {
-    document.getElementById('nr-nome').focus();
+    document.getElementById('nr-name').focus();
   }
 }
 
-async function salvaRicerca() {
-  const nome       = document.getElementById('nr-nome').value.trim();
-  const descrizione = document.getElementById('nr-descrizione').value.trim();
-  const specifiche  = document.getElementById('nr-specifiche').value.trim();
+async function saveResearchProgram() {
+  const name        = document.getElementById('nr-name').value.trim();
+  const description = document.getElementById('nr-description').value.trim();
+  const specs        = document.getElementById('nr-specs').value.trim();
 
-  if (!nome) { showToast('Inserisci il nome della ricerca.', 'error'); return; }
+  if (!name) { showToast('Inserisci il nome della ricerca.', 'error'); return; }
 
   try {
-    const res = await fetch(`${API_BASE}/ricerche`, {
+    const res = await fetch(`${API_BASE}/research-programs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, descrizione, specifiche })
+      body: JSON.stringify({ name: name, description: description, specs: specs })
     });
 
     if (res.status === 409) {
@@ -639,43 +639,43 @@ async function salvaRicerca() {
     }
     if (!res.ok) throw new Error();
 
-    const nuova = await res.json();
-    showToast(`Ricerca "${nuova.nome}" creata!`, 'success');
+    const created = await res.json();
+    showToast(`Ricerca "${created.name}" creata!`, 'success');
 
-    await caricaRicerche();
-    document.getElementById('ricerca_id').value = nuova.id;
-    document.getElementById('nuova-ricerca-panel').classList.remove('visible');
+    await loadResearchPrograms();
+    document.getElementById('research_program_id').value = created.id;
+    document.getElementById('new-research-program-panel').classList.remove('visible');
 
-    ['nr-nome','nr-descrizione','nr-specifiche'].forEach(id => document.getElementById(id).value = '');
+    ['nr-name','nr-description','nr-specs'].forEach(id => document.getElementById(id).value = '');
 
   } catch(e) {
     showToast('Errore durante il salvataggio della ricerca.', 'error');
   }
 }
 
-function passanoLaValidazioneNativa(ids) {
+function passNativeValidation(ids) {
   return ids.every(id => document.getElementById(id).reportValidity());
 }
 
-// ─── Invia richiesta ──────────────────────────────────────────────────────────
-async function inviaRichiesta() {
-  const ricercaId = document.getElementById('ricerca_id').value;
+// ─── Submit request ─────────────────────────────────────────────────────────────
+async function submitRequest() {
+  const researchProgramId = document.getElementById('research_program_id').value;
 
-  if (!passanoLaValidazioneNativa(['ricerca_id', 'inizio', 'fine'])) return;
+  if (!passNativeValidation(['research_program_id', 'start', 'end'])) return;
 
   const btn = document.getElementById('btn-submit');
   btn.classList.add('loading');
   btn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/richieste`, {
+    const res = await fetch(`${API_BASE}/requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ricerca_id:     parseInt(ricercaId),
-        co_osservatori: coHidden.value || null,
-        inizio:         document.getElementById('inizio').value,
-        fine:           document.getElementById('fine').value
+        research_program_id: parseInt(researchProgramId),
+        co_observers:         coHidden.value || null,
+        start:                 document.getElementById('start').value,
+        end:                   document.getElementById('end').value
       })
     });
 
@@ -684,10 +684,10 @@ async function inviaRichiesta() {
       return;
     }
     if (res.status === 422) {
-      const dettaglio = (await res.json()).detail?.[0];
-      const etichette = { inizio: "l'orario di inizio", fine: "l'orario di fine" };
-      const campo = etichette[dettaglio?.loc?.slice(-1)[0]] || 'i dati inseriti';
-      showToast(`Il server ha rifiutato ${campo}: controlla e riprova.`, 'error');
+      const errorDetail = (await res.json()).detail?.[0];
+      const fieldLabels = { start: "l'orario di inizio", end: "l'orario di fine" };
+      const field = fieldLabels[errorDetail?.loc?.slice(-1)[0]] || 'i dati inseriti';
+      showToast(`Il server ha rifiutato ${field}: controlla e riprova.`, 'error');
       return;
     }
     if (!res.ok) throw new Error();
@@ -704,10 +704,10 @@ async function inviaRichiesta() {
 }
 
 function resetForm() {
-  document.getElementById('ricerca_id').value = '';
-  document.getElementById('inizio').value = '';
-  document.getElementById('fine').value = '';
-  coOsservatori = [];
+  document.getElementById('research_program_id').value = '';
+  document.getElementById('start').value = '';
+  document.getElementById('end').value = '';
+  coObservers = [];
   renderChips();
 }
 
@@ -727,57 +727,57 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
-// ─── Vincoli sulla fascia oraria ──────────────────────────────────────────────
-function isoLocaleFusoCorretto(momento) {
-  momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
-  return momento.toISOString().slice(0, 16);
+// ─── Time-window constraints ────────────────────────────────────────────────────
+function localIsoWithTimezone(moment) {
+  moment.setMinutes(moment.getMinutes() - moment.getTimezoneOffset());
+  return moment.toISOString().slice(0, 16);
 }
 
-const campoInizio    = document.getElementById('inizio');
-const campoFine      = document.getElementById('fine');
-const notteHint      = document.getElementById('notte-hint');
-const notteHintData  = document.getElementById('notte-hint-data');
+const startField    = document.getElementById('start');
+const endField       = document.getElementById('end');
+const nightHint      = document.getElementById('night-hint');
+const nightHintDate  = document.getElementById('night-hint-date');
 
-function notteDi(istante) {
-  const notte = new Date(istante);
-  if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
-  notte.setHours(0, 0, 0, 0);
-  return notte;
+function nightOf(instant) {
+  const night = new Date(instant);
+  if (instant.getHours() < 12) night.setDate(night.getDate() - 1);
+  night.setHours(0, 0, 0, 0);
+  return night;
 }
 
-function aggiornaNotteHint() {
-  if (!campoInizio.value) {
-    notteHint.style.display = 'none';
+function updateNightHint() {
+  if (!startField.value) {
+    nightHint.style.display = 'none';
     return;
   }
-  const notte = notteDi(new Date(campoInizio.value));
-  notteHintData.textContent = notte.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
-  notteHint.style.display = '';
+  const night = nightOf(new Date(startField.value));
+  nightHintDate.textContent = night.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+  nightHint.style.display = '';
 }
 
-function aggiornaVincoliFine() {
-  campoFine.min = campoInizio.value;
-  if (!campoInizio.value) return;
-  const fineFinestra = notteDi(new Date(campoInizio.value));
-  fineFinestra.setDate(fineFinestra.getDate() + 1);
-  fineFinestra.setHours(12, 0, 0, 0);
-  campoFine.max = isoLocaleFusoCorretto(fineFinestra);
+function updateEndConstraints() {
+  endField.min = startField.value;
+  if (!startField.value) return;
+  const windowEnd = nightOf(new Date(startField.value));
+  windowEnd.setDate(windowEnd.getDate() + 1);
+  windowEnd.setHours(12, 0, 0, 0);
+  endField.max = localIsoWithTimezone(windowEnd);
 }
 
-campoInizio.min = isoLocaleFusoCorretto(new Date());
-campoInizio.addEventListener('input', () => {
-  aggiornaVincoliFine();
-  if (campoInizio.value && !campoFine.value) {
-    const fine = new Date(campoInizio.value);
-    fine.setHours(fine.getHours() + 3);
-    campoFine.value = isoLocaleFusoCorretto(fine);
+startField.min = localIsoWithTimezone(new Date());
+startField.addEventListener('input', () => {
+  updateEndConstraints();
+  if (startField.value && !endField.value) {
+    const end = new Date(startField.value);
+    end.setHours(end.getHours() + 3);
+    endField.value = localIsoWithTimezone(end);
   }
-  aggiornaNotteHint();
+  updateNightHint();
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-caricaUtente();
-caricaRicerche();
+loadUser();
+loadResearchPrograms();
 </script>
 </body>
 </html>

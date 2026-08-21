@@ -1,7 +1,7 @@
 """
-Telescope Time — FastAPI app autonoma
-Avvio locale:   uvicorn main:app --reload --port 8010
-Docker:         gestito dal Dockerfile
+Telescope Time — standalone FastAPI app
+Local start:   uvicorn main:app --reload --port 8010
+Docker:        managed by the Dockerfile
 """
 
 from contextlib import asynccontextmanager
@@ -21,11 +21,11 @@ async def lifespan(app: FastAPI):
     if auth_mode() == "dev":
         print(
             "\n" + "=" * 70 +
-            f"\n  ATTENZIONE: autenticazione simulata (AUTH_MODE=dev)."
-            f"\n  Ogni richiesta senza header vale come utente '{dev_user()}'"
-            f"\n  nei gruppi '{dev_groups()}'. Da non usare in produzione.\n" +
+            f"\n  WARNING: simulated authentication (AUTH_MODE=dev)."
+            f"\n  Every request without headers counts as user '{dev_user()}'"
+            f"\n  in groups '{dev_groups()}'. Not for production use.\n" +
             "=" * 70 + "\n",
-            flush=True,  # senza, il messaggio resta nel buffer e non arriva ai log Docker
+            flush=True,  # without it, the message stays buffered and never reaches Docker logs
         )
 
     yield
@@ -40,5 +40,5 @@ app = FastAPI(
 
 app.include_router(router)
 
-STATIC_DIR_ASSOLUTA = Path(__file__).resolve().parent / "static"
-app.mount("/", StaticFiles(directory=STATIC_DIR_ASSOLUTA, html=True), name="static")
+STATIC_DIR_ABSOLUTE = Path(__file__).resolve().parent / "static"
+app.mount("/", StaticFiles(directory=STATIC_DIR_ABSOLUTE, html=True), name="static")
