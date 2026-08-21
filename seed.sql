@@ -15,9 +15,9 @@
 -- `start`/`end` are UTC (#65): each literal local wall-clock time below is
 -- shifted by a fixed '-2 hours' to get there.
 -- ponytail: assumes CEST (Europe/Rome summer time) for every row, not the
--- DST offset actually in effect when this file is loaded — fine for
--- throwaway dev fixtures. If loaded in winter, change '-2 hours' to
--- '-1 hours' below.
+-- DST offset actually in effect for each row's own date — fine for
+-- throwaway dev fixtures, wrong for any row that falls in CET (roughly
+-- late October to late March): change that row's '-2 hours' to '-1 hours'.
 
 INSERT OR IGNORE INTO users (username, name, email) VALUES
     ('gvernier',  'Giulia Vernier',  'giulia.vernier@example.test'),

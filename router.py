@@ -165,7 +165,7 @@ def init_db():
             -- hours belong to the previous night. It's the key the
             -- calendar groups on.
             requested_night     TEXT    NOT NULL,
-            -- time slot, observatory local time: '2026-09-12T22:00:00'.
+            -- time slot, UTC: '2026-09-12T20:00:00Z'.
             start               TEXT    NOT NULL,
             end                 TEXT    NOT NULL,
             status              TEXT    NOT NULL DEFAULT 'pending',
@@ -994,8 +994,7 @@ def calendar(
     contested = record_overlaps(requests, nights)
 
     for request in requests:
-        request["start"] = to_local(request["start"]).isoformat()
-        request["end"] = to_local(request["end"]).isoformat()
+        request.update(localized(request))
 
     for key, night in nights.items():
         if night["approved_count"]:
