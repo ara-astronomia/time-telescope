@@ -118,9 +118,8 @@ def test_orario_con_fuso_rifiutato(client, richiesta, altro_giorno):
 
 
 def test_il_responsabile_non_puo_spostare_su_una_fascia_di_due_notti(client, richiesta, altro_giorno):
-    """Il vincolo di #59 è su FasciaOraria, condivisa da RichiestaCreate e
-    SpostamentoOrario: vale anche per il responsabile, che pure sposta
-    senza restrizioni di stato o di data (#34)."""
+    """Il vincolo sulla fascia oraria è condiviso: vale anche per il
+    responsabile, che sposta senza altre restrizioni di stato o data."""
     res = sposta(client, richiesta["id"], altro_giorno, ora=22, durata=27)
 
     assert res.status_code == 422

@@ -84,7 +84,7 @@ def test_fine_precedente_all_inizio_non_viene_inviata(page, app_url):
 # ─── Fine oltre la notte dell'inizio (#59) ─────────────────────────────────────
 
 def test_fine_oltre_la_notte_segnalata_all_utente(page, app_url):
-    """Il vincolo è relativo all'inizio: `max` di #fine segue la notte (#47, #59)."""
+    """`max` di #fine segue la notte di #inizio."""
     prepara(page, app_url)
     inizio, fine = fascia(10, ora=22, durata=27)
     compila(page, inizio, fine)

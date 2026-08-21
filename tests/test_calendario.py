@@ -123,13 +123,9 @@ def test_le_coppie_sovrapposte_sono_esposte(client, ricerca, altra_ricerca, mese
     assert notte_di(client, quando)["sovrapposizioni"] == [[prima["id"], seconda["id"]]]
 
 
-def test_scavalcare_la_soglia_di_notte_e_ora_impossibile_da_solo(client, ricerca, mese):
-    """Prima di #59 due fasce potevano stare in notti diverse (soglia delle
-    12, #47) e condividere comunque degli istanti — es. 11:00-13:00 e
-    12:00-14:00 dello stesso giorno, che contendevano entrambe le notti. Da
-    #59 in poi non più: due notti sono finestre da 12:00 a 12:00 consecutive
-    e disgiunte, quindi #59 rifiuta la prima fascia da sola, prima che si
-    possa anche solo parlare di contesa."""
+def test_una_fascia_a_cavallo_della_soglia_e_rifiutata(client, ricerca, mese):
+    """Due notti sono finestre da 12:00 a 12:00 consecutive e disgiunte: una
+    fascia dentro la propria notte non può mai toccare quella successiva."""
     quando = mese.replace(day=12)
     res = crea_richiesta(client, ricerca["id"], quando, ora=11, durata=2)
 

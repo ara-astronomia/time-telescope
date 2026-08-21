@@ -120,8 +120,8 @@ def test_fascia_dentro_la_notte_ammessa(client, ricerca):
 
 
 def test_fascia_nella_seconda_parte_della_notte_ammessa(client, ricerca):
-    """Controprova: il vincolo non deve rifiutare per errore le sessioni che
-    cominciano dopo mezzanotte e appartengono alla notte precedente (#47)."""
+    """Una sessione che comincia dopo mezzanotte appartiene alla notte
+    precedente ed è ammessa."""
     inizio, fine = fascia(notte(), ora=1, durata=3)
     res = invia(client, ricerca["id"], inizio, fine)
 
@@ -229,14 +229,9 @@ def test_riapprovare_la_stessa_richiesta_non_e_un_conflitto(client, ricerca):
     assert approva(client, richiesta["id"]).status_code == 200
 
 
-def test_scavalcare_la_soglia_di_notte_e_ora_impossibile_da_solo(client, ricerca):
-    """Prima di #59 due richieste potevano stare in notti diverse (soglia
-    delle 12, #47) e condividere comunque degli istanti — es. 11:00-13:00 e
-    12:00-14:00 dello stesso giorno. Da #59 in poi non più: due notti sono
-    finestre da 12:00 a 12:00 consecutive e disgiunte, quindi una fascia
-    dentro la propria notte non può mai toccare quella successiva. La prima
-    delle due fasce viene rifiutata da sola, prima di poter anche solo
-    parlare di conflitto."""
+def test_una_fascia_a_cavallo_della_soglia_e_rifiutata(client, ricerca):
+    """Due notti sono finestre da 12:00 a 12:00 consecutive e disgiunte: una
+    fascia dentro la propria notte non può mai toccare quella successiva."""
     inizio, fine = fascia(notte(), ora=11, durata=2)
     res = invia(client, ricerca["id"], inizio, fine)
 

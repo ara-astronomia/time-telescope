@@ -232,9 +232,8 @@ def test_la_conferma_rifiutata_non_sposta_nulla(page, app_url):
 
 
 def test_fine_oltre_la_notte_segnalata_e_non_inviata(page, app_url):
-    """Il vincolo di #59 vale anche qui: `max` di #sposta-fine segue #sposta-inizio,
-    e senza reportValidity() (niente <form> in quest'area) serve un controllo
-    esplicito prima della fetch."""
+    """`max` di #sposta-fine segue #sposta-inizio; senza `<form>` in quest'area,
+    il controllo prima della fetch è esplicito."""
     giorno = date.today() + timedelta(days=46)
     richiesta = crea_con_fascia(page, app_url, "Sposta H", giorno, ora=21, durata=2)
     prima = orari(page, app_url, richiesta["id"])
