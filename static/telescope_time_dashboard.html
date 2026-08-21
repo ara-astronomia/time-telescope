@@ -522,18 +522,13 @@ function setFilter(btn) {
   renderList();
 }
 
-// `inizio` è ora locale dell'osservatorio: letta come stringa via `slice` in
-// `fascia()`, così il fuso del browser non la sposta. Qui invece la data (non
-// l'ora) passa da Date, perché va scritta per esteso in italiano.
 function dataEstesaItaliana(inizio) {
   return new Date(inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderList() {
-  // La lista viene riscritta da capo a ogni azione e a ogni auto-refresh: si
-  // ricordano i dettagli aperti per riaprirli, o si richiuderebbero sotto le mani.
-  const aperti = dettagliAperti();
+  const idDaRiaprireDopoIlRender = dettagliAperti();
   const list = document.getElementById('list');
   const filtered = currentFilter === 'tutte'
     ? allRichieste
@@ -642,11 +637,9 @@ function renderList() {
     `;
   }).join('');
 
-  aperti.forEach(id => {
-    // Una richiesta può essere uscita dal filtro attivo proprio per l'azione
-    // appena fatta: in quel caso non c'è più nulla da riaprire.
-    if (document.getElementById(`detail-${id}`)) mostraDettaglio(id, true);
-  });
+  idDaRiaprireDopoIlRender
+    .filter(id => document.getElementById(`detail-${id}`))
+    .forEach(id => mostraDettaglio(id, true));
 }
 
 function toggleDetail(id) {
@@ -745,14 +738,11 @@ function fascia(inizio, fine) {
 }
 
 // ─── Sposta data e orari ──────────────────────────────────────────────────────
-// `datetime-local` parla in ora locale: toISOString() è UTC e sfaserebbe il
-// vincolo di un'ora in inverno e due in estate.
-function localeIso(momento) {
+function isoLocaleFusoCorretto(momento) {
   momento.setMinutes(momento.getMinutes() - momento.getTimezoneOffset());
   return momento.toISOString().slice(0, 16);
 }
 
-// Stessa soglia di router.py: mezzogiorno (#47, #59).
 function notteDi(istante) {
   const notte = new Date(istante);
   if (istante.getHours() < 12) notte.setDate(notte.getDate() - 1);
@@ -764,7 +754,7 @@ function fineFinestraDi(inizioStr) {
   const fineFinestra = notteDi(new Date(inizioStr));
   fineFinestra.setDate(fineFinestra.getDate() + 1);
   fineFinestra.setHours(12, 0, 0, 0);
-  return localeIso(fineFinestra);
+  return isoLocaleFusoCorretto(fineFinestra);
 }
 
 function aggiornaMaxSposta(id) {
