@@ -540,10 +540,8 @@ function renderCalendar() {
 
     if (day < 1 || day > daysInMonth) {
       cell.className = 'day-cell other-month';
-      const ghostDate = day < 1
-        ? new Date(currentYear, currentMonth-1, day)
-        : new Date(currentYear, currentMonth-1, day);
-      cell.innerHTML = `<div class="day-num">${ghostDate.getDate ? ghostDate.getDate() : ''}</div>`;
+      const phantomDate = new Date(currentYear, currentMonth-1, day);
+      cell.innerHTML = `<div class="day-num">${phantomDate.getDate()}</div>`;
       grid.appendChild(cell);
       continue;
     }
