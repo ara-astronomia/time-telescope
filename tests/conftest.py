@@ -1,4 +1,6 @@
+import os
 import sys
+import time as time_module
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
@@ -15,6 +17,32 @@ REVIEWER = {
 }
 MEMBER = {"Remote-User": "mario", "Remote-Groups": "soci",
           "Remote-Email": "mario@example.test"}
+
+
+@pytest.fixture
+def observatory_far_ahead_of_the_system_clock():
+    """Fixes what the OS actually believes "now" is to UTC, then changes
+    `TZ` again to Pacific/Kiritimati (UTC+14, the furthest-ahead timezone
+    that exists) without a matching `time.tzset()` — so `os.environ["TZ"]`
+    reads Kiritimati while `datetime.now()` (which only picks up a `TZ`
+    change through `tzset()`) keeps answering as UTC. A test can then build
+    an instant that's unambiguously in the future for one and in the past
+    for the other, deterministic regardless of the host machine's own
+    timezone: exactly the gap between reading `TZ` explicitly and trusting
+    the process's own idea of the clock.
+    """
+    previous_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time_module.tzset()
+    os.environ["TZ"] = "Pacific/Kiritimati"
+    try:
+        yield
+    finally:
+        if previous_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous_tz
+        time_module.tzset()
 
 
 @pytest.fixture
