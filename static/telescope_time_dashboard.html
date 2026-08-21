@@ -145,9 +145,9 @@
   }
   .filter-btn:hover { border-color: var(--border-hi); color: var(--text); }
   .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .filter-btn.active.f-attesa  { background: var(--amber); border-color: var(--amber); }
-  .filter-btn.active.f-approv  { background: var(--green); border-color: var(--green); }
-  .filter-btn.active.f-rifiut  { background: var(--red);   border-color: var(--red); }
+  .filter-btn.active.f-pending  { background: var(--amber); border-color: var(--amber); }
+  .filter-btn.active.f-approved { background: var(--green); border-color: var(--green); }
+  .filter-btn.active.f-rejected { background: var(--red);   border-color: var(--red); }
 
   .list { animation: fadeUp 0.5s ease 0.2s both; }
 
@@ -161,9 +161,9 @@
   }
   .richiesta-card:hover { border-color: var(--border-hi); }
 
-  .richiesta-card.stato-in_attesa  { border-left: 3px solid var(--amber); }
-  .richiesta-card.stato-approvata  { border-left: 3px solid var(--green); }
-  .richiesta-card.stato-rifiutata  { border-left: 3px solid var(--red);   }
+  .richiesta-card.stato-pending  { border-left: 3px solid var(--amber); }
+  .richiesta-card.stato-approved { border-left: 3px solid var(--green); }
+  .richiesta-card.stato-rejected { border-left: 3px solid var(--red);   }
 
   .rc-header {
     display: flex;
@@ -202,9 +202,9 @@
     font-weight: 700;
     flex-shrink: 0;
   }
-  .stato-in_attesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,0.25); }
-  .stato-approvata  { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
-  .stato-rifiutata  { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
+  .stato-pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,0.25); }
+  .stato-approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,0.25); }
+  .stato-rejected { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,0.25); }
 
   .rc-detail {
     display: none;
@@ -444,10 +444,10 @@
 
   <!-- Filtri -->
   <div class="filter-bar">
-    <button class="filter-btn active" data-filter="tutte" onclick="setFilter(this)">Tutte</button>
-    <button class="filter-btn f-attesa" data-filter="in_attesa" onclick="setFilter(this)">In attesa</button>
-    <button class="filter-btn f-approv" data-filter="approvata" onclick="setFilter(this)">Approvate</button>
-    <button class="filter-btn f-rifiut" data-filter="rifiutata" onclick="setFilter(this)">Rifiutate</button>
+    <button class="filter-btn active" data-filter="all" onclick="setFilter(this)">Tutte</button>
+    <button class="filter-btn f-pending" data-filter="pending" onclick="setFilter(this)">In attesa</button>
+    <button class="filter-btn f-approved" data-filter="approved" onclick="setFilter(this)">Approvate</button>
+    <button class="filter-btn f-rejected" data-filter="rejected" onclick="setFilter(this)">Rifiutate</button>
   </div>
 
   <div id="loading-bar" class="loading-bar" style="display:none"></div>
@@ -462,17 +462,17 @@
 const API_BASE = '/telescope-time';
 
 let allRichieste = [];
-let currentFilter = 'tutte';
+let currentFilter = 'all';
 let ricercheMap = {};
-let me = { e_responsabile: false };
+let me = { is_reviewer: false };
 
 // ─── Carica dati ──────────────────────────────────────────────────────────────
 async function caricaRichieste() {
   document.getElementById('loading-bar').style.display = 'block';
   try {
     const [riRes, rcRes, meRes] = await Promise.all([
-      fetch(`${API_BASE}/richieste`),
-      fetch(`${API_BASE}/ricerche`),
+      fetch(`${API_BASE}/requests`),
+      fetch(`${API_BASE}/research-programs`),
       fetch(`${API_BASE}/me`)
     ]);
     allRichieste = await riRes.json();
@@ -491,27 +491,27 @@ async function caricaRichieste() {
 }
 
 function renderIdentita() {
-  const visualizzato = me.nome_completo || me.nome;
+  const visualizzato = me.full_name || me.username;
   document.getElementById('utente-corrente').textContent =
     visualizzato ? `Sei collegato come ${visualizzato}` : '';
-  document.getElementById('dev-switcher').style.display = me.modalita_dev ? 'flex' : 'none';
-  document.getElementById('dev-btn-responsabile').classList.toggle('active', me.e_responsabile);
-  document.getElementById('dev-btn-socio').classList.toggle('active', !me.e_responsabile);
+  document.getElementById('dev-switcher').style.display = me.is_dev_mode ? 'flex' : 'none';
+  document.getElementById('dev-btn-responsabile').classList.toggle('active', me.is_reviewer);
+  document.getElementById('dev-btn-socio').classList.toggle('active', !me.is_reviewer);
 }
 
 function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  document.cookie = `dev_role=${ruolo}; path=/`;
   location.reload();
 }
 
 function aggiornaStats() {
-  const conteggi = { in_attesa: 0, approvata: 0, rifiutata: 0 };
+  const conteggi = { pending: 0, approved: 0, rejected: 0 };
   allRichieste.forEach(r => {
-    if (conteggi[r.stato] !== undefined) conteggi[r.stato]++;
+    if (conteggi[r.status] !== undefined) conteggi[r.status]++;
   });
-  document.getElementById('stat-attesa').textContent = conteggi.in_attesa;
-  document.getElementById('stat-approv').textContent = conteggi.approvata;
-  document.getElementById('stat-rifiut').textContent = conteggi.rifiutata;
+  document.getElementById('stat-attesa').textContent = conteggi.pending;
+  document.getElementById('stat-approv').textContent = conteggi.approved;
+  document.getElementById('stat-rifiut').textContent = conteggi.rejected;
 }
 
 // ─── Filtri ───────────────────────────────────────────────────────────────────
@@ -530,45 +530,45 @@ function dataEstesaItaliana(inizio) {
 function renderList() {
   const idDaRiaprireDopoIlRender = dettagliAperti();
   const list = document.getElementById('list');
-  const filtered = currentFilter === 'tutte'
+  const filtered = currentFilter === 'all'
     ? allRichieste
-    : allRichieste.filter(r => r.stato === currentFilter);
+    : allRichieste.filter(r => r.status === currentFilter);
 
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty"><div class="icon">🔭</div>Nessuna richiesta${currentFilter !== 'tutte' ? ' con questo stato' : ''}.</div>`;
+    list.innerHTML = `<div class="empty"><div class="icon">🔭</div>Nessuna richiesta${currentFilter !== 'all' ? ' con questo stato' : ''}.</div>`;
     return;
   }
 
   list.innerHTML = filtered.map(r => {
-    const ricerca = ricercheMap[r.ricerca_id] || {};
-    const data = dataEstesaItaliana(r.inizio);
-    const dataCreazione = new Date(r.creata_il).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const ricerca = ricercheMap[r.research_program_id] || {};
+    const data = dataEstesaItaliana(r.start);
+    const dataCreazione = new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     // Nessun comando riporta allo stato corrente: il server lo tratterebbe
     // come un non-evento, e mostrarlo suggerirebbe un'azione che non fa niente.
     const comandi = {
-      in_attesa: [['approvata', '✓ Approva'], ['rifiutata', '✗ Rifiuta']],
-      approvata: [['rifiutata', '↺ Ribalta: rifiuta']],
-      rifiutata: [['approvata', '↺ Ribalta: approva']],
-    }[r.stato];
-    const statoLabel = { in_attesa: 'IN ATTESA', approvata: 'APPROVATA', rifiutata: 'RIFIUTATA' }[r.stato];
-    const puoSpostare = me.e_responsabile || (r.richiedente_id === me.id && r.stato === 'in_attesa');
+      pending:  [['approved', '✓ Approva'], ['rejected', '✗ Rifiuta']],
+      approved: [['rejected', '↺ Ribalta: rifiuta']],
+      rejected: [['approved', '↺ Ribalta: approva']],
+    }[r.status];
+    const statoLabel = { pending: 'IN ATTESA', approved: 'APPROVATA', rejected: 'RIFIUTATA' }[r.status];
+    const puoSpostare = me.is_reviewer || (r.requester_id === me.id && r.status === 'pending');
 
     return `
-    <div class="richiesta-card stato-${r.stato}" id="card-${r.id}">
+    <div class="richiesta-card stato-${r.status}" id="card-${r.id}">
       <div class="rc-header" onclick="toggleDetail(${r.id})">
         <div class="rc-left">
-          <div class="rc-nome-ricerca">${escHtml(r.nome_ricerca)}</div>
+          <div class="rc-nome-ricerca">${escHtml(r.research_program_name)}</div>
           <div class="rc-meta">
-            <span>👤 ${escHtml(r.osservatore)}</span>
+            <span>👤 ${escHtml(r.observer)}</span>
             <span>📅 ${data}</span>
-            <span>🔭 ${fascia(r.inizio, r.fine)}</span>
+            <span>🔭 ${fascia(r.start, r.end)}</span>
             <span>🕐 ${dataCreazione}</span>
-            ${r.co_osservatori ? `<span>👥 ${escHtml(r.co_osservatori)}</span>` : ''}
+            ${r.co_observers ? `<span>👥 ${escHtml(r.co_observers)}</span>` : ''}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.6rem">
-          <span class="stato-badge stato-${r.stato}">${statoLabel}</span>
+          <span class="stato-badge stato-${r.status}">${statoLabel}</span>
           <svg id="chevron-${r.id}" width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--text-dim);transition:transform 0.2s">
             <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
@@ -579,26 +579,26 @@ function renderList() {
         <div class="detail-grid">
           <div class="detail-item">
             <div class="dl">RICERCA</div>
-            <div class="dv">${escHtml(r.nome_ricerca)}</div>
+            <div class="dv">${escHtml(r.research_program_name)}</div>
           </div>
           <div class="detail-item">
             <div class="dl">ID RICHIESTA</div>
             <div class="dv" style="font-family:var(--mono)">#${r.id}</div>
           </div>
-          ${ricerca.descrizione ? `
+          ${ricerca.description ? `
           <div class="detail-item" style="grid-column:1/-1">
             <div class="dl">DESCRIZIONE RICERCA</div>
-            <div class="descrizione-box">${escHtml(ricerca.descrizione)}</div>
+            <div class="descrizione-box">${escHtml(ricerca.description)}</div>
           </div>` : ''}
-          ${ricerca.specifiche ? `
+          ${ricerca.specs ? `
           <div class="detail-item" style="grid-column:1/-1">
             <div class="dl">SPECIFICHE TECNICHE</div>
-            <div class="descrizione-box">${escHtml(ricerca.specifiche)}</div>
+            <div class="descrizione-box">${escHtml(ricerca.specs)}</div>
           </div>` : ''}
-          ${r.note_responsabile ? `
+          ${r.reviewer_notes ? `
           <div class="detail-item" style="grid-column:1/-1">
             <div class="dl">NOTE RESPONSABILE</div>
-            <div class="dv">${escHtml(r.note_responsabile)}</div>
+            <div class="dv">${escHtml(r.reviewer_notes)}</div>
           </div>` : ''}
         </div>
 
@@ -607,12 +607,12 @@ function renderList() {
           <div class="storico" id="storico-${r.id}"></div>
         </div>
 
-        ${!me.e_responsabile ? '' : `
+        ${!me.is_reviewer ? '' : `
         <div class="action-area">
-          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.note_responsabile)}</textarea>
+          <textarea class="note-input" id="note-${r.id}" placeholder="Note (opzionale)…">${escHtml(r.reviewer_notes)}</textarea>
           ${comandi.map(([stato, etichetta]) => `
-          <button class="${stato === 'approvata' ? 'btn-approve' : 'btn-reject'}"
-                  onclick="aggiornaStato(${r.id}, '${stato}', '${r.stato}')">${etichetta}</button>`).join('')}
+          <button class="${stato === 'approved' ? 'btn-approve' : 'btn-reject'}"
+                  onclick="aggiornaStato(${r.id}, '${stato}', '${r.status}')">${etichetta}</button>`).join('')}
         </div>
         `}
 
@@ -620,13 +620,13 @@ function renderList() {
         <div class="sposta-area">
           <div class="sposta-campo">
             <div class="dl">NUOVO INIZIO</div>
-            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.inizio.slice(0,16)}"
+            <input class="note-input" type="datetime-local" id="sposta-inizio-${r.id}" value="${r.start.slice(0,16)}"
                    oninput="aggiornaMaxSposta(${r.id})">
           </div>
           <div class="sposta-campo">
             <div class="dl">NUOVA FINE</div>
-            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.fine.slice(0,16)}"
-                   max="${fineFinestraDi(r.inizio)}">
+            <input class="note-input" type="datetime-local" id="sposta-fine-${r.id}" value="${r.end.slice(0,16)}"
+                   max="${fineFinestraDi(r.start)}">
           </div>
           <input class="note-input" type="text" id="sposta-motivo-${r.id}" placeholder="Motivo dello spostamento…">
           <button class="btn-sposta" onclick="spostaOrario(${r.id})">🕒 Sposta</button>
@@ -664,7 +664,7 @@ function dettagliAperti() {
 async function caricaStorico(id) {
   const box = document.getElementById(`storico-${id}`);
   try {
-    const voci = await (await fetch(`${API_BASE}/richieste/${id}/storico`)).json();
+    const voci = await (await fetch(`${API_BASE}/requests/${id}/history`)).json();
     box.innerHTML = voci.length
       ? voci.map(voceStorico).join('')
       : '<div class="vuoto">Nessuna decisione presa finora.</div>';
@@ -674,17 +674,17 @@ async function caricaStorico(id) {
 }
 
 function voceStorico(v) {
-  const quando = new Date(v.deciso_il).toLocaleString('it-IT',
+  const quando = new Date(v.decided_at).toLocaleString('it-IT',
     { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const cosa = v.tipo === 'spostamento'
-    ? `spostata da ${fascia(v.inizio_precedente, v.fine_precedente)}`
-      + ` a ${fascia(v.inizio_nuovo, v.fine_nuovo)}`
-    : `${v.stato_precedente} → ${v.stato_nuovo}`;
+  const cosa = v.type === 'reschedule'
+    ? `spostata da ${fascia(v.previous_start, v.previous_end)}`
+      + ` a ${fascia(v.new_start, v.new_end)}`
+    : `${v.previous_status} → ${v.new_status}`;
   return `<div class="voce">
     <span class="quando">${quando}</span>
     <span>${escHtml(cosa)}</span>
-    <span class="chi">${escHtml(v.deciso_da || '—')}</span>
-    ${v.note ? `<span class="nota">${escHtml(v.note)}</span>` : ''}
+    <span class="chi">${escHtml(v.decided_by || '—')}</span>
+    ${v.notes ? `<span class="nota">${escHtml(v.notes)}</span>` : ''}
   </div>`;
 }
 
@@ -696,18 +696,18 @@ async function aggiornaStato(id, stato, statoAttuale) {
   // diventerebbe impossibile.
   const note = document.getElementById(`note-${id}`).value.trim();
 
-  const label = stato === 'approvata' ? 'approvare' : 'rifiutare';
-  const deciso = statoAttuale === 'in_attesa'
+  const label = stato === 'approved' ? 'approvare' : 'rifiutare';
+  const deciso = statoAttuale === 'pending'
     ? `Vuoi ${label} questa richiesta?`
     : `Stai annullando una decisione già comunicata all'osservatore, che riceverà`
       + ` una seconda email.\n\nVuoi ${label} questa richiesta?`;
   if (!confirm(deciso)) return;
 
   try {
-    const res = await fetch(`${API_BASE}/richieste/${id}`, {
+    const res = await fetch(`${API_BASE}/requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stato, note_responsabile: note })
+      body: JSON.stringify({ status: stato, reviewer_notes: note })
     });
     if (res.status === 409) {
       // Sovrapposizione di fascia: il messaggio nomina la richiesta in
@@ -721,8 +721,9 @@ async function aggiornaStato(id, stato, statoAttuale) {
     }
     if (!res.ok) throw new Error();
 
-    const emoji = stato === 'approvata' ? '✓' : '✗';
-    showToast(`${emoji} Richiesta ${stato} con successo.`, stato === 'approvata' ? 'success' : 'error');
+    const statoItaliano = stato === 'approved' ? 'approvata' : 'rifiutata';
+    const emoji = stato === 'approved' ? '✓' : '✗';
+    showToast(`${emoji} Richiesta ${statoItaliano} con successo.`, stato === 'approved' ? 'success' : 'error');
     await caricaRichieste();
 
   } catch(e) {
@@ -786,10 +787,10 @@ async function spostaOrario(id) {
   if (!confirm(conferma)) return;
 
   try {
-    const res = await fetch(`${API_BASE}/richieste/${id}/orario`, {
+    const res = await fetch(`${API_BASE}/requests/${id}/schedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inizio, fine, motivo: motivo || null })
+      body: JSON.stringify({ start: inizio, end: fine, reason: motivo || null })
     });
 
     if (res.status === 409) {

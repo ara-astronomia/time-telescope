@@ -7,60 +7,60 @@ locale, sfalsando di un'ora in inverno e due in estate.
 
 from datetime import datetime, timedelta, timezone
 
-from conftest import approva, crea_richiesta
+from conftest import review, submit_time_request
 
 
-def parsa(valore):
+def parse(value):
     """Fallisce se il timestamp non è ISO 8601 con fuso esplicito."""
-    momento = datetime.fromisoformat(valore)
-    assert momento.tzinfo is not None, f"timestamp senza fuso: {valore!r}"
-    return momento
+    instant = datetime.fromisoformat(value)
+    assert instant.tzinfo is not None, f"timestamp senza fuso: {value!r}"
+    return instant
 
 
-def vicino_a_adesso(valore, tolleranza=timedelta(minutes=2)):
-    return abs(parsa(valore) - datetime.now(timezone.utc)) < tolleranza
+def close_to_now(value, tolerance=timedelta(minutes=2)):
+    return abs(parse(value) - datetime.now(timezone.utc)) < tolerance
 
 
-def test_creata_il_di_una_ricerca(client):
-    ricerca = client.post("/telescope-time/ricerche", json={"nome": "Supernovae"}).json()
-    assert ricerca["creata_il"].endswith("Z")
-    assert vicino_a_adesso(ricerca["creata_il"])
+def test_created_at_of_a_research_program(client):
+    research_program = client.post("/telescope-time/research-programs", json={"name": "Supernovae"}).json()
+    assert research_program["created_at"].endswith("Z")
+    assert close_to_now(research_program["created_at"])
 
 
-def test_creata_il_di_una_richiesta(client, ricerca, giorno):
-    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
-    assert richiesta["creata_il"].endswith("Z")
-    assert vicino_a_adesso(richiesta["creata_il"])
+def test_created_at_of_a_request(client, research_program, night):
+    request = submit_time_request(client, research_program["id"], night).json()
+    assert request["created_at"].endswith("Z")
+    assert close_to_now(request["created_at"])
 
 
-def test_aggiornata_il_dopo_una_decisione(client, ricerca, giorno):
-    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
-    aggiornata = approva(client, richiesta["id"]).json()["aggiornata_il"]
-    assert aggiornata.endswith("Z")
-    assert vicino_a_adesso(aggiornata)
+def test_updated_at_after_a_decision(client, research_program, night):
+    request = submit_time_request(client, research_program["id"], night).json()
+    updated_at = review(client, request["id"]).json()["updated_at"]
+    assert updated_at.endswith("Z")
+    assert close_to_now(updated_at)
 
 
-def test_deciso_il_nello_storico(client, ricerca, giorno):
-    richiesta = crea_richiesta(client, ricerca["id"], giorno).json()
-    approva(client, richiesta["id"])
-    voce = client.get(f"/telescope-time/richieste/{richiesta['id']}/storico").json()[0]
-    assert voce["deciso_il"].endswith("Z")
-    assert vicino_a_adesso(voce["deciso_il"])
+def test_decided_at_in_the_history(client, research_program, night):
+    request = submit_time_request(client, research_program["id"], night).json()
+    review(client, request["id"])
+    entry = client.get(f"/telescope-time/requests/{request['id']}/history").json()[0]
+    assert entry["decided_at"].endswith("Z")
+    assert close_to_now(entry["decided_at"])
 
 
-def test_creata_il_nel_calendario(client, ricerca, giorno):
-    crea_richiesta(client, ricerca["id"], giorno)
-    notte = client.get(
-        "/telescope-time/calendario",
-        params={"anno": giorno.year, "mese": giorno.month},
-    ).json()["giorni"][giorno.isoformat()]
-    assert notte["richieste"][0]["creata_il"].endswith("Z")
+def test_created_at_in_the_calendar(client, research_program, night):
+    submit_time_request(client, research_program["id"], night)
+    night_data = client.get(
+        "/telescope-time/calendar",
+        params={"year": night.year, "month": night.month},
+    ).json()["nights"][night.isoformat()]
+    assert night_data["requests"][0]["created_at"].endswith("Z")
 
 
-def test_ordinamento_per_data_di_creazione_resta_coerente(client, ricerca, giorno, altro_giorno):
+def test_creation_order_stays_consistent(client, research_program, night, other_night):
     """Il formato cambia: l'ordinamento lessicografico usato dalle query deve
     continuare a coincidere con quello cronologico."""
-    prima = crea_richiesta(client, ricerca["id"], giorno).json()
-    seconda = crea_richiesta(client, ricerca["id"], altro_giorno).json()
-    assert prima["creata_il"] <= seconda["creata_il"]
-    assert parsa(prima["creata_il"]) <= parsa(seconda["creata_il"])
+    first = submit_time_request(client, research_program["id"], night).json()
+    second = submit_time_request(client, research_program["id"], other_night).json()
+    assert first["created_at"] <= second["created_at"]
+    assert parse(first["created_at"]) <= parse(second["created_at"])

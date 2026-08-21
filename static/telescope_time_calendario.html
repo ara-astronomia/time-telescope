@@ -167,10 +167,10 @@
   .leg-dot {
     width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
   }
-  .leg-dot.libera    { background: var(--border-hi); }
-  .leg-dot.richiesta { background: var(--cyan); }
-  .leg-dot.contesa   { background: var(--amber); }
-  .leg-dot.bloccata  { background: var(--red); }
+  .leg-dot.free      { background: var(--border-hi); }
+  .leg-dot.pending   { background: var(--cyan); }
+  .leg-dot.contested { background: var(--amber); }
+  .leg-dot.booked    { background: var(--red); }
   .leg-dot.approv   { background: var(--green); }
 
   /* ── Griglia calendario ──────────────────────────────────────────────────── */
@@ -207,26 +207,26 @@
     background: var(--accent); border-radius: 50%; z-index: -1;
   }
 
-  .day-cell.bloccata {
+  .day-cell.booked {
     background: rgba(255,77,109,.07);
     border-color: rgba(255,77,109,.3);
     cursor: pointer;
   }
-  .day-cell.richiesta {
+  .day-cell.pending {
     background: var(--cyan-gl);
     border-color: rgba(34,211,238,.28);
     cursor: pointer;
   }
-  .day-cell.contesa {
+  .day-cell.contested {
     background: rgba(255,193,7,.06);
     border-color: rgba(255,193,7,.28);
     cursor: pointer;
   }
-  .day-cell.has-richieste { cursor: pointer; }
-  .day-cell.has-richieste:hover,
-  .day-cell.bloccata:hover,
-  .day-cell.richiesta:hover,
-  .day-cell.contesa:hover {
+  .day-cell.has-requests { cursor: pointer; }
+  .day-cell.has-requests:hover,
+  .day-cell.booked:hover,
+  .day-cell.pending:hover,
+  .day-cell.contested:hover {
     border-color: var(--border-hi);
     transform: translateY(-2px);
     z-index: 2;
@@ -253,8 +253,8 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: 100%;
   }
-  .pill.approvata { background: var(--green-lo); color: var(--green); }
-  .pill.in_attesa { background: var(--amber-lo); color: var(--amber); }
+  .pill.approved { background: var(--green-lo); color: var(--green); }
+  .pill.pending  { background: var(--amber-lo); color: var(--amber); }
   .pill.more {
     background: var(--surface2); color: var(--text-dim);
     text-align: center;
@@ -295,9 +295,9 @@
     font-family: var(--mono); font-size: .65rem; letter-spacing: .1em;
     padding: .25rem .8rem; border-radius: 999px; font-weight: 700;
   }
-  .dp-stato.bloccata { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
-  .dp-stato.contesa  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
-  .dp-stato.richiesta { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
+  .dp-stato.booked    { background: var(--red-lo);   color: var(--red);   border: 1px solid rgba(255,77,109,.25); }
+  .dp-stato.contested { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+  .dp-stato.pending   { background: var(--cyan-lo);  color: var(--cyan);  border: 1px solid rgba(34,211,238,.25); }
 
   .dp-conflitto {
     margin-top: .5rem; font-family: var(--mono); font-size: .68rem;
@@ -330,8 +330,8 @@
     font-family: var(--mono); font-size: .6rem; letter-spacing: .08em;
     padding: .18rem .65rem; border-radius: 999px; font-weight: 700;
   }
-  .dp-stato-small.approvata { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,.25); }
-  .dp-stato-small.in_attesa { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
+  .dp-stato-small.approved { background: var(--green-lo); color: var(--green); border: 1px solid rgba(45,206,137,.25); }
+  .dp-stato-small.pending  { background: var(--amber-lo); color: var(--amber); border: 1px solid rgba(255,193,7,.25); }
 
   .dp-r-meta {
     font-family: var(--mono); font-size: .71rem; color: var(--text-mid);
@@ -409,10 +409,10 @@
 
   <!-- Legenda -->
   <div class="legenda">
-    <div class="leg-item"><div class="leg-dot libera"></div>Libera</div>
-    <div class="leg-item"><div class="leg-dot richiesta"></div>Richiesta (in attesa)</div>
-    <div class="leg-item"><div class="leg-dot contesa"></div>Contesa (fasce sovrapposte)</div>
-    <div class="leg-item"><div class="leg-dot bloccata"></div>Bloccata (approvata)</div>
+    <div class="leg-item"><div class="leg-dot free"></div>Libera</div>
+    <div class="leg-item"><div class="leg-dot pending"></div>Richiesta (in attesa)</div>
+    <div class="leg-item"><div class="leg-dot contested"></div>Contesa (fasce sovrapposte)</div>
+    <div class="leg-item"><div class="leg-dot booked"></div>Bloccata (approvata)</div>
     <div class="leg-item"><div class="leg-dot approv"></div>Sessione approvata</div>
   </div>
 
@@ -454,7 +454,7 @@ let oggi = new Date();
 let annoCorrente = oggi.getFullYear();
 let meseCorrente = meseUmano(oggi);
 
-// datiGiorni: { "YYYY-MM-DD": { stato_giorno, approvate, in_attesa, sovrapposizioni[], richieste[] } }
+// datiGiorni: { "YYYY-MM-DD": { night_status, approved_count, pending_count, overlaps[], requests[] } }
 let datiGiorni = {};
 
 // ─── Navigazione ─────────────────────────────────────────────────────────────
@@ -469,19 +469,19 @@ function cambioMese(delta) {
 async function caricaUtente() {
   try {
     const me = await (await fetch(`${API_BASE}/me`)).json();
-    const visualizzato = me.nome_completo || me.nome;
+    const visualizzato = me.full_name || me.username;
     document.getElementById('utente-corrente').textContent =
       visualizzato ? `Sei collegato come ${visualizzato}` : '';
-    document.getElementById('dev-switcher').style.display = me.modalita_dev ? 'flex' : 'none';
-    document.getElementById('dev-btn-responsabile').classList.toggle('active', me.e_responsabile);
-    document.getElementById('dev-btn-socio').classList.toggle('active', !me.e_responsabile);
+    document.getElementById('dev-switcher').style.display = me.is_dev_mode ? 'flex' : 'none';
+    document.getElementById('dev-btn-responsabile').classList.toggle('active', me.is_reviewer);
+    document.getElementById('dev-btn-socio').classList.toggle('active', !me.is_reviewer);
   } catch(e) {
     document.getElementById('utente-corrente').textContent = 'identità non disponibile';
   }
 }
 
 function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  document.cookie = `dev_role=${ruolo}; path=/`;
   location.reload();
 }
 
@@ -492,9 +492,9 @@ async function caricaMese() {
     `${MESI_IT[meseCorrente-1]} ${annoCorrente}`;
 
   try {
-    const res = await fetch(`${API_BASE}/calendario?anno=${annoCorrente}&mese=${meseCorrente}`);
+    const res = await fetch(`${API_BASE}/calendar?year=${annoCorrente}&month=${meseCorrente}`);
     const data = await res.json();
-    datiGiorni = data.giorni || {};
+    datiGiorni = data.nights || {};
     renderCalendario();
   } catch(e) {
     console.error('Errore caricamento calendario:', e);
@@ -550,24 +550,24 @@ function renderCalendario() {
 
     const dataStr = fmtDate(annoCorrente, meseCorrente, giorno);
     const info = datiGiorni[dataStr];
-    const stato = info ? info.stato_giorno : 'libera';
-    const richieste = info ? info.richieste : [];
+    const stato = info ? info.night_status : 'free';
+    const richieste = info ? info.requests : [];
 
-    cell.className = `day-cell ${stato}${richieste.length ? ' has-richieste' : ''}`;
+    cell.className = `day-cell ${stato}${richieste.length ? ' has-requests' : ''}`;
     cell.dataset.giorno = dataStr;
     if (dataStr === oggiStr) cell.classList.add('today');
 
     let html = `<div class="day-num">${giorno}</div>`;
 
-    const approvate = info ? (info.approvate || 0) : 0;
+    const approvate = info ? (info.approved_count || 0) : 0;
     html += badgeProgrammiMultipli(approvate);
 
     if (richieste.length) {
       html += '<div class="day-pills">';
       const visibiliMax3 = richieste.slice(0, 3);
       visibiliMax3.forEach(r => {
-        const primoNome = escHtml(r.osservatore.split(' ')[0]);
-        html += `<div class="pill ${r.stato}">${ora(r.inizio)} ${primoNome} · ${escHtml(r.nome_ricerca)}</div>`;
+        const primoNome = escHtml(r.observer.split(' ')[0]);
+        html += `<div class="pill ${r.status}">${ora(r.start)} ${primoNome} · ${escHtml(r.research_program_name)}</div>`;
       });
       if (richieste.length > 3) {
         html += `<div class="pill more">+${richieste.length - 3} altre</div>`;
@@ -593,17 +593,17 @@ function ora(istante) {
 }
 
 function fascia(r) {
-  const stessaNotte = r.inizio.slice(0, 10) === r.fine.slice(0, 10);
-  return `${ora(r.inizio)} → ${ora(r.fine)}${stessaNotte ? '' : ' (+1g)'}`;
+  const stessaNotte = r.start.slice(0, 10) === r.end.slice(0, 10);
+  return `${ora(r.start)} → ${ora(r.end)}${stessaNotte ? '' : ' (+1g)'}`;
 }
 
 function apriDettaglio(dataStr, stato, info) {
-  const richieste = info.richieste;
+  const richieste = info.requests;
   // Per richiesta, gli id delle richieste con cui è in conflitto: al
   // responsabile non basta sapere che c'è una sovrapposizione, deve sapere
   // con chi per decidere cosa spostare.
   const richiesteInConflittoPerId = {};
-  (info.sovrapposizioni || []).forEach(([a, b]) => {
+  (info.overlaps || []).forEach(([a, b]) => {
     (richiesteInConflittoPerId[a] = richiesteInConflittoPerId[a] || []).push(b);
     (richiesteInConflittoPerId[b] = richiesteInConflittoPerId[b] || []).push(a);
   });
@@ -614,29 +614,29 @@ function apriDettaglio(dataStr, stato, info) {
   document.getElementById('dp-date').textContent = dataLabel;
 
   const statoEl = document.getElementById('dp-stato');
-  const statoLabels = { bloccata: 'BLOCCATA', contesa: 'CONTESA', richiesta: 'RICHIESTA', libera: '' };
+  const statoLabels = { booked: 'BLOCCATA', contested: 'CONTESA', pending: 'RICHIESTA', free: '' };
   statoEl.textContent = statoLabels[stato] || '';
   statoEl.className = `dp-stato ${stato}`;
 
   const ordinate = [...richieste].sort((a, b) => {
-    if (a.stato === 'approvata' && b.stato !== 'approvata') return -1;
-    if (b.stato === 'approvata' && a.stato !== 'approvata') return 1;
+    if (a.status === 'approved' && b.status !== 'approved') return -1;
+    if (b.status === 'approved' && a.status !== 'approved') return 1;
     return 0;
   });
 
   document.getElementById('dp-content').innerHTML = ordinate.map(r => `
     <div class="dp-richiesta">
       <div class="dp-r-top">
-        <div class="dp-r-ricerca">${escHtml(r.nome_ricerca)}</div>
-        <span class="dp-stato-small ${r.stato}">${r.stato === 'approvata' ? 'APPROVATA' : 'IN ATTESA'}</span>
+        <div class="dp-r-ricerca">${escHtml(r.research_program_name)}</div>
+        <span class="dp-stato-small ${r.status}">${r.status === 'approved' ? 'APPROVATA' : 'IN ATTESA'}</span>
       </div>
       <div class="dp-r-meta">
         <span><span class="lk">Fascia</span>${fascia(r)}</span>
-        <span><span class="lk">Osservatore</span>${escHtml(r.osservatore)}</span>
-        ${r.co_osservatori ? `<span><span class="lk">Co-osservatori</span>${escHtml(r.co_osservatori)}</span>` : ''}
-        ${r.note_responsabile ? `<span><span class="lk">Note</span>${escHtml(r.note_responsabile)}</span>` : ''}
+        <span><span class="lk">Osservatore</span>${escHtml(r.observer)}</span>
+        ${r.co_observers ? `<span><span class="lk">Co-osservatori</span>${escHtml(r.co_observers)}</span>` : ''}
+        ${r.reviewer_notes ? `<span><span class="lk">Note</span>${escHtml(r.reviewer_notes)}</span>` : ''}
       </div>
-      ${r.descrizione ? `<div class="dp-r-descrizione">${escHtml(r.descrizione)}</div>` : ''}
+      ${r.description ? `<div class="dp-r-descrizione">${escHtml(r.description)}</div>` : ''}
       ${richiesteInConflittoPerId[r.id] ? `<div class="dp-conflitto">⚠ Si sovrappone a ${richiesteInConflittoPerId[r.id].map(id => '#' + id).join(', ')}</div>` : ''}
     </div>
   `).join('');

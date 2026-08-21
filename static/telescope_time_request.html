@@ -573,37 +573,37 @@ async function caricaUtente() {
   try {
     const res = await fetch(`${API_BASE}/me`);
     utenteCorrente = await res.json();
-    const visualizzato = utenteCorrente.nome_completo || utenteCorrente.nome;
+    const visualizzato = utenteCorrente.full_name || utenteCorrente.username;
     const nome = utenteCorrente.email
       ? `${escHtml(visualizzato)} <span class="username">${escHtml(utenteCorrente.email)}</span>`
       : escHtml(visualizzato);
     document.getElementById('utente-corrente').innerHTML = nome;
-    document.getElementById('dev-switcher').style.display = utenteCorrente.modalita_dev ? 'flex' : 'none';
-    document.getElementById('dev-btn-responsabile').classList.toggle('active', utenteCorrente.e_responsabile);
-    document.getElementById('dev-btn-socio').classList.toggle('active', !utenteCorrente.e_responsabile);
+    document.getElementById('dev-switcher').style.display = utenteCorrente.is_dev_mode ? 'flex' : 'none';
+    document.getElementById('dev-btn-responsabile').classList.toggle('active', utenteCorrente.is_reviewer);
+    document.getElementById('dev-btn-socio').classList.toggle('active', !utenteCorrente.is_reviewer);
   } catch(e) {
     document.getElementById('utente-corrente').textContent = 'identità non disponibile';
   }
 }
 
 function passaAlRuoloDev(ruolo) {
-  document.cookie = `dev_ruolo=${ruolo}; path=/`;
+  document.cookie = `dev_role=${ruolo}; path=/`;
   location.reload();
 }
 
 // ─── Carica ricerche esistenti ────────────────────────────────────────────────
 async function caricaRicerche() {
   try {
-    const res = await fetch(`${API_BASE}/ricerche`);
+    const res = await fetch(`${API_BASE}/research-programs`);
     const data = await res.json();
     const sel = document.getElementById('ricerca_id');
     sel.innerHTML = '<option value="">— Scegli ricerca esistente —</option>';
     data.forEach(r => {
       const opt = document.createElement('option');
       opt.value = r.id;
-      opt.textContent = r.nome;
-      opt.dataset.descrizione = r.descrizione || '';
-      opt.dataset.specifiche  = r.specifiche  || '';
+      opt.textContent = r.name;
+      opt.dataset.descrizione = r.description || '';
+      opt.dataset.specifiche  = r.specs  || '';
       sel.appendChild(opt);
     });
   } catch(e) {
@@ -628,10 +628,10 @@ async function salvaRicerca() {
   if (!nome) { showToast('Inserisci il nome della ricerca.', 'error'); return; }
 
   try {
-    const res = await fetch(`${API_BASE}/ricerche`, {
+    const res = await fetch(`${API_BASE}/research-programs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, descrizione, specifiche })
+      body: JSON.stringify({ name: nome, description: descrizione, specs: specifiche })
     });
 
     if (res.status === 409) {
@@ -640,7 +640,7 @@ async function salvaRicerca() {
     if (!res.ok) throw new Error();
 
     const nuova = await res.json();
-    showToast(`Ricerca "${nuova.nome}" creata!`, 'success');
+    showToast(`Ricerca "${nuova.name}" creata!`, 'success');
 
     await caricaRicerche();
     document.getElementById('ricerca_id').value = nuova.id;
@@ -668,14 +668,14 @@ async function inviaRichiesta() {
   btn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/richieste`, {
+    const res = await fetch(`${API_BASE}/requests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ricerca_id:     parseInt(ricercaId),
-        co_osservatori: coHidden.value || null,
-        inizio:         document.getElementById('inizio').value,
-        fine:           document.getElementById('fine').value
+        research_program_id: parseInt(ricercaId),
+        co_observers:         coHidden.value || null,
+        start:                 document.getElementById('inizio').value,
+        end:                   document.getElementById('fine').value
       })
     });
 
@@ -685,7 +685,7 @@ async function inviaRichiesta() {
     }
     if (res.status === 422) {
       const dettaglio = (await res.json()).detail?.[0];
-      const etichette = { inizio: "l'orario di inizio", fine: "l'orario di fine" };
+      const etichette = { start: "l'orario di inizio", end: "l'orario di fine" };
       const campo = etichette[dettaglio?.loc?.slice(-1)[0]] || 'i dati inseriti';
       showToast(`Il server ha rifiutato ${campo}: controlla e riprova.`, 'error');
       return;

@@ -8,25 +8,25 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-RESPONSABILE = {
+REVIEWER = {
     "Remote-User": "anna",
     "Remote-Groups": "soci,telescope-responsabili",
     "Remote-Email": "anna@example.test",
 }
-SOCIO = {"Remote-User": "mario", "Remote-Groups": "soci",
-         "Remote-Email": "mario@example.test"}
+MEMBER = {"Remote-User": "mario", "Remote-Groups": "soci",
+          "Remote-Email": "mario@example.test"}
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """Client su un database temporaneo, ricreato da zero per ogni test.
+    """Client on a temporary database, recreated from scratch for every test.
 
-    Il `with` è necessario: fa girare il lifespan dell'app, che è dove
-    init_db() crea le tabelle.
+    The `with` is necessary: it runs the app's lifespan, which is where
+    init_db() creates the tables.
 
-    AUTH_MODE=dev sintetizza l'identità, così i test che non riguardano
-    l'autorizzazione non devono passare header a ogni chiamata; quelli che
-    la riguardano usano `client_authelia`.
+    AUTH_MODE=dev synthesizes the identity, so tests that aren't about
+    authorization don't need to pass headers on every call; the ones that
+    are use `client_authelia`.
     """
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "dev")
@@ -38,7 +38,7 @@ def client(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client_authelia(tmp_path, monkeypatch):
-    """Client in modalità produzione: l'identità arriva solo dagli header."""
+    """Client in production mode: identity comes only from the headers."""
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "forward-auth")
     import main
@@ -48,77 +48,78 @@ def client_authelia(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def ricerca(client):
-    """Una ricerca già creata, punto di partenza di quasi ogni test."""
-    res = client.post("/telescope-time/ricerche", json={"nome": "Supernovae"})
+def research_program(client):
+    """An already-created research program, the starting point of almost
+    every test."""
+    res = client.post("/telescope-time/research-programs", json={"name": "Supernovae"})
     assert res.status_code == 201
     return res.json()
 
 
 @pytest.fixture
-def ricerca_authelia(client_authelia):
-    """Come `ricerca`, ma sul client in modalità forward-auth."""
+def research_program_authelia(client_authelia):
+    """Like `research_program`, but on the forward-auth client."""
     res = client_authelia.post(
-        "/telescope-time/ricerche", json={"nome": "Supernovae"}, headers=RESPONSABILE
+        "/telescope-time/research-programs", json={"name": "Supernovae"}, headers=REVIEWER
     )
     assert res.status_code == 201
     return res.json()
 
 
-def notte(giorni_avanti: int = 30) -> date:
-    """Una notte futura: le osservazioni nel passato non si prenotano."""
-    return date.today() + timedelta(days=giorni_avanti)
+def future_night(days_ahead: int = 30) -> date:
+    """A future night: observations in the past can't be booked."""
+    return date.today() + timedelta(days=days_ahead)
 
 
-def fascia(giorno, ora: int = 22, durata: int = 3) -> tuple[str, str]:
-    """Fascia oraria di una notte: comincia alle `ora`, dura `durata` ore.
+def time_slot(night, hour: int = 22, duration: int = 3) -> tuple[str, str]:
+    """A night's time slot: starts at `hour`, lasts `duration` hours.
 
-    Il default parte alle 22 e finisce all'una, così ogni richiesta di prova
-    attraversa la mezzanotte come le osservazioni vere.
+    The default starts at 22 and ends at one, so every test request
+    crosses midnight like real observations do.
     """
-    if isinstance(giorno, str):
-        giorno = date.fromisoformat(giorno)
-    inizio = datetime.combine(giorno, time(ora))
-    return inizio.isoformat(), (inizio + timedelta(hours=durata)).isoformat()
+    if isinstance(night, str):
+        night = date.fromisoformat(night)
+    start = datetime.combine(night, time(hour))
+    return start.isoformat(), (start + timedelta(hours=duration)).isoformat()
 
 
 @pytest.fixture
-def giorno():
-    """La notte su cui lavora la maggior parte dei test."""
-    return notte()
+def night():
+    """The night most tests work on."""
+    return future_night()
 
 
 @pytest.fixture
-def altro_giorno():
-    return notte(31)
+def other_night():
+    return future_night(31)
 
 
-def corpo_richiesta(ricerca_id=1, giorno=None, ora=22, durata=3, **extra) -> dict:
-    """Corpo di un POST /richieste valido, da arricchire con `extra`."""
-    inizio, fine = fascia(giorno or notte(), ora, durata)
-    return {"ricerca_id": ricerca_id, "inizio": inizio, "fine": fine, **extra}
+def request_body(research_program_id=1, night=None, hour=22, duration=3, **extra) -> dict:
+    """Body of a valid POST /requests, to be enriched with `extra`."""
+    start, end = time_slot(night or future_night(), hour, duration)
+    return {"research_program_id": research_program_id, "start": start, "end": end, **extra}
 
 
-def crea_richiesta(client, ricerca_id, giorno, ora=22, durata=3, osservatore="Mario Rossi"):
+def submit_time_request(client, research_program_id, night, hour=22, duration=3, observer="Mario Rossi"):
     return client.post(
-        "/telescope-time/richieste",
-        json=corpo_richiesta(ricerca_id, giorno, ora, durata, osservatore=osservatore),
+        "/telescope-time/requests",
+        json=request_body(research_program_id, night, hour, duration, observer=observer),
     )
 
 
-def approva(client, richiesta_id, stato="approvata", note=None):
+def review(client, request_id, status="approved", notes=None):
     return client.patch(
-        f"/telescope-time/richieste/{richiesta_id}",
-        json={"stato": stato, "note_responsabile": note},
+        f"/telescope-time/requests/{request_id}",
+        json={"status": status, "reviewer_notes": notes},
     )
 
 
-# ─── Frontend: l'app servita a un browser vero ────────────────────────────────
+# ─── Frontend: the app served to a real browser ────────────────────────────────
 
 @pytest.fixture(scope="session")
 def app_url(tmp_path_factory):
-    """Avvia l'app su una porta libera: il browser fa richieste HTTP reali,
-    quindi TestClient non basta."""
+    """Starts the app on a free port: the browser makes real HTTP requests,
+    so TestClient isn't enough."""
     import os, socket, threading, time
     import uvicorn
 
@@ -126,25 +127,25 @@ def app_url(tmp_path_factory):
     os.environ["AUTH_MODE"] = "dev"
     import main
 
-    presa = socket.socket()
-    presa.bind(("127.0.0.1", 0))
-    porta = presa.getsockname()[1]
-    presa.close()
+    socket_ = socket.socket()
+    socket_.bind(("127.0.0.1", 0))
+    port = socket_.getsockname()[1]
+    socket_.close()
 
-    server = uvicorn.Server(uvicorn.Config(main.app, port=porta, log_level="error"))
+    server = uvicorn.Server(uvicorn.Config(main.app, port=port, log_level="error"))
     threading.Thread(target=server.run, daemon=True).start()
     for _ in range(50):
         try:
-            socket.create_connection(("127.0.0.1", porta), 0.1).close()
+            socket.create_connection(("127.0.0.1", port), 0.1).close()
             break
         except OSError:
             time.sleep(0.1)
 
-    yield f"http://127.0.0.1:{porta}"
+    yield f"http://127.0.0.1:{port}"
     server.should_exit = True
 
 
-def come_socio(page):
-    """D'ora in avanti la pagina parla come un socio, non come il
-    responsabile sintetizzato di default da AUTH_MODE=dev."""
+def as_member(page):
+    """From now on the page speaks as a member, not as the reviewer
+    AUTH_MODE=dev synthesizes by default."""
     page.context.set_extra_http_headers({"Remote-User": "mario", "Remote-Groups": "soci"})

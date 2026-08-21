@@ -128,7 +128,7 @@ docker compose logs -f
 # Ispezione DB — l'immagine non contiene sqlite3, si passa da Python
 docker compose exec telescope_time python -c \
   "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
-   print(d.execute('SELECT id, giorno_richiesto, inizio, fine, stato FROM richieste').fetchall())"
+   print(d.execute('SELECT id, requested_night, start, end, status FROM time_requests').fetchall())"
 
 # Dati di esempio
 docker compose exec -T telescope_time python -c \
@@ -163,12 +163,12 @@ con gli altri servizi *.ara.roma.it.
 | SMTP_USER            |                                | Utente SMTP             |
 | SMTP_PASSWORD        |                                | Password SMTP           |
 | EMAIL_FROM           | crac@osservatorio.it           | Mittente email          |
-| EMAIL_RESPONSABILE   | responsabile@osservatorio.it   | Destinatario notifiche  |
+| REVIEWER_EMAIL       | responsabile@osservatorio.it   | Destinatario notifiche  |
 | TZ                   | (fuso del sistema)             | Fuso dell'osservatorio: le fasce orarie sono ora locale |
 | AUTH_MODE            | forward-auth                   | `forward-auth` o `dev`  |
 | DEV_USER             | sviluppo                       | Utente simulato (solo AUTH_MODE=dev) |
 | DEV_GROUPS           | telescope-responsabili         | Gruppi simulati (solo AUTH_MODE=dev) |
-| GRUPPO_RESPONSABILI  | telescope-responsabili         | Gruppo che può approvare |
+| REVIEWERS_GROUP      | telescope-responsabili         | Gruppo che può approvare |
 
 ---
 
@@ -180,7 +180,7 @@ all'applicazione negli header `Remote-User`, `Remote-Groups` e `Remote-Email`
 — vedi `nginx_time_telescope.conf`.
 
 Approvare o rifiutare una richiesta richiede l'appartenenza al gruppo
-`GRUPPO_RESPONSABILI`; gli altri endpoint sono aperti a tutti gli
+`REVIEWERS_GROUP`; gli altri endpoint sono aperti a tutti gli
 autenticati.
 
 > Gli header sono attendibili **solo** se il container non è raggiungibile
@@ -199,9 +199,9 @@ un utente diverso — per esempio un socio che non può approvare — bastano gl
 header, senza riavviare nulla:
 
 ```bash
-curl -X PATCH localhost:8010/telescope-time/richieste/1 \
+curl -X PATCH localhost:8010/telescope-time/requests/1 \
   -H 'Remote-User: mario' -H 'Remote-Groups: soci' \
-  -H 'Content-Type: application/json' -d '{"stato":"approvata"}'
+  -H 'Content-Type: application/json' -d '{"status":"approved"}'
 # → 403
 ```
 
@@ -213,18 +213,18 @@ curl -X PATCH localhost:8010/telescope-time/richieste/1 \
 
 | Metodo | Path                             | Descrizione                       |
 |--------|----------------------------------|-----------------------------------|
-| GET    | /telescope-time/ricerche         | Lista ricerche                    |
-| POST   | /telescope-time/ricerche         | Crea ricerca (nome univoco)       |
-| GET    | /telescope-time/ricerche/{id}    | Dettaglio ricerca                 |
-| GET    | /telescope-time/richieste        | Lista richieste (filtrabile)      |
-| POST   | /telescope-time/richieste        | Invia richiesta                   |
-| GET    | /telescope-time/richieste/{id}   | Dettaglio richiesta               |
-| PATCH  | /telescope-time/richieste/{id}   | Approva / rifiuta                 |
-| PATCH  | /telescope-time/richieste/{id}/orario | Sposta data e orari (responsabili) |
-| GET    | /telescope-time/calendario       | Calendario mensile (?anno=&mese=) |
-| GET    | /telescope-time/richieste/{id}/storico | Decisioni e spostamenti sulla richiesta |
+| GET    | /telescope-time/research-programs         | Lista ricerche                    |
+| POST   | /telescope-time/research-programs         | Crea ricerca (nome univoco)       |
+| GET    | /telescope-time/research-programs/{id}    | Dettaglio ricerca                 |
+| GET    | /telescope-time/requests        | Lista richieste (filtrabile)      |
+| POST   | /telescope-time/requests        | Invia richiesta                   |
+| GET    | /telescope-time/requests/{id}   | Dettaglio richiesta               |
+| PATCH  | /telescope-time/requests/{id}   | Approva / rifiuta                 |
+| PATCH  | /telescope-time/requests/{id}/schedule | Sposta data e orari (responsabili) |
+| GET    | /telescope-time/calendar        | Calendario mensile (?year=&month=) |
+| GET    | /telescope-time/requests/{id}/history | Decisioni e spostamenti sulla richiesta |
 | GET    | /telescope-time/me               | Identità dell'utente collegato    |
-| GET    | /telescope-time/statistiche      | Statistiche aggregate             |
+| GET    | /telescope-time/statistics      | Statistiche aggregate             |
 
 Documentazione interattiva: /docs (Swagger UI)
 
@@ -232,12 +232,12 @@ Documentazione interattiva: /docs (Swagger UI)
 
 ## Fasce orarie
 
-Una richiesta occupa un intervallo, non una giornata: `inizio` e `fine` sono
+Una richiesta occupa un intervallo, non una giornata: `start` e `end` sono
 due istanti completi (`2026-09-12T22:00:00`), così una sessione che attraversa
 la mezzanotte non ha bisogno di casi speciali.
 
-`giorno_richiesto` resta come **notte di riferimento** ed è la data di
-`inizio`: una sessione cominciata il 12 alle 23:00 appartiene alla notte del
+`requested_night` resta come **notte di riferimento** ed è la data di
+`start`: una sessione cominciata il 12 alle 23:00 appartiene alla notte del
 12 anche se finisce il 13. È su questo che il calendario raggruppa.
 
 Gli istanti sono **ora locale dell'osservatorio**, senza fuso: un valore con
@@ -247,7 +247,7 @@ confronta l'inizio richiesto con il proprio orologio per rifiutare le
 osservazioni nel passato.
 
 Due richieste possono contendersi la stessa fascia finché sono in attesa: è
-normale, ed è quello che il calendario chiama `contesa`. Il vincolo scatta
+normale, ed è quello che il calendario chiama `contested`. Il vincolo scatta
 all'approvazione.
 
 ---
@@ -263,12 +263,12 @@ all'approvazione.
 5. Approva o rifiuta con note opzionali
 6. Il calendario riflette in tempo reale lo stato delle notti:
 
-   | Situazione della notte                         | stato_giorno |
+   | Situazione della notte                         | night_status |
    |------------------------------------------------|--------------|
-   | nessuna richiesta                              | `libera`     |
-   | richieste in attesa che non si sovrappongono   | `richiesta`  |
-   | due o più in attesa con fasce sovrapposte      | `contesa`    |
-   | almeno una approvata                           | `bloccata`   |
+   | nessuna richiesta                              | `free` (il giorno non compare nella mappa) |
+   | richieste in attesa che non si sovrappongono   | `pending`    |
+   | due o più in attesa con fasce sovrapposte      | `contested`  |
+   | almeno una approvata                           | `booked`     |
 
 7. Il telescopio può ospitare più programmi nella stessa notte: i giorni
    con più di un'osservazione approvata sono segnalati nella griglia.
@@ -288,7 +288,7 @@ all'approvazione.
    offre il rifiuto e viceversa, non il comando che la lascerebbe com'è.
    L'osservatore riceve un secondo avviso, e la conferma lo dichiara
 10. Decisioni e spostamenti sono tracciati: entrambi finiscono in
-    `richieste_storico`, distinti da `tipo`, con chi e quando, ed è quello
+    `decision_log`, distinti da `type`, con chi e quando, ed è quello
     che la dashboard mostra aprendo il dettaglio di una richiesta
 11. L'esito arriva per email a chi ha fatto la richiesta, all'indirizzo che
    Authelia fornisce; se manca, l'avviso va al responsabile
