@@ -12,7 +12,10 @@ from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
-import sqlite3
+from sqlalchemy import create_engine, event, text, select, func, case
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import IntegrityError
+from models import Base, Research, User, Request, DecisionLog, now_utc_string
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -29,6 +32,15 @@ def db_path() -> str:
     """
     return os.environ.get("TELESCOPE_DB_PATH", "telescope_time.db")
 
+def database_url() -> str:
+    """SQLAlchemy engine URL. Defaults to SQLite built from `db_path()`, so
+    nothing changes for anyone who only ever set `TELESCOPE_DB_PATH`;
+    setting `DATABASE_URL` directly points the app at a different engine
+    entirely (e.g. `mysql+pymysql://user:pw@host/telescope_time` for
+    MariaDB, which speaks the MySQL wire protocol).
+    """
+    return os.environ.get("DATABASE_URL", f"sqlite:///{db_path()}")
+
 def auth_mode() -> str:
     """'forward-auth' (default) or 'dev'.
 
@@ -40,6 +52,14 @@ def auth_mode() -> str:
     depending on import order.
     """
     return os.environ.get("AUTH_MODE", "forward-auth")
+
+def auto_seed() -> bool:
+    """Whether an empty database gets sample data at startup — see
+    `seed.py` and `main.py`'s lifespan. On by default for `AUTH_MODE=dev`;
+    the test suite turns it off explicitly (its own fixtures need every
+    test to start from a database that's actually empty, not one already
+    holding sample data)."""
+    return os.environ.get("AUTO_SEED", "true") != "false"
 
 def dev_user() -> str:
     return os.environ.get("DEV_USER", "sviluppo")
@@ -98,106 +118,87 @@ REVIEWER_EMAIL = os.environ.get("REVIEWER_EMAIL", "responsabile@osservatorio.it"
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
-def get_db():
-    """SQLite connection private to a single HTTP request.
+engine = None
+SessionLocal = None
+_engine_url = None
 
-    timeout=15: how long to wait if another connection is writing, before
-    raising "database is locked". With WAL readers never wait, but writes
-    stay serialized.
 
-    check_same_thread=False: FastAPI runs the dependency and the handler in
-    the threadpool without guaranteeing it's the same thread, and with two
-    concurrent requests it sometimes isn't. The connection stays private to
-    the single request regardless, so it's never shared across concurrent
-    threads.
+def _ensure_engine():
+    """(Re)builds the engine when `DATABASE_URL` has changed since the last
+    call — otherwise a no-op, reusing the existing engine/pool.
+
+    Rebuilding only on change, rather than once at startup, matters for
+    more than tidiness: `router.engine` is a module-level global, shared by
+    every FastAPI app instance in the process — including a long-lived one
+    a test suite might keep running in a background thread (`app_url` in
+    conftest.py) alongside many short-lived ones on their own throwaway
+    databases. Building the engine once at startup and never again left
+    that background instance holding a stale engine pointed at a database
+    a later, unrelated test had already dropped — the same class of bug
+    the old `sqlite3.connect(db_path(), ...)` per-call design in `get_db()`
+    never had, because it read the environment fresh on every connection
+    instead of caching anything.
     """
-    conn = sqlite3.connect(db_path(), timeout=15, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-    finally:
-        conn.close()
+    global engine, SessionLocal, _engine_url
+    url = database_url()
+    if url == _engine_url:
+        return
 
-# SQLite writes `datetime('now')` as '2026-08-17 06:30:00': UTC, but without
-# saying so, and with a space instead of the T. It isn't valid ISO 8601, so
-# browsers interpret it as local time and show a time that's off by one hour
-# in winter and two in summer.
-NOW_UTC = "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+    connect_args = {"check_same_thread": False, "timeout": 15} if url.startswith("sqlite") else {}
+    engine = create_engine(url, connect_args=connect_args)
+
+    if engine.dialect.name == "sqlite":
+        @event.listens_for(engine, "connect")
+        def _sqlite_connect(dbapi_connection, _):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys = ON")
+            cursor.execute("PRAGMA journal_mode = WAL")
+            cursor.close()
+
+    SessionLocal = sessionmaker(bind=engine)
+    _engine_url = url
+
 
 def init_db():
-    """Creates the schema if missing and enables WAL journaling.
+    """Builds the engine from `DATABASE_URL` and creates the schema if
+    missing.
 
-    WAL lets readers and the writer proceed in parallel instead of blocking
-    each other, and it's persisted to the file: it needs enabling only once
-    here, unlike `PRAGMA foreign_keys` in get_db(), which isn't.
+    SQLite gets two PRAGMAs no other dialect needs, applied on every new
+    physical connection via the `connect` event (harmless to repeat,
+    unlike `journal_mode` which only truly needs setting once — simpler to
+    fold both into one place than to keep two separate mechanisms):
+    - `PRAGMA foreign_keys = ON`, off by default;
+    - `PRAGMA journal_mode = WAL`, so readers and the writer proceed in
+      parallel instead of blocking each other.
+
+    pysqlite's own implicit-transaction handling is left untouched
+    (unlike a common recipe that disables it to control `BEGIN` globally):
+    it only auto-opens a transaction before a write statement, never
+    before a plain read, which is exactly why `lock_for_write` can issue
+    `BEGIN IMMEDIATE` itself as a plain statement — nothing has opened a
+    transaction yet at that point in the request. Overriding this
+    globally instead once made ordinary concurrent reads (`test_concurrency.py
+    ::test_simultaneous_calls_do_not_fail`) fail with "database is locked":
+    every read held an open transaction for the request's full duration
+    instead of releasing it right after the SELECT.
     """
-    conn = sqlite3.connect(db_path())
-    conn.execute("PRAGMA journal_mode = WAL")
-    cursor = conn.cursor()
-    cursor.executescript("""
-        CREATE TABLE IF NOT EXISTS research_programs (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT    NOT NULL UNIQUE,
-            description TEXT,
-            specs       TEXT,
-            created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-        );
+    _ensure_engine()
+    Base.metadata.create_all(engine)
 
-        CREATE TABLE IF NOT EXISTS users (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            -- non-null username = identity verified by Authelia.
-            -- NULL for someone known only by name (co-observers, #40).
-            username    TEXT    UNIQUE,
-            name        TEXT    NOT NULL,
-            -- key used to recognize a person already in the registry (#40);
-            -- multiple rows can have it NULL.
-            email       TEXT    UNIQUE,
-            created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-        );
 
-        CREATE TABLE IF NOT EXISTS time_requests (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            research_program_id INTEGER NOT NULL REFERENCES research_programs(id),
-            requester_id        INTEGER NOT NULL REFERENCES users(id),
-            co_observers        TEXT,
-            -- reference night, derived from the date of `start`: the small
-            -- hours belong to the previous night. It's the key the
-            -- calendar groups on.
-            requested_night     TEXT    NOT NULL,
-            -- time slot, UTC: '2026-09-12T20:00:00Z'.
-            start               TEXT    NOT NULL,
-            end                 TEXT    NOT NULL,
-            status              TEXT    NOT NULL DEFAULT 'pending',
-            reviewer_notes      TEXT,
-            created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-            updated_at          TEXT
-        );
-
-        -- Two kinds of event in the same table, told apart by `type`: a
-        -- single ordered log is what someone reading a request's history
-        -- needs. The columns of the other kind stay NULL.
-        CREATE TABLE IF NOT EXISTS decision_log (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            request_id        INTEGER NOT NULL REFERENCES time_requests(id),
-            type              TEXT    NOT NULL DEFAULT 'decision',
-            previous_status   TEXT,
-            new_status        TEXT,
-            previous_start    TEXT,
-            previous_end      TEXT,
-            new_start         TEXT,
-            new_end           TEXT,
-            notes             TEXT,
-            decided_by        TEXT,
-            decided_at        TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-        );
-    """)
-    conn.commit()
-    conn.close()
+def get_db():
+    """SQLAlchemy session private to a single HTTP request — same shape as
+    the SQLite connection it replaces: opened fresh, closed in `finally`."""
+    _ensure_engine()
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # ─── Authentication ───────────────────────────────────────────────────────────
 
-class User(BaseModel):
+class Identity(BaseModel):
     username: str = Field(description="Authelia username.")
     groups: List[str] = []
     email: Optional[str] = None
@@ -227,7 +228,7 @@ def current_user(
     remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
     remote_name:   Optional[str] = Header(None, alias="Remote-Name"),
     dev_role:      Optional[str] = Cookie(None),
-) -> User:
+) -> Identity:
     """User identity, from the headers Nginx sets via Authelia.
 
     The headers are trustworthy only if the service isn't reachable by
@@ -247,7 +248,7 @@ def current_user(
     if not remote_user:
         raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
 
-    return User(
+    return Identity(
         username=remote_user,
         groups=[g.strip() for g in remote_groups.split(",") if g.strip()],
         email=remote_email,
@@ -255,70 +256,63 @@ def current_user(
     )
 
 
-def register_user(db: sqlite3.Connection, user: "User") -> int:
+def register_user(db: Session, user: "Identity") -> int:
     """Aligns the registry with the identity coming from Authelia and
     returns its id.
 
     Writes only if the record is missing or name/email changed: ordinary
     requests cost a SELECT, not a write.
     """
-    row = db.execute(
-        "SELECT id, name, email FROM users WHERE username = ?", (user.username,)
-    ).fetchone()
+    record = db.scalar(select(User).where(User.username == user.username))
 
-    if row is None:
+    if record is None:
         return _insert_or_reconcile_user(db, user)
 
-    if (row["name"], row["email"]) != (user.display_name, user.email):
-        _update_name_and_email(db, row["id"], user)
-    return row["id"]
+    if (record.name, record.email) != (user.display_name, user.email):
+        _update_name_and_email(db, record.id, user)
+    return record.id
 
 
-def _insert_or_reconcile_user(db: sqlite3.Connection, user: "User") -> int:
+def _insert_or_reconcile_user(db: Session, user: "Identity") -> int:
     try:
-        cursor = db.execute(
-            "INSERT INTO users (username, name, email) VALUES (?, ?, ?)",
-            (user.username, user.display_name, user.email),
-        )
+        record = User(username=user.username, name=user.display_name, email=user.email)
+        db.add(record)
         db.commit()
-        return cursor.lastrowid
-    except sqlite3.IntegrityError:
+        return record.id
+    except IntegrityError:
         db.rollback()
         return _reconcile_after_registry_conflict(db, user)
 
 
-def _reconcile_after_registry_conflict(db: sqlite3.Connection, user: "User") -> int:
+def _reconcile_after_registry_conflict(db: Session, user: "Identity") -> int:
     """Another INSERT violated UNIQUE between the initial SELECT and this one:
     username or email is already in the registry for a different reason, to
     be told apart case by case."""
-    row = db.execute(
-        "SELECT id, name, email FROM users WHERE username = ?", (user.username,)
-    ).fetchone()
-    if row is not None:
-        return row["id"]  # another request from the same user won the race
+    record = db.scalar(select(User).where(User.username == user.username))
+    if record is not None:
+        return record.id  # another request from the same user won the race
 
-    co_observer_to_promote = db.execute(
-        "SELECT id, username FROM users WHERE email = ? AND username IS NULL", (user.email,)
-    ).fetchone()
+    co_observer_to_promote = db.scalar(
+        select(User).where(User.email == user.email, User.username.is_(None))
+    )
     if co_observer_to_promote is not None:
-        return _promote_co_observer(db, co_observer_to_promote["id"], user)
+        return _promote_co_observer(db, co_observer_to_promote.id, user)
 
     return _register_without_email(db, user)
 
 
-def _promote_co_observer(db: sqlite3.Connection, user_id: int, user: "User") -> int:
+def _promote_co_observer(db: Session, user_id: int, user: "Identity") -> int:
     """A co-observer entered by hand (#40), now recognized by email: the
     record gets updated instead of duplicated, so the observations they
     already took part in stay linked to them."""
-    db.execute(
-        "UPDATE users SET username = ?, name = ? WHERE id = ?",
-        (user.username, user.display_name, user_id),
-    )
+    record = db.get(User, user_id)
+    record.username = user.username
+    record.name = user.display_name
     db.commit()
     return user_id
 
 
-def _register_without_email(db: sqlite3.Connection, user: "User") -> int:
+def _register_without_email(db: Session, user: "Identity") -> int:
     """The email already belongs to another verified account — Authelia
     requires them unique, so this is a pathological case. Register without
     an address instead of denying access."""
@@ -327,45 +321,40 @@ def _register_without_email(db: sqlite3.Connection, user: "User") -> int:
         f"assigned to another verified user, registered without an address",
         flush=True,
     )
-    cursor = db.execute(
-        "INSERT INTO users (username, name, email) VALUES (?, ?, NULL)",
-        (user.username, user.display_name),
-    )
+    record = User(username=user.username, name=user.display_name, email=None)
+    db.add(record)
     db.commit()
-    return cursor.lastrowid
+    return record.id
 
 
-def _update_name_and_email(db: sqlite3.Connection, user_id: int, user: "User") -> None:
+def _update_name_and_email(db: Session, user_id: int, user: "Identity") -> None:
     try:
-        db.execute(
-            "UPDATE users SET name = ?, email = ? WHERE id = ?",
-            (user.display_name, user.email, user_id),
-        )
+        record = db.get(User, user_id)
+        record.name = user.display_name
+        record.email = user.email
         db.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         db.rollback()
         _update_name_only(db, user_id, user)
 
 
-def _update_name_only(db: sqlite3.Connection, user_id: int, user: "User") -> None:
+def _update_name_only(db: Session, user_id: int, user: "Identity") -> None:
     """The email moved to another account: only the name gets aligned here."""
-    db.execute(
-        "UPDATE users SET name = ? WHERE id = ?",
-        (user.display_name, user_id),
-    )
+    record = db.get(User, user_id)
+    record.name = user.display_name
     db.commit()
 
 
 def registered_user(
-    user: User = Depends(current_user),
-    db: sqlite3.Connection = Depends(get_db),
-) -> User:
+    user: Identity = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Identity:
     """Current user, with the id of their record in the registry."""
     user.id = register_user(db, user)
     return user
 
 
-def reviewers_only(user: User = Depends(current_user)) -> User:
+def reviewers_only(user: Identity = Depends(current_user)) -> Identity:
     if not user.is_reviewer:
         raise HTTPException(
             status_code=403,
@@ -621,8 +610,8 @@ Motivo:       {reason or '—'}{warning}
 
 # ─── User endpoint ─────────────────────────────────────────────────────────────
 
-@router.get("/me", response_model=User)
-def me(user: User = Depends(registered_user)):
+@router.get("/me", response_model=Identity)
+def me(user: Identity = Depends(registered_user)):
     """Identity of the connected user: lets the pages know whether to show
     the review commands."""
     return user
@@ -636,27 +625,38 @@ def observatory():
 
 # ─── Research programs endpoints ───────────────────────────────────────────────
 
+def program_as_dict(program: Research) -> dict:
+    return {"id": program.id, "name": program.name, "description": program.description,
+            "specs": program.specs, "created_at": program.created_at}
+
+
+def read_research_program(db: Session, research_program_id: int) -> dict:
+    program = db.get(Research, research_program_id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Ricerca non trovata.")
+    return program_as_dict(program)
+
+
 @router.get("/research-programs", response_model=List[ResearchProgramOut])
-def list_research_programs(db: sqlite3.Connection = Depends(get_db)):
-    rows = db.execute("SELECT * FROM research_programs ORDER BY name").fetchall()
-    return [dict(r) for r in rows]
+def list_research_programs(db: Session = Depends(get_db)):
+    programs = db.scalars(select(Research).order_by(Research.name)).all()
+    return [program_as_dict(p) for p in programs]
 
 
 @router.post("/research-programs", response_model=ResearchProgramOut, status_code=201)
-def create_research_program(body: ResearchProgramCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_research_program(body: ResearchProgramCreate, db: Session = Depends(get_db)):
     try:
-        cursor = db.execute(
-            "INSERT INTO research_programs (name, description, specs) VALUES (?, ?, ?)",
-            (body.name.strip(), body.description, body.specs)
-        )
+        program = Research(name=body.name.strip(), description=body.description, specs=body.specs)
+        db.add(program)
         db.commit()
-        return read_research_program(db, cursor.lastrowid)
-    except sqlite3.IntegrityError:
+        return program_as_dict(program)
+    except IntegrityError:
+        db.rollback()
         raise HTTPException(status_code=409, detail=f"Ricerca '{body.name}' già esistente.")
 
 
 @router.get("/research-programs/{research_program_id}", response_model=ResearchProgramOut)
-def research_program_detail(research_program_id: int, db: sqlite3.Connection = Depends(get_db)):
+def research_program_detail(research_program_id: int, db: Session = Depends(get_db)):
     return read_research_program(db, research_program_id)
 
 # ─── Time requests endpoints ────────────────────────────────────────────────────
@@ -666,23 +666,39 @@ def month_bounds(year: int, month: int) -> tuple[str, str]:
     return f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day:02d}"
 
 
-FULL_TIME_REQUESTS = """
-    SELECT r.*, rp.name as research_program_name,
-           u.name as observer, u.email as observer_email
-    FROM time_requests r
-    JOIN research_programs rp ON rp.id = r.research_program_id
-    JOIN users             u  ON u.id  = r.requester_id
-"""
-
-
 REQUEST_NOT_FOUND = "Richiesta non trovata."
 
 
-def read_request(db: sqlite3.Connection, request_id: int) -> dict:
-    row = db.execute(f"{FULL_TIME_REQUESTS} WHERE r.id = ?", (request_id,)).fetchone()
-    if row is None:
+def request_as_dict(request: Request) -> dict:
+    """The eager-loaded `research_program`/`requester` relationships take
+    the place of the hand-written JOIN this used to be."""
+    return {
+        "id": request.id,
+        "research_program_id": request.research_program_id,
+        "requester_id": request.requester_id,
+        "co_observers": request.co_observers,
+        "requested_night": request.requested_night.isoformat(),
+        "start": request.start,
+        "end": request.end,
+        "status": request.status,
+        "reviewer_notes": request.reviewer_notes,
+        "created_at": request.created_at,
+        "updated_at": request.updated_at,
+        "research_program_name": request.research_program.name,
+        "observer": request.requester.name,
+        "observer_email": request.requester.email,
+    }
+
+
+def get_request_or_404(db: Session, request_id: int) -> Request:
+    request = db.get(Request, request_id)
+    if request is None:
         raise HTTPException(status_code=404, detail=REQUEST_NOT_FOUND)
-    return dict(row)
+    return request
+
+
+def read_request(db: Session, request_id: int) -> dict:
+    return request_as_dict(get_request_or_404(db, request_id))
 
 
 def localized(request: dict) -> dict:
@@ -693,37 +709,60 @@ def localized(request: dict) -> dict:
             "end": to_local(request["end"]).isoformat()}
 
 
-def verify_request_exists(db: sqlite3.Connection, request_id: int) -> None:
-    if db.execute("SELECT 1 FROM time_requests WHERE id = ?", (request_id,)).fetchone() is None:
+def verify_request_exists(db: Session, request_id: int) -> None:
+    if db.get(Request, request_id) is None:
         raise HTTPException(status_code=404, detail=REQUEST_NOT_FOUND)
 
 
 def already_approved_at_same_time(
-    db: sqlite3.Connection, request_id: int, start: str, end: str
+    db: Session, request_id: int, start: str, end: str
 ) -> Optional[dict]:
     """Another approved request occupying the instrument at the same
     instants. Two programs can share the night, not the instant."""
-    row = db.execute(
-        f"""{FULL_TIME_REQUESTS}
-            WHERE r.status = 'approved' AND r.id != ?
-              AND r.start < ? AND ? < r.end""",
-        (request_id, end, start),
-    ).fetchone()
-    return dict(row) if row else None
+    request = db.scalar(
+        select(Request).where(
+            Request.status == "approved",
+            Request.id != request_id,
+            Request.start < end,
+            Request.end > start,
+        )
+    )
+    return request_as_dict(request) if request else None
 
 
-def lock_for_write(db: sqlite3.Connection) -> None:
-    """Opens an exclusive transaction right away, instead of waiting for
-    the first write like SQLite would do on its own.
-
-    Between the conflict check and the UPDATE there's a window: without
-    this, two simultaneous approvals both cross it and create exactly the
+def lock_for_write(db: Session) -> None:
+    """Opens the transaction with an isolation strong enough to close the
+    window between the conflict check and the write: without this, two
+    simultaneous approvals/reschedules both cross it and create exactly the
     overlap the constraint exists to prevent.
+
+    SQLite: `BEGIN IMMEDIATE` claims the write lock right away instead of
+    waiting for the first write, exactly like the raw-sqlite3 code before
+    it. Issued as a plain statement, not through a global "begin" override
+    (see `init_db`): pysqlite hasn't opened a transaction of its own yet at
+    this point, since only reads happened so far this request.
+
+    Other dialects (MariaDB/MySQL): the default isolation (REPEATABLE READ)
+    doesn't lock the *absence* of a row, so two transactions that both see
+    "no overlap yet" can both proceed — SERIALIZABLE makes InnoDB take the
+    gap locks that close that phantom-read window.
+
+    `db.commit()` first, on both branches: the router-level `registered_user`
+    dependency already read from `db` before the endpoint body runs, so a
+    connection/transaction is already bound to this session — a SQLite
+    `BEGIN IMMEDIATE` would error ("already in a transaction"), and
+    `execution_options(isolation_level=...)` on an already-bound connection
+    is silently ignored rather than applied. Nothing to lose by ending that
+    read-only transaction first: it never wrote anything.
     """
-    db.execute("BEGIN IMMEDIATE")
+    db.commit()
+    if db.get_bind().dialect.name == "sqlite":
+        db.execute(text("BEGIN IMMEDIATE"))
+    else:
+        db.connection(execution_options={"isolation_level": "SERIALIZABLE"})
 
 
-def time_slot_conflict(db: sqlite3.Connection, request_id: int, start: str, end: str):
+def time_slot_conflict(db: Session, request_id: int, start: str, end: str):
     occupied = already_approved_at_same_time(db, request_id, start, end)
     if occupied:
         raise HTTPException(
@@ -734,70 +773,61 @@ def time_slot_conflict(db: sqlite3.Connection, request_id: int, start: str, end:
         )
 
 
-def log_event(db: sqlite3.Connection, request_id: int, type: str,
+def log_event(db: Session, request_id: int, type: str,
               author: str, notes: Optional[str], **values) -> None:
-    columns = ", ".join(values)
-    placeholders = ", ".join("?" * len(values))
-    db.execute(
-        f"""INSERT INTO decision_log
-                (request_id, type, decided_by, notes, {columns})
-            VALUES (?, ?, ?, ?, {placeholders})""",
-        (request_id, type, author, notes, *values.values()),
-    )
-
-
-def read_research_program(db: sqlite3.Connection, research_program_id: int) -> dict:
-    row = db.execute("SELECT * FROM research_programs WHERE id = ?", (research_program_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Ricerca non trovata.")
-    return dict(row)
+    db.add(DecisionLog(request_id=request_id, type=type, decided_by=author, notes=notes, **values))
 
 
 @router.get("/requests", response_model=List[TimeRequestOut])
 def list_requests(
     status: Optional[str] = None,
-    db: sqlite3.Connection = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
-    filter_clause = " WHERE r.status = ?" if status else ""
-    rows = db.execute(
-        f"{FULL_TIME_REQUESTS}{filter_clause} ORDER BY r.start DESC",
-        [status] if status else [],
-    ).fetchall()
-    return [localized(dict(row)) for row in rows]
+    query = select(Request).order_by(Request.start.desc())
+    if status:
+        query = query.where(Request.status == status)
+    requests = db.scalars(query).all()
+    return [localized(request_as_dict(r)) for r in requests]
 
 
 @router.get("/requests/{request_id}", response_model=TimeRequestOut)
-def request_detail(request_id: int, db: sqlite3.Connection = Depends(get_db)):
+def request_detail(request_id: int, db: Session = Depends(get_db)):
     return localized(read_request(db, request_id))
 
 
 @router.post("/requests", response_model=TimeRequestOut, status_code=201)
 def submit_request(
     body: TimeRequestCreate,
-    db: sqlite3.Connection = Depends(get_db),
-    user: User = Depends(registered_user),
+    db: Session = Depends(get_db),
+    user: Identity = Depends(registered_user),
 ):
     research_program = read_research_program(db, body.research_program_id)
 
-    if db.execute(
-        "SELECT 1 FROM time_requests WHERE research_program_id = ? AND requested_night = ? AND status != 'rejected'",
-        (body.research_program_id, body.night),
-    ).fetchone():
+    duplicate = db.scalar(
+        select(Request).where(
+            Request.research_program_id == body.research_program_id,
+            Request.requested_night == date.fromisoformat(body.night),
+            Request.status != "rejected",
+        )
+    )
+    if duplicate:
         raise HTTPException(
             status_code=409,
             detail="Esiste già una richiesta per questa ricerca in quella notte.",
         )
 
-    cursor = db.execute(
-        """INSERT INTO time_requests
-               (research_program_id, requester_id, co_observers, requested_night, start, end)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (body.research_program_id, user.id, body.co_observers, body.night,
-         to_utc(body.start), to_utc(body.end)),
+    time_request = Request(
+        research_program_id=body.research_program_id,
+        requester_id=user.id,
+        co_observers=body.co_observers,
+        requested_night=date.fromisoformat(body.night),
+        start=to_utc(body.start),
+        end=to_utc(body.end),
     )
+    db.add(time_request)
     db.commit()
 
-    request = read_request(db, cursor.lastrowid)
+    request = request_as_dict(time_request)
     send_notification_email(request, research_program)
     return localized(request)
 
@@ -812,11 +842,12 @@ def notes_or_existing(body: StatusUpdate, request: dict) -> Optional[str]:
 def update_status(
     request_id: int,
     body: StatusUpdate,
-    db: sqlite3.Connection = Depends(get_db),
-    user: User = Depends(reviewers_only),
+    db: Session = Depends(get_db),
+    user: Identity = Depends(reviewers_only),
 ):
     lock_for_write(db)
-    request = read_request(db, request_id)
+    time_request = get_request_or_404(db, request_id)
+    request = request_as_dict(time_request)
     previous_status = request["status"]
     status_changes = body.status != previous_status
 
@@ -831,14 +862,11 @@ def update_status(
             previous_status=previous_status, new_status=body.status,
         )
 
-    db.execute(
-        f"""UPDATE time_requests SET status = ?, reviewer_notes = ?, updated_at = {NOW_UTC}
-            WHERE id = ?""",
-        (body.status, notes, request_id)
-    )
+    time_request.status = body.status
+    time_request.reviewer_notes = notes
     db.commit()
 
-    updated = read_request(db, request_id)
+    updated = request_as_dict(time_request)
     if status_changes:
         send_outcome_email(updated)
     return localized(updated)
@@ -848,8 +876,8 @@ def update_status(
 def reschedule_request(
     request_id: int,
     body: RescheduleRequest,
-    db: sqlite3.Connection = Depends(get_db),
-    user: User = Depends(registered_user),
+    db: Session = Depends(get_db),
+    user: Identity = Depends(registered_user),
 ):
     """Reschedules a request, pending or already approved.
 
@@ -861,7 +889,8 @@ def reschedule_request(
     reschedule only while it's pending and only into the future.
     """
     lock_for_write(db)
-    request = read_request(db, request_id)
+    time_request = get_request_or_404(db, request_id)
+    request = request_as_dict(time_request)
 
     if not user.is_reviewer:
         if request["requester_id"] != user.id:
@@ -889,15 +918,12 @@ def reschedule_request(
         previous_start=request["start"], previous_end=request["end"],
         new_start=start, new_end=end,
     )
-    db.execute(
-        f"""UPDATE time_requests
-               SET requested_night = ?, start = ?, end = ?, updated_at = {NOW_UTC}
-             WHERE id = ?""",
-        (body.night, start, end, request_id),
-    )
+    time_request.requested_night = date.fromisoformat(body.night)
+    time_request.start = start
+    time_request.end = end
     db.commit()
 
-    rescheduled = read_request(db, request_id)
+    rescheduled = request_as_dict(time_request)
     send_reschedule_email(rescheduled, request, body.reason)
     return localized(rescheduled)
 
@@ -913,15 +939,24 @@ def localized_log_entry(entry: dict) -> dict:
     }
 
 
+def log_entry_as_dict(entry: DecisionLog) -> dict:
+    return {
+        "id": entry.id, "request_id": entry.request_id, "type": entry.type,
+        "previous_status": entry.previous_status, "new_status": entry.new_status,
+        "previous_start": entry.previous_start, "previous_end": entry.previous_end,
+        "new_start": entry.new_start, "new_end": entry.new_end,
+        "notes": entry.notes, "decided_by": entry.decided_by, "decided_at": entry.decided_at,
+    }
+
+
 @router.get("/requests/{request_id}/history", response_model=List[LogEntryOut])
-def request_history(request_id: int, db: sqlite3.Connection = Depends(get_db)):
+def request_history(request_id: int, db: Session = Depends(get_db)):
     """Decisions made on a request, from oldest to most recent."""
     verify_request_exists(db, request_id)
-    rows = db.execute(
-        "SELECT * FROM decision_log WHERE request_id = ? ORDER BY id",
-        (request_id,)
-    ).fetchall()
-    return [localized_log_entry(dict(r)) for r in rows]
+    entries = db.scalars(
+        select(DecisionLog).where(DecisionLog.request_id == request_id).order_by(DecisionLog.id)
+    ).all()
+    return [localized_log_entry(log_entry_as_dict(e)) for e in entries]
 
 
 def record_overlaps(requests: List[dict], nights: dict) -> set:
@@ -946,11 +981,29 @@ def record_overlaps(requests: List[dict], nights: dict) -> set:
     return contested
 
 
+def calendar_entry_as_dict(request: Request) -> dict:
+    return {
+        "id": request.id,
+        "observer": request.requester.name,
+        "co_observers": request.co_observers,
+        "requested_night": request.requested_night.isoformat(),
+        "start": request.start,
+        "end": request.end,
+        "status": request.status,
+        "reviewer_notes": request.reviewer_notes,
+        "created_at": request.created_at,
+        "research_program_id": request.research_program_id,
+        "research_program_name": request.research_program.name,
+        "description": request.research_program.description,
+        "specs": request.research_program.specs,
+    }
+
+
 @router.get("/calendar")
 def calendar(
     year:  Optional[int] = None,
     month: Optional[int] = None,
-    db: sqlite3.Connection = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     """Approved and pending requests for the month, grouped by night.
 
@@ -967,20 +1020,16 @@ def calendar(
     month = month or today.month
     first, last = month_bounds(year, month)
 
-    rows = db.execute("""
-        SELECT r.id, u.name as observer, r.co_observers, r.requested_night,
-               r.start, r.end, r.status, r.reviewer_notes, r.created_at,
-               rp.id as research_program_id, rp.name as research_program_name,
-               rp.description, rp.specs
-        FROM time_requests r
-        JOIN research_programs rp ON rp.id = r.research_program_id
-        JOIN users             u  ON u.id  = r.requester_id
-        WHERE r.requested_night BETWEEN ? AND ?
-          AND r.status IN ('approved', 'pending')
-        ORDER BY r.start, r.created_at
-    """, (first, last)).fetchall()
+    matching_requests = db.scalars(
+        select(Request)
+        .where(
+            Request.requested_night.between(date.fromisoformat(first), date.fromisoformat(last)),
+            Request.status.in_(("approved", "pending")),
+        )
+        .order_by(Request.start, Request.created_at)
+    ).all()
 
-    requests = [dict(row) for row in rows]
+    requests = [calendar_entry_as_dict(r) for r in matching_requests]
     nights: dict = {}
     for request in requests:
         night = nights.setdefault(
@@ -1006,19 +1055,23 @@ def calendar(
 
 
 @router.get("/statistics")
-def statistics(db: sqlite3.Connection = Depends(get_db)):
+def statistics(db: Session = Depends(get_db)):
     """Bonus endpoint for aggregate statistics — useful for future work."""
-    totals = db.execute("""
-        SELECT status, COUNT(*) as count FROM time_requests GROUP BY status
-    """).fetchall()
+    totals = db.execute(
+        select(Request.status, func.count().label("count")).group_by(Request.status)
+    ).mappings().all()
 
-    by_research_program = db.execute("""
-        SELECT rp.name, COUNT(r.id) as request_count,
-               SUM(CASE WHEN r.status='approved' THEN 1 ELSE 0 END) as approved_count
-        FROM research_programs rp
-        LEFT JOIN time_requests r ON r.research_program_id = rp.id
-        GROUP BY rp.id ORDER BY request_count DESC
-    """).fetchall()
+    by_research_program = db.execute(
+        select(
+            Research.name,
+            func.count(Request.id).label("request_count"),
+            func.sum(case((Request.status == "approved", 1), else_=0)).label("approved_count"),
+        )
+        .select_from(Research)
+        .outerjoin(Request, Request.research_program_id == Research.id)
+        .group_by(Research.id)
+        .order_by(func.count(Request.id).desc())
+    ).mappings().all()
 
     return {
         "by_status": [dict(r) for r in totals],

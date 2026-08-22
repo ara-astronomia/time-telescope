@@ -1,7 +1,7 @@
 [project]
 name = "telescope-time"
 version = "1.0.0"
-description = "Gestione richieste tempo telescopio — CRaC"
+description = "Telescope time request management — CRaC"
 readme = "README.md"
 requires-python = ">=3.14"
 
@@ -10,6 +10,8 @@ dependencies = [
     "uvicorn[standard]>=0.38.0",
     "pydantic>=2.13.0",
     "python-multipart>=0.0.27",
+    "sqlalchemy>=2.0.52",
+    "pymysql>=1.2.0",
 ]
 
 [dependency-groups]
@@ -20,13 +22,13 @@ dev = [
 ]
 
 [tool.uv]
-# Non è un pacchetto da installare: main.py e router.py sono moduli in root.
+# Not a package to install: main.py and router.py are root-level modules.
 package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Il TestClient di starlette avvisa quando usa httpx invece di httpx2:
-# trattarlo come errore impedisce di tornare indietro senza accorgersene.
+# Starlette's TestClient warns when it uses httpx instead of httpx2:
+# treating it as an error stops a silent regression back to httpx.
 filterwarnings = [
     "error::DeprecationWarning",
     "error::UserWarning",

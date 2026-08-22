@@ -1,42 +1,66 @@
-FROM python:3.14-slim
+FROM python:3.14-slim AS base
 
-# uv come installer: stesse versioni del lockfile, nessuna risoluzione a build time
+# uv as installer: same versions as the lockfile, no resolution at build time
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
-# Dipendenze: layer separato, invalidato solo se cambiano pyproject o lockfile
+# Dependencies: separate layer, invalidated only if pyproject or the lockfile change
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
-# Codice applicazione
+# Application code
 COPY main.py .
 COPY router.py .
+COPY seed.py .
 
-# Pagine HTML statiche
+# Static HTML pages
 COPY static/ ./static/
 
-# Utente non privilegiato. L'UID 1000 coincide con quello dell'utente sulle
-# macchine di sviluppo: con il bind mount del compose, i file che il container
-# scrive in /app restano di proprietà dell'utente host invece che di root.
-# /data va reso scrivibile qui: Docker inizializza un volume vuoto copiando
-# permessi e proprietario dal mountpoint dell'immagine.
+# Unprivileged user. UID 1000 matches the user on development machines:
+# with the compose's bind mount, files the container writes to /app stay
+# owned by the host user instead of root.
+# /data needs to be made writable here: Docker initializes an empty volume
+# by copying permissions and ownership from the image's mountpoint.
 RUN useradd --create-home --uid 1000 app \
  && mkdir -p /data \
  && chown -R app:app /app /data
 
 USER app
 
-# Volume per il database SQLite
+# Volume for the SQLite database, when DATABASE_URL points at one instead
+# of the default MariaDB (see docker-compose.yml).
 VOLUME ["/data"]
 
 ENV TELESCOPE_DB_PATH=/data/telescope_time.db
-# Senza questo i print dell'applicazione restano nel buffer di stdout e non
-# compaiono in `docker compose logs` finché il processo non termina.
+# Without this, the application's prints stay buffered on stdout and don't
+# show up in `docker compose logs` until the process exits.
 ENV PYTHONUNBUFFERED=1
-# uv installa in /app/.venv: metterlo sul PATH evita di dover usare `uv run`
+# uv installs into /app/.venv: putting it on PATH avoids needing `uv run`
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8010
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010"]
+
+# ─── Dev stage ──────────────────────────────────────────────────────────────
+# Adds the `dev` dependency group (pytest, pytest-playwright, httpx2) and a
+# Chromium Playwright already knows how to drive — so `uv run pytest`
+# (including the *_frontend_* tests) works right after `docker compose up
+# --build`, without a manual `playwright install` step to remember every
+# time the container gets rebuilt. Selected by docker-compose.yml's `target:
+# dev`. Being the last stage in the file, it would also become the default
+# with no `target` specified at all — docker-build.yml pins `target: base`
+# explicitly so the image it pushes never carries this test-only tooling.
+FROM base AS dev
+
+USER root
+RUN uv sync --frozen
+# System libraries Chromium needs (fonts, X11, audio, ...): root-only, and
+# shared regardless of which user later launches the browser.
+RUN uv run playwright install-deps chromium
+
+USER app
+# The browser binary itself is cached per-user (~/.cache/ms-playwright),
+# hence installed as `app`, the user that will actually run the tests.
+RUN uv run playwright install chromium

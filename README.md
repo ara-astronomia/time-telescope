@@ -19,7 +19,7 @@ time-telescope/
 ├── pyproject.toml                  ← dependencies (uv)
 ├── uv.lock                         ← locked versions
 ├── .python-version                 ← required interpreter
-├── seed.sql                        ← sample data
+├── seed.py                         ← sample data
 ├── tests/                          ← pytest suite
 ├── Dockerfile
 ├── docker-compose.yml
@@ -94,16 +94,13 @@ research programs and requests — dates relative to today, so the calendar
 always shows a booked day and a contested one:
 
 ```bash
-sqlite3 telescope_time.db < seed.sql
+uv run python seed.py
 ```
 
-Tables are created by the app on first startup, so the seed must be applied
-after starting it at least once. If `sqlite3` isn't installed:
-
-```bash
-uv run python -c "import sqlite3; d=sqlite3.connect('telescope_time.db'); \
-  d.executescript(open('seed.sql').read()); d.commit()"
-```
+It calls `init_db()` itself, so the database doesn't need to have been
+started first, and it works against whichever engine `DATABASE_URL` points
+at — SQLite outside Docker, MariaDB on Docker (see `docker-compose.yml`'s
+`mariadb` service, the default there).
 
 ---
 
@@ -135,12 +132,10 @@ docker compose logs -f
 # DB inspection — the image doesn't include sqlite3, use Python instead
 docker compose exec telescope_time python -c \
   "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
-   print(d.execute('SELECT id, requested_night, start, end, status FROM time_requests').fetchall())"
+   print(d.execute('SELECT id, requested_night, start, end, status FROM requests').fetchall())"
 
 # Sample data
-docker compose exec -T telescope_time python -c \
-  "import sqlite3,sys; d=sqlite3.connect('/data/telescope_time.db'); \
-   d.executescript(sys.stdin.read()); d.commit()" < seed.sql
+docker compose exec telescope_time python seed.py
 ```
 
 The database persists in the `telescope_db` Docker volume.
@@ -317,7 +312,7 @@ time-telescope/
 ├── pyproject.toml                  ← dipendenze (uv)
 ├── uv.lock                         ← versioni bloccate
 ├── .python-version                 ← interprete richiesto
-├── seed.sql                        ← dati di esempio
+├── seed.py                         ← dati di esempio
 ├── tests/                          ← suite pytest
 ├── Dockerfile
 ├── docker-compose.yml
@@ -392,16 +387,13 @@ ricerca e richiesta di prova — date relative a oggi, così il calendario
 mostra sempre un giorno bloccato e uno conteso:
 
 ```bash
-sqlite3 telescope_time.db < seed.sql
+uv run python seed.py
 ```
 
-Le tabelle le crea l'app al primo avvio, quindi il seed va applicato dopo
-averla avviata almeno una volta. Se `sqlite3` non è installato:
-
-```bash
-uv run python -c "import sqlite3; d=sqlite3.connect('telescope_time.db'); \
-  d.executescript(open('seed.sql').read()); d.commit()"
-```
+Chiama `init_db()` da solo, quindi non serve aver avviato l'app prima, e
+funziona con qualunque motore punti `DATABASE_URL` — SQLite fuori da
+Docker, MariaDB su Docker (vedi il servizio `mariadb` in
+`docker-compose.yml`, il default lì).
 
 ---
 
@@ -433,12 +425,10 @@ docker compose logs -f
 # Ispezione DB — l'immagine non contiene sqlite3, si passa da Python
 docker compose exec telescope_time python -c \
   "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
-   print(d.execute('SELECT id, requested_night, start, end, status FROM time_requests').fetchall())"
+   print(d.execute('SELECT id, requested_night, start, end, status FROM requests').fetchall())"
 
 # Dati di esempio
-docker compose exec -T telescope_time python -c \
-  "import sqlite3,sys; d=sqlite3.connect('/data/telescope_time.db'); \
-   d.executescript(sys.stdin.read()); d.commit()" < seed.sql
+docker compose exec telescope_time python seed.py
 ```
 
 Il database è persistente nel volume Docker `telescope_db`.
