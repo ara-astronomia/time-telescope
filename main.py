@@ -11,8 +11,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-import router as router_module
-from router import router, init_db, auth_mode, auto_seed, dev_user, dev_groups, observatory_tz
+import models
+from config import auth_mode, auto_seed, dev_user, dev_groups, observatory_tz
+from models import init_db
+from router import router
 import os
 import seed
 
@@ -37,7 +39,7 @@ async def lifespan(app: FastAPI):
         )
 
         if auto_seed():
-            with router_module.SessionLocal() as db:
+            with models.SessionLocal() as db:
                 if seed.is_empty(db):
                     seed.seed(db)
                     print("[seed] Database vuoto: popolato con dati di esempio.", flush=True)
