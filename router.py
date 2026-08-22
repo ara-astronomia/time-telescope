@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, NaiveDatetime, ValidationInfo, computed_field, field_validator
 from typing import Literal, Optional, List
 from calendar import monthrange
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 import sqlite3
 import os
@@ -52,13 +52,39 @@ def observatory_tz() -> str:
 
 def now_at_observatory() -> datetime:
     """'Now' as a naive instant in the observatory's local time, comparable
-    with the naive `start`/`end` stored on requests (see `TimeSlot`): those
-    have no tzinfo by design, so a bare `datetime.now()` here would depend
-    on the OS timezone the process happened to pick up at startup, correct
-    only by accident when it matches the observatory's. `ZoneInfo(TZ)`
-    resolves it explicitly on every call instead.
+    with the naive `start`/`end` a `TimeSlot` validates: those have no
+    tzinfo by design, so a bare `datetime.now()` here would depend on the
+    OS timezone the process happened to pick up at startup, correct only by
+    accident when it matches the observatory's. `ZoneInfo(TZ)` resolves it
+    explicitly on every call instead.
     """
     return datetime.now(ZoneInfo(observatory_tz())).replace(tzinfo=None)
+
+
+def to_utc(instant: datetime) -> str:
+    """Converts an observatory-local instant to UTC, in the same format
+    already used for `created_at`/`updated_at`/`decided_at`.
+
+    Raises `ValueError` if the instant falls in a DST gap (the last Sunday
+    of March, when the observatory's clock jumps from 02:00 to 03:00): such
+    an instant never happens locally, and converting it round-trips back to
+    a different local time — that mismatch is the detection.
+    """
+    tz = ZoneInfo(observatory_tz())
+    aware = instant.replace(tzinfo=tz)
+    if aware.astimezone(timezone.utc).astimezone(tz).replace(tzinfo=None) != instant:
+        raise ValueError(
+            "Quest'ora non esiste nel fuso dell'osservatorio: "
+            "cade nel cambio d'ora di primavera."
+        )
+    return aware.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def to_local(instant: str) -> datetime:
+    """Converts a UTC instant read from the database back to the
+    observatory's local time, naive — the semantics `night_of`, the
+    readable time slot and the frontend all expect."""
+    return datetime.fromisoformat(instant).astimezone(ZoneInfo(observatory_tz())).replace(tzinfo=None)
 
 def reviewers_group() -> str:
     return os.environ.get("REVIEWERS_GROUP", "telescope-responsabili")
@@ -139,7 +165,7 @@ def init_db():
             -- hours belong to the previous night. It's the key the
             -- calendar groups on.
             requested_night     TEXT    NOT NULL,
-            -- time slot, observatory local time: '2026-09-12T22:00:00'.
+            -- time slot, UTC: '2026-09-12T20:00:00Z'.
             start               TEXT    NOT NULL,
             end                 TEXT    NOT NULL,
             status              TEXT    NOT NULL DEFAULT 'pending',
@@ -393,6 +419,14 @@ class TimeSlot(BaseModel):
         strings, in SQL as in Python."""
         return instant.replace(microsecond=0)
 
+    @field_validator("start", "end")
+    @classmethod
+    def exists_at_the_observatory(cls, instant: datetime) -> datetime:
+        """Rejects an instant the DST gap skips (the last Sunday of March):
+        `to_utc` would otherwise silently shift it by an hour."""
+        to_utc(instant)
+        return instant
+
     @field_validator("end")
     @classmethod
     def after_start(cls, instant: datetime, info: ValidationInfo) -> datetime:
@@ -509,9 +543,10 @@ def send_message(recipient: str, subject: str, body: str):
 
 def readable_time_slot(request: dict) -> str:
     """'12/09/2026 22:00 → 13/09/2026 01:00', without repeating the date
-    when the session doesn't cross midnight."""
-    start = datetime.fromisoformat(request["start"])
-    end = datetime.fromisoformat(request["end"])
+    when the session doesn't cross midnight. `start`/`end` are UTC on the
+    row; this is the observatory-local rendering a human reads."""
+    start = to_local(request["start"])
+    end = to_local(request["end"])
     end_format = "%H:%M" if start.date() == end.date() else "%d/%m/%Y %H:%M"
     return f"{start:%d/%m/%Y %H:%M} → {end:{end_format}}"
 
@@ -565,7 +600,7 @@ def send_reschedule_email(request: dict, previous: dict, reason: Optional[str]):
     """The observer got assigned a different time than requested: not
     something they should stumble on by chance opening the calendar."""
     warning = ""
-    if datetime.fromisoformat(request["start"]) < now_at_observatory():
+    if to_local(request["start"]) < now_at_observatory():
         warning = "\n\nAttenzione: la nuova fascia cade in una data passata."
 
     body = f"""
@@ -650,6 +685,14 @@ def read_request(db: sqlite3.Connection, request_id: int) -> dict:
     return dict(row)
 
 
+def localized(request: dict) -> dict:
+    """The request as the API exposes it: `start`/`end` in observatory
+    local time, not the UTC stored on the row. Kept out of `read_request`
+    itself, whose UTC values still feed `time_slot_conflict`."""
+    return {**request, "start": to_local(request["start"]).isoformat(),
+            "end": to_local(request["end"]).isoformat()}
+
+
 def verify_request_exists(db: sqlite3.Connection, request_id: int) -> None:
     if db.execute("SELECT 1 FROM time_requests WHERE id = ?", (request_id,)).fetchone() is None:
         raise HTTPException(status_code=404, detail=REQUEST_NOT_FOUND)
@@ -720,12 +763,12 @@ def list_requests(
         f"{FULL_TIME_REQUESTS}{filter_clause} ORDER BY r.start DESC",
         [status] if status else [],
     ).fetchall()
-    return [dict(row) for row in rows]
+    return [localized(dict(row)) for row in rows]
 
 
 @router.get("/requests/{request_id}", response_model=TimeRequestOut)
 def request_detail(request_id: int, db: sqlite3.Connection = Depends(get_db)):
-    return read_request(db, request_id)
+    return localized(read_request(db, request_id))
 
 
 @router.post("/requests", response_model=TimeRequestOut, status_code=201)
@@ -750,13 +793,13 @@ def submit_request(
                (research_program_id, requester_id, co_observers, requested_night, start, end)
            VALUES (?, ?, ?, ?, ?, ?)""",
         (body.research_program_id, user.id, body.co_observers, body.night,
-         body.start.isoformat(), body.end.isoformat()),
+         to_utc(body.start), to_utc(body.end)),
     )
     db.commit()
 
     request = read_request(db, cursor.lastrowid)
     send_notification_email(request, research_program)
-    return request
+    return localized(request)
 
 
 def notes_or_existing(body: StatusUpdate, request: dict) -> Optional[str]:
@@ -798,7 +841,7 @@ def update_status(
     updated = read_request(db, request_id)
     if status_changes:
         send_outcome_email(updated)
-    return updated
+    return localized(updated)
 
 
 @router.patch("/requests/{request_id}/schedule", response_model=TimeRequestOut)
@@ -834,9 +877,9 @@ def reschedule_request(
         if body.start <= now_at_observatory():
             raise HTTPException(status_code=422, detail="Il nuovo inizio deve essere nel futuro.")
 
-    start, end = body.start.isoformat(), body.end.isoformat()
+    start, end = to_utc(body.start), to_utc(body.end)
     if (start, end) == (request["start"], request["end"]):
-        return request
+        return localized(request)
 
     if request["status"] == "approved":
         time_slot_conflict(db, request_id, start, end)
@@ -856,7 +899,18 @@ def reschedule_request(
 
     rescheduled = read_request(db, request_id)
     send_reschedule_email(rescheduled, request, body.reason)
-    return rescheduled
+    return localized(rescheduled)
+
+
+def localized_log_entry(entry: dict) -> dict:
+    """`previous_start`/`previous_end`/`new_start`/`new_end` are UTC on a
+    reschedule row, NULL on a decision row."""
+    reschedule_fields = ("previous_start", "previous_end", "new_start", "new_end")
+    return {
+        **entry,
+        **{field: to_local(entry[field]).isoformat()
+           for field in reschedule_fields if entry[field] is not None},
+    }
 
 
 @router.get("/requests/{request_id}/history", response_model=List[LogEntryOut])
@@ -867,7 +921,7 @@ def request_history(request_id: int, db: sqlite3.Connection = Depends(get_db)):
         "SELECT * FROM decision_log WHERE request_id = ? ORDER BY id",
         (request_id,)
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [localized_log_entry(dict(r)) for r in rows]
 
 
 def record_overlaps(requests: List[dict], nights: dict) -> set:
@@ -938,6 +992,9 @@ def calendar(
         night["approved_count" if request["status"] == "approved" else "pending_count"] += 1
 
     contested = record_overlaps(requests, nights)
+
+    for request in requests:
+        request.update(localized(request))
 
     for key, night in nights.items():
         if night["approved_count"]:

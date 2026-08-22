@@ -11,6 +11,13 @@
 -- observers really exist in Authelia. Dates are relative to today, so the
 -- calendar always has something to show in the current month and the next
 -- one without needing to update this file.
+--
+-- `start`/`end` are UTC (#65): each literal local wall-clock time below is
+-- shifted by a fixed '-2 hours' to get there.
+-- ponytail: assumes CEST (Europe/Rome summer time) for every row, not the
+-- DST offset actually in effect for each row's own date — fine for
+-- throwaway dev fixtures, wrong for any row that falls in CET (roughly
+-- late October to late March): change that row's '-2 hours' to '-1 hours'.
 
 INSERT OR IGNORE INTO users (username, name, email) VALUES
     ('gvernier',  'Giulia Vernier',  'giulia.vernier@example.test'),
@@ -29,7 +36,8 @@ INSERT OR IGNORE INTO research_programs (name, description, specs) VALUES
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Giulia Vernier'), 'Marco Silvestri',
        date('now', '+3 days'),
-       date('now', '+3 days') || 'T22:00:00', date('now', '+4 days') || 'T01:00:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+3 days') || 'T22:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+4 days') || 'T01:00:00', '-2 hours'),
        'approved', 'Meteo previsto stabile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
@@ -37,33 +45,38 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+7 days'),
-       date('now', '+7 days') || 'T21:00:00', date('now', '+8 days') || 'T00:30:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+7 days') || 'T21:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+8 days') || 'T00:30:00', '-2 hours')
 FROM research_programs WHERE name = 'Monitoraggio comete';
 
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), 'Sara Ferretti',
        date('now', '+7 days'),
-       date('now', '+7 days') || 'T23:00:00', date('now', '+8 days') || 'T03:00:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+7 days') || 'T23:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+8 days') || 'T03:00:00', '-2 hours')
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
 -- Pending-only night: distinct shifts, no overlap.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+12 days'),
-       date('now', '+12 days') || 'T20:30:00', date('now', '+12 days') || 'T23:00:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+12 days') || 'T20:30:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+12 days') || 'T23:00:00', '-2 hours')
 FROM research_programs WHERE name = 'Monitoraggio comete';
 
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+12 days'),
-       date('now', '+12 days') || 'T23:00:00', date('now', '+13 days') || 'T02:00:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+12 days') || 'T23:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+13 days') || 'T02:00:00', '-2 hours')
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
 -- Rejected request: doesn't show up on the calendar and frees the night again.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+10 days'),
-       date('now', '+10 days') || 'T22:00:00', date('now', '+11 days') || 'T02:00:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+10 days') || 'T22:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+11 days') || 'T02:00:00', '-2 hours'),
        'rejected', 'Strumentazione in manutenzione.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
@@ -72,7 +85,8 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+8 days'),
-       date('now', '+9 days') || 'T02:00:00', date('now', '+9 days') || 'T04:30:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+9 days') || 'T02:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+9 days') || 'T04:30:00', '-2 hours')
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
 -- ─── Next month ────────────────────────────────────────────────────────────
@@ -81,7 +95,8 @@ FROM research_programs WHERE name = 'Curve di luce asteroidi';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Paolo Ranieri'), NULL,
        date('now', '+15 days'),
-       date('now', '+15 days') || 'T21:00:00', date('now', '+15 days') || 'T23:30:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+15 days') || 'T21:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+15 days') || 'T23:30:00', '-2 hours'),
        'approved', 'Confermato.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
@@ -89,20 +104,23 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+20 days'),
-       date('now', '+20 days') || 'T22:00:00', date('now', '+21 days') || 'T00:30:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+20 days') || 'T22:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+21 days') || 'T00:30:00', '-2 hours')
 FROM research_programs WHERE name = 'Monitoraggio comete';
 
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), NULL,
        date('now', '+20 days'),
-       date('now', '+20 days') || 'T23:00:00', date('now', '+21 days') || 'T01:30:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+20 days') || 'T23:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+21 days') || 'T01:30:00', '-2 hours')
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
 -- Rejected request.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Elena Fabbri'), NULL,
        date('now', '+30 days'),
-       date('now', '+30 days') || 'T20:00:00', date('now', '+30 days') || 'T22:00:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+30 days') || 'T20:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+30 days') || 'T22:00:00', '-2 hours'),
        'rejected', 'Strumento non disponibile.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
@@ -110,7 +128,8 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Luca Toselli',
        date('now', '+25 days'),
-       date('now', '+26 days') || 'T03:30:00', date('now', '+26 days') || 'T05:30:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+26 days') || 'T03:30:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+26 days') || 'T05:30:00', '-2 hours'),
        'approved', 'Ok.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
@@ -119,14 +138,16 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Giulia Vernier'), 'Marco Silvestri',
        date('now', '+35 days'),
-       date('now', '+36 days') || 'T01:00:00', date('now', '+36 days') || 'T03:30:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+36 days') || 'T01:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+36 days') || 'T03:30:00', '-2 hours')
 FROM research_programs WHERE name = 'Curve di luce asteroidi';
 
 -- Booked night, end of month.
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end, status, reviewer_notes, updated_at)
 SELECT id, (SELECT id FROM users WHERE name = 'Davide Manzoni'), NULL,
        date('now', '+40 days'),
-       date('now', '+40 days') || 'T22:30:00', date('now', '+41 days') || 'T01:00:00',
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+40 days') || 'T22:30:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+41 days') || 'T01:00:00', '-2 hours'),
        'approved', 'Ok.', strftime('%Y-%m-%dT%H:%M:%SZ','now')
 FROM research_programs WHERE name = 'Monitoraggio comete';
 
@@ -134,7 +155,8 @@ FROM research_programs WHERE name = 'Monitoraggio comete';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Chiara Bellandi'), 'Sara Ferretti',
        date('now', '+42 days'),
-       date('now', '+42 days') || 'T21:30:00', date('now', '+42 days') || 'T23:00:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+42 days') || 'T21:30:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+42 days') || 'T23:00:00', '-2 hours')
 FROM research_programs WHERE name = 'Survey exoplanet';
 
 -- Belongs to the member synthesized by the dev switcher: always pending, to
@@ -142,5 +164,6 @@ FROM research_programs WHERE name = 'Survey exoplanet';
 INSERT INTO time_requests (research_program_id, requester_id, co_observers, requested_night, start, end)
 SELECT id, (SELECT id FROM users WHERE name = 'Luca Bertani'), NULL,
        date('now', '+18 days'),
-       date('now', '+18 days') || 'T21:00:00', date('now', '+18 days') || 'T23:00:00'
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+18 days') || 'T21:00:00', '-2 hours'),
+       strftime('%Y-%m-%dT%H:%M:%SZ', date('now', '+18 days') || 'T23:00:00', '-2 hours')
 FROM research_programs WHERE name = 'Survey exoplanet';
