@@ -6,17 +6,23 @@ Docker:        managed by the Dockerfile
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-from router import router, init_db, auth_mode, dev_user, dev_groups
+from router import router, init_db, auth_mode, dev_user, dev_groups, observatory_tz
 import os
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+
+    try:
+        ZoneInfo(observatory_tz())
+    except ZoneInfoNotFoundError as error:
+        raise RuntimeError(f"TZ non valido: '{observatory_tz()}'.") from error
 
     if auth_mode() == "dev":
         print(
