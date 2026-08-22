@@ -7,6 +7,8 @@ on:
   pull_request:
 
 jobs:
+  # SQLite: the default engine outside Docker (no other service to spin up
+  # on the host), so no service container needed here.
   pytest:
     runs-on: ubuntu-latest
 
@@ -21,8 +23,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      # I test del frontend girano su Chromium: la cache evita di riscaricare
-      # ~115 MB a ogni run.
+      # Frontend tests run on Chromium: the cache avoids re-downloading
+      # ~115 MB on every run.
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -33,5 +35,52 @@ jobs:
         run: uv run playwright install --with-deps chromium
 
       - name: Run tests
+        run: uv run pytest -v --tb=short
+        timeout-minutes: 10
+
+  # MariaDB: the production engine (#15) — same suite, same test files,
+  # just pointed at a different DATABASE_URL. A GitHub Actions service
+  # container, not the project's own docker-compose.yml: this job doesn't
+  # use Docker Compose at all, so it needs its own equivalent of the
+  # `mariadb` service defined there.
+  pytest-mariadb:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: dev
+          MARIADB_DATABASE: telescope_time_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run tests
+        env:
+          DATABASE_URL: mysql+pymysql://root:dev@127.0.0.1:3306/telescope_time_test
         run: uv run pytest -v --tb=short
         timeout-minutes: 10
