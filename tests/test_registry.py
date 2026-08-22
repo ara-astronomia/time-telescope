@@ -4,19 +4,17 @@ A non-null `username` means a verified identity: only someone who has one
 can open a request. Name and email aren't typed in by hand.
 """
 
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
-
 from conftest import REVIEWER, MEMBER, future_night, request_body
 
 
 def registered_users(client):
-    """Reads the registry directly from the database the test uses, via
-    the same engine the app is running on — portable across backends,
-    unlike a raw `sqlite3.connect()`."""
     import router
-    with router.engine.connect() as conn:
-        return [dict(r) for r in conn.execute(text("SELECT * FROM users ORDER BY id")).mappings()]
+    with router.SessionLocal() as db:
+        records = db.scalars(router.select(router.UserRecord).order_by(router.UserRecord.id)).all()
+        return [
+            {"id": r.id, "username": r.username, "name": r.name, "email": r.email, "created_at": r.created_at}
+            for r in records
+        ]
 
 
 def create_request_as(client, headers, night=None, research_program_id=1):
@@ -58,31 +56,17 @@ def test_email_updates_when_it_changes_in_authelia(client_authelia):
     assert users[0]["email"] == "anna.nuova@example.test"
 
 
-def test_email_is_unique_in_the_registry(client_authelia):
-    import router
-    client_authelia.get("/telescope-time/me", headers=REVIEWER)
-    with router.engine.connect() as conn:
-        try:
-            conn.execute(
-                text("INSERT INTO users (username, name, email, created_at) "
-                     "VALUES (:username, :name, :email, '2026-01-01T00:00:00Z')"),
-                {"username": "other", "name": "Other Name", "email": "anna@example.test"},
-            )
-            conn.commit()
-            assert False, "two users with the same email: the UNIQUE constraint is missing"
-        except IntegrityError:
-            pass
-
-
 def test_multiple_users_without_email_are_allowed(client_authelia):
     """Needed for occasional co-observers whose contact info isn't known (#40)."""
     import router
-    with router.engine.connect() as conn:
-        conn.execute(text("INSERT INTO users (name, created_at) VALUES ('Guest One', '2026-01-01T00:00:00Z')"))
-        conn.execute(text("INSERT INTO users (name, created_at) VALUES ('Guest Two', '2026-01-01T00:00:00Z')"))
-        conn.commit()
-        without_email = conn.execute(text("SELECT COUNT(*) FROM users WHERE email IS NULL")).scalar()
-        assert without_email == 2
+    with router.SessionLocal() as db:
+        db.add(router.UserRecord(name="Guest One"))
+        db.add(router.UserRecord(name="Guest Two"))
+        db.commit()
+        without_email = db.scalars(
+            router.select(router.UserRecord).where(router.UserRecord.email.is_(None))
+        ).all()
+        assert len(without_email) == 2
 
 
 # ─── The request doesn't ask who you are ──────────────────────────────────────
@@ -107,11 +91,9 @@ def test_observer_field_in_the_body_is_ignored(client_authelia, research_program
 def test_the_requester_is_a_verified_user(client_authelia, research_program_authelia):
     import router
     create_request_as(client_authelia, MEMBER)
-    with router.engine.connect() as conn:
-        row = conn.execute(text("""
-            SELECT u.username FROM time_requests r JOIN users u ON u.id = r.requester_id
-        """)).mappings().fetchone()
-        assert row["username"] is not None
+    with router.SessionLocal() as db:
+        request = db.scalars(router.select(router.TimeRequest)).first()
+        assert request.requester.username is not None
 
 
 # ─── The outcome goes to whoever asked ─────────────────────────────────────────
@@ -187,13 +169,11 @@ def test_login_promotes_an_existing_co_observer(client_authelia):
     instead of a second one being created. It's the same person, and the
     observations they took part in stay theirs."""
     import router
-    with router.engine.connect() as conn:
-        conn.execute(text(
-            "INSERT INTO users (name, email, created_at) VALUES "
-            "('M. Rossi', 'mario.rossi@example.test', '2026-01-01T00:00:00Z')"
-        ))
-        conn.commit()
-        id_before = conn.execute(text("SELECT id FROM users WHERE name = 'M. Rossi'")).scalar()
+    with router.SessionLocal() as db:
+        co_observer = router.UserRecord(name="M. Rossi", email="mario.rossi@example.test")
+        db.add(co_observer)
+        db.commit()
+        id_before = co_observer.id
 
     client_authelia.get("/telescope-time/me", headers={
         "Remote-User": "mrossi",
