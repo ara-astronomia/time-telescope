@@ -12,9 +12,10 @@ from typing import Literal, Optional, List
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
-from sqlalchemy import create_engine, event, text, ForeignKey, select, func, case, String, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
+from sqlalchemy import create_engine, event, text, select, func, case
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
+from models import Base, Research, User, Request, DecisionLog, now_utc_string
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -117,92 +118,6 @@ REVIEWER_EMAIL = os.environ.get("REVIEWER_EMAIL", "responsabile@osservatorio.it"
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
-def now_utc_string() -> str:
-    """Same format already used for `created_at`/`updated_at`/`decided_at`
-    before the ORM: Python-side default instead of a per-dialect SQL
-    function (`strftime` on SQLite, `DATE_FORMAT`/`NOW()` on MariaDB) — one
-    implementation instead of one per engine.
-    """
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-class Base(DeclarativeBase):
-    # MariaDB requires an explicit length on VARCHAR (SQLite doesn't care):
-    # one default for every plain `Mapped[str]` column instead of repeating
-    # a length on each. Columns that hold genuinely free-form text
-    # (descriptions, notes) opt out with an explicit `Text` below.
-    type_annotation_map = {str: String(255)}
-
-
-class ResearchProgram(Base):
-    __tablename__ = "research_programs"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(unique=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    specs: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    created_at: Mapped[str] = mapped_column(default=now_utc_string)
-
-
-class UserRecord(Base):
-    """The `users` registry table. Named `UserRecord`, not `User`: that
-    name is already the Pydantic model for the authenticated identity
-    coming from Authelia, a different thing (see `register_user`)."""
-    __tablename__ = "users"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    # non-null username = identity verified by Authelia.
-    # NULL for someone known only by name (co-observers, #40).
-    username: Mapped[Optional[str]] = mapped_column(unique=True, default=None)
-    name: Mapped[str]
-    # key used to recognize a person already in the registry (#40);
-    # multiple rows can have it NULL.
-    email: Mapped[Optional[str]] = mapped_column(unique=True, default=None)
-    created_at: Mapped[str] = mapped_column(default=now_utc_string)
-    updated_at: Mapped[Optional[str]] = mapped_column(default=None, onupdate=now_utc_string)
-
-
-class TimeRequest(Base):
-    __tablename__ = "time_requests"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    research_program_id: Mapped[int] = mapped_column(ForeignKey("research_programs.id"))
-    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    co_observers: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    # reference night, derived from the date of `start`: the small hours
-    # belong to the previous night. It's the key the calendar groups on.
-    requested_night: Mapped[date]
-    # time slot, UTC: '2026-09-12T20:00:00Z'.
-    start: Mapped[str]
-    end: Mapped[str]
-    status: Mapped[str] = mapped_column(default="pending")
-    reviewer_notes: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    created_at: Mapped[str] = mapped_column(default=now_utc_string)
-    updated_at: Mapped[Optional[str]] = mapped_column(default=None, onupdate=now_utc_string)
-
-    # Every response that includes a request also needs the research
-    # program's name and the requester's name/email (see `request_as_dict`):
-    # eager by default, not per-query, so no call site has to remember it.
-    research_program: Mapped["ResearchProgram"] = relationship(lazy="joined")
-    requester: Mapped["UserRecord"] = relationship(lazy="joined")
-
-
-class DecisionLog(Base):
-    """Two kinds of event in the same table, told apart by `type`: a single
-    ordered log is what someone reading a request's history needs. The
-    columns of the other kind stay NULL."""
-    __tablename__ = "decision_log"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    request_id: Mapped[int] = mapped_column(ForeignKey("time_requests.id"))
-    type: Mapped[str] = mapped_column(default="decision")
-    previous_status: Mapped[Optional[str]] = mapped_column(default=None)
-    new_status: Mapped[Optional[str]] = mapped_column(default=None)
-    previous_start: Mapped[Optional[str]] = mapped_column(default=None)
-    previous_end: Mapped[Optional[str]] = mapped_column(default=None)
-    new_start: Mapped[Optional[str]] = mapped_column(default=None)
-    new_end: Mapped[Optional[str]] = mapped_column(default=None)
-    notes: Mapped[Optional[str]] = mapped_column(Text, default=None)
-    decided_by: Mapped[Optional[str]] = mapped_column(default=None)
-    decided_at: Mapped[str] = mapped_column(default=now_utc_string)
-
-
 engine = None
 SessionLocal = None
 _engine_url = None
@@ -283,7 +198,7 @@ def get_db():
 
 # ─── Authentication ───────────────────────────────────────────────────────────
 
-class User(BaseModel):
+class Identity(BaseModel):
     username: str = Field(description="Authelia username.")
     groups: List[str] = []
     email: Optional[str] = None
@@ -313,7 +228,7 @@ def current_user(
     remote_email:  Optional[str] = Header(None, alias="Remote-Email"),
     remote_name:   Optional[str] = Header(None, alias="Remote-Name"),
     dev_role:      Optional[str] = Cookie(None),
-) -> User:
+) -> Identity:
     """User identity, from the headers Nginx sets via Authelia.
 
     The headers are trustworthy only if the service isn't reachable by
@@ -333,7 +248,7 @@ def current_user(
     if not remote_user:
         raise HTTPException(status_code=401, detail="Autenticazione richiesta.")
 
-    return User(
+    return Identity(
         username=remote_user,
         groups=[g.strip() for g in remote_groups.split(",") if g.strip()],
         email=remote_email,
@@ -341,14 +256,14 @@ def current_user(
     )
 
 
-def register_user(db: Session, user: "User") -> int:
+def register_user(db: Session, user: "Identity") -> int:
     """Aligns the registry with the identity coming from Authelia and
     returns its id.
 
     Writes only if the record is missing or name/email changed: ordinary
     requests cost a SELECT, not a write.
     """
-    record = db.scalar(select(UserRecord).where(UserRecord.username == user.username))
+    record = db.scalar(select(User).where(User.username == user.username))
 
     if record is None:
         return _insert_or_reconcile_user(db, user)
@@ -358,9 +273,9 @@ def register_user(db: Session, user: "User") -> int:
     return record.id
 
 
-def _insert_or_reconcile_user(db: Session, user: "User") -> int:
+def _insert_or_reconcile_user(db: Session, user: "Identity") -> int:
     try:
-        record = UserRecord(username=user.username, name=user.display_name, email=user.email)
+        record = User(username=user.username, name=user.display_name, email=user.email)
         db.add(record)
         db.commit()
         return record.id
@@ -369,16 +284,16 @@ def _insert_or_reconcile_user(db: Session, user: "User") -> int:
         return _reconcile_after_registry_conflict(db, user)
 
 
-def _reconcile_after_registry_conflict(db: Session, user: "User") -> int:
+def _reconcile_after_registry_conflict(db: Session, user: "Identity") -> int:
     """Another INSERT violated UNIQUE between the initial SELECT and this one:
     username or email is already in the registry for a different reason, to
     be told apart case by case."""
-    record = db.scalar(select(UserRecord).where(UserRecord.username == user.username))
+    record = db.scalar(select(User).where(User.username == user.username))
     if record is not None:
         return record.id  # another request from the same user won the race
 
     co_observer_to_promote = db.scalar(
-        select(UserRecord).where(UserRecord.email == user.email, UserRecord.username.is_(None))
+        select(User).where(User.email == user.email, User.username.is_(None))
     )
     if co_observer_to_promote is not None:
         return _promote_co_observer(db, co_observer_to_promote.id, user)
@@ -386,18 +301,18 @@ def _reconcile_after_registry_conflict(db: Session, user: "User") -> int:
     return _register_without_email(db, user)
 
 
-def _promote_co_observer(db: Session, user_id: int, user: "User") -> int:
+def _promote_co_observer(db: Session, user_id: int, user: "Identity") -> int:
     """A co-observer entered by hand (#40), now recognized by email: the
     record gets updated instead of duplicated, so the observations they
     already took part in stay linked to them."""
-    record = db.get(UserRecord, user_id)
+    record = db.get(User, user_id)
     record.username = user.username
     record.name = user.display_name
     db.commit()
     return user_id
 
 
-def _register_without_email(db: Session, user: "User") -> int:
+def _register_without_email(db: Session, user: "Identity") -> int:
     """The email already belongs to another verified account — Authelia
     requires them unique, so this is a pathological case. Register without
     an address instead of denying access."""
@@ -406,15 +321,15 @@ def _register_without_email(db: Session, user: "User") -> int:
         f"assigned to another verified user, registered without an address",
         flush=True,
     )
-    record = UserRecord(username=user.username, name=user.display_name, email=None)
+    record = User(username=user.username, name=user.display_name, email=None)
     db.add(record)
     db.commit()
     return record.id
 
 
-def _update_name_and_email(db: Session, user_id: int, user: "User") -> None:
+def _update_name_and_email(db: Session, user_id: int, user: "Identity") -> None:
     try:
-        record = db.get(UserRecord, user_id)
+        record = db.get(User, user_id)
         record.name = user.display_name
         record.email = user.email
         db.commit()
@@ -423,23 +338,23 @@ def _update_name_and_email(db: Session, user_id: int, user: "User") -> None:
         _update_name_only(db, user_id, user)
 
 
-def _update_name_only(db: Session, user_id: int, user: "User") -> None:
+def _update_name_only(db: Session, user_id: int, user: "Identity") -> None:
     """The email moved to another account: only the name gets aligned here."""
-    record = db.get(UserRecord, user_id)
+    record = db.get(User, user_id)
     record.name = user.display_name
     db.commit()
 
 
 def registered_user(
-    user: User = Depends(current_user),
+    user: Identity = Depends(current_user),
     db: Session = Depends(get_db),
-) -> User:
+) -> Identity:
     """Current user, with the id of their record in the registry."""
     user.id = register_user(db, user)
     return user
 
 
-def reviewers_only(user: User = Depends(current_user)) -> User:
+def reviewers_only(user: Identity = Depends(current_user)) -> Identity:
     if not user.is_reviewer:
         raise HTTPException(
             status_code=403,
@@ -695,8 +610,8 @@ Motivo:       {reason or '—'}{warning}
 
 # ─── User endpoint ─────────────────────────────────────────────────────────────
 
-@router.get("/me", response_model=User)
-def me(user: User = Depends(registered_user)):
+@router.get("/me", response_model=Identity)
+def me(user: Identity = Depends(registered_user)):
     """Identity of the connected user: lets the pages know whether to show
     the review commands."""
     return user
@@ -710,13 +625,13 @@ def observatory():
 
 # ─── Research programs endpoints ───────────────────────────────────────────────
 
-def program_as_dict(program: ResearchProgram) -> dict:
+def program_as_dict(program: Research) -> dict:
     return {"id": program.id, "name": program.name, "description": program.description,
             "specs": program.specs, "created_at": program.created_at}
 
 
 def read_research_program(db: Session, research_program_id: int) -> dict:
-    program = db.get(ResearchProgram, research_program_id)
+    program = db.get(Research, research_program_id)
     if program is None:
         raise HTTPException(status_code=404, detail="Ricerca non trovata.")
     return program_as_dict(program)
@@ -724,14 +639,14 @@ def read_research_program(db: Session, research_program_id: int) -> dict:
 
 @router.get("/research-programs", response_model=List[ResearchProgramOut])
 def list_research_programs(db: Session = Depends(get_db)):
-    programs = db.scalars(select(ResearchProgram).order_by(ResearchProgram.name)).all()
+    programs = db.scalars(select(Research).order_by(Research.name)).all()
     return [program_as_dict(p) for p in programs]
 
 
 @router.post("/research-programs", response_model=ResearchProgramOut, status_code=201)
 def create_research_program(body: ResearchProgramCreate, db: Session = Depends(get_db)):
     try:
-        program = ResearchProgram(name=body.name.strip(), description=body.description, specs=body.specs)
+        program = Research(name=body.name.strip(), description=body.description, specs=body.specs)
         db.add(program)
         db.commit()
         return program_as_dict(program)
@@ -754,7 +669,7 @@ def month_bounds(year: int, month: int) -> tuple[str, str]:
 REQUEST_NOT_FOUND = "Richiesta non trovata."
 
 
-def request_as_dict(request: TimeRequest) -> dict:
+def request_as_dict(request: Request) -> dict:
     """The eager-loaded `research_program`/`requester` relationships take
     the place of the hand-written JOIN this used to be."""
     return {
@@ -775,8 +690,8 @@ def request_as_dict(request: TimeRequest) -> dict:
     }
 
 
-def get_request_or_404(db: Session, request_id: int) -> TimeRequest:
-    request = db.get(TimeRequest, request_id)
+def get_request_or_404(db: Session, request_id: int) -> Request:
+    request = db.get(Request, request_id)
     if request is None:
         raise HTTPException(status_code=404, detail=REQUEST_NOT_FOUND)
     return request
@@ -795,7 +710,7 @@ def localized(request: dict) -> dict:
 
 
 def verify_request_exists(db: Session, request_id: int) -> None:
-    if db.get(TimeRequest, request_id) is None:
+    if db.get(Request, request_id) is None:
         raise HTTPException(status_code=404, detail=REQUEST_NOT_FOUND)
 
 
@@ -805,11 +720,11 @@ def already_approved_at_same_time(
     """Another approved request occupying the instrument at the same
     instants. Two programs can share the night, not the instant."""
     request = db.scalar(
-        select(TimeRequest).where(
-            TimeRequest.status == "approved",
-            TimeRequest.id != request_id,
-            TimeRequest.start < end,
-            TimeRequest.end > start,
+        select(Request).where(
+            Request.status == "approved",
+            Request.id != request_id,
+            Request.start < end,
+            Request.end > start,
         )
     )
     return request_as_dict(request) if request else None
@@ -868,9 +783,9 @@ def list_requests(
     status: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = select(TimeRequest).order_by(TimeRequest.start.desc())
+    query = select(Request).order_by(Request.start.desc())
     if status:
-        query = query.where(TimeRequest.status == status)
+        query = query.where(Request.status == status)
     requests = db.scalars(query).all()
     return [localized(request_as_dict(r)) for r in requests]
 
@@ -884,15 +799,15 @@ def request_detail(request_id: int, db: Session = Depends(get_db)):
 def submit_request(
     body: TimeRequestCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(registered_user),
+    user: Identity = Depends(registered_user),
 ):
     research_program = read_research_program(db, body.research_program_id)
 
     duplicate = db.scalar(
-        select(TimeRequest).where(
-            TimeRequest.research_program_id == body.research_program_id,
-            TimeRequest.requested_night == date.fromisoformat(body.night),
-            TimeRequest.status != "rejected",
+        select(Request).where(
+            Request.research_program_id == body.research_program_id,
+            Request.requested_night == date.fromisoformat(body.night),
+            Request.status != "rejected",
         )
     )
     if duplicate:
@@ -901,7 +816,7 @@ def submit_request(
             detail="Esiste già una richiesta per questa ricerca in quella notte.",
         )
 
-    time_request = TimeRequest(
+    time_request = Request(
         research_program_id=body.research_program_id,
         requester_id=user.id,
         co_observers=body.co_observers,
@@ -928,7 +843,7 @@ def update_status(
     request_id: int,
     body: StatusUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(reviewers_only),
+    user: Identity = Depends(reviewers_only),
 ):
     lock_for_write(db)
     time_request = get_request_or_404(db, request_id)
@@ -962,7 +877,7 @@ def reschedule_request(
     request_id: int,
     body: RescheduleRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(registered_user),
+    user: Identity = Depends(registered_user),
 ):
     """Reschedules a request, pending or already approved.
 
@@ -1066,7 +981,7 @@ def record_overlaps(requests: List[dict], nights: dict) -> set:
     return contested
 
 
-def calendar_entry_as_dict(request: TimeRequest) -> dict:
+def calendar_entry_as_dict(request: Request) -> dict:
     return {
         "id": request.id,
         "observer": request.requester.name,
@@ -1105,16 +1020,16 @@ def calendar(
     month = month or today.month
     first, last = month_bounds(year, month)
 
-    time_requests = db.scalars(
-        select(TimeRequest)
+    matching_requests = db.scalars(
+        select(Request)
         .where(
-            TimeRequest.requested_night.between(date.fromisoformat(first), date.fromisoformat(last)),
-            TimeRequest.status.in_(("approved", "pending")),
+            Request.requested_night.between(date.fromisoformat(first), date.fromisoformat(last)),
+            Request.status.in_(("approved", "pending")),
         )
-        .order_by(TimeRequest.start, TimeRequest.created_at)
+        .order_by(Request.start, Request.created_at)
     ).all()
 
-    requests = [calendar_entry_as_dict(r) for r in time_requests]
+    requests = [calendar_entry_as_dict(r) for r in matching_requests]
     nights: dict = {}
     for request in requests:
         night = nights.setdefault(
@@ -1143,19 +1058,19 @@ def calendar(
 def statistics(db: Session = Depends(get_db)):
     """Bonus endpoint for aggregate statistics — useful for future work."""
     totals = db.execute(
-        select(TimeRequest.status, func.count().label("count")).group_by(TimeRequest.status)
+        select(Request.status, func.count().label("count")).group_by(Request.status)
     ).mappings().all()
 
     by_research_program = db.execute(
         select(
-            ResearchProgram.name,
-            func.count(TimeRequest.id).label("request_count"),
-            func.sum(case((TimeRequest.status == "approved", 1), else_=0)).label("approved_count"),
+            Research.name,
+            func.count(Request.id).label("request_count"),
+            func.sum(case((Request.status == "approved", 1), else_=0)).label("approved_count"),
         )
-        .select_from(ResearchProgram)
-        .outerjoin(TimeRequest, TimeRequest.research_program_id == ResearchProgram.id)
-        .group_by(ResearchProgram.id)
-        .order_by(func.count(TimeRequest.id).desc())
+        .select_from(Research)
+        .outerjoin(Request, Request.research_program_id == Research.id)
+        .group_by(Research.id)
+        .order_by(func.count(Request.id).desc())
     ).mappings().all()
 
     return {

@@ -6,7 +6,7 @@
 Replaces the old seed.sql: raw SQL date/UTC-arithmetic functions
 (`strftime`, `date('now', ...)`) aren't portable across engines, going
 through the same ORM models the app itself uses is. Rerunning it doesn't
-duplicate users/research programs, but does duplicate time_requests.
+duplicate users/research programs, but does duplicate requests.
 
 Also runs automatically at startup (see `main.py`'s `lifespan`) when
 `AUTH_MODE=dev` and the database is empty — never against a database that
@@ -104,33 +104,33 @@ def is_empty(db) -> bool:
     that has never been used, not just one with nothing left after
     everything got rejected/deleted."""
     return (
-        db.scalar(router.select(router.UserRecord.id).limit(1)) is None
-        and db.scalar(router.select(router.ResearchProgram.id).limit(1)) is None
-        and db.scalar(router.select(router.TimeRequest.id).limit(1)) is None
+        db.scalar(router.select(router.User.id).limit(1)) is None
+        and db.scalar(router.select(router.Research.id).limit(1)) is None
+        and db.scalar(router.select(router.Request.id).limit(1)) is None
     )
 
 
 def seed(db) -> None:
     def user_id(name: str) -> int:
-        return db.scalar(router.select(router.UserRecord.id).where(router.UserRecord.name == name))
+        return db.scalar(router.select(router.User.id).where(router.User.name == name))
 
     def program_id(name: str) -> int:
-        return db.scalar(router.select(router.ResearchProgram.id).where(router.ResearchProgram.name == name))
+        return db.scalar(router.select(router.Research.id).where(router.Research.name == name))
 
     for username, name, email in USERS:
-        exists = db.scalar(router.select(router.UserRecord).where(router.UserRecord.username == username))
+        exists = db.scalar(router.select(router.User).where(router.User.username == username))
         if not exists:
-            db.add(router.UserRecord(username=username, name=name, email=email))
+            db.add(router.User(username=username, name=name, email=email))
     db.commit()
 
     for name, description, specs in RESEARCH_PROGRAMS:
-        exists = db.scalar(router.select(router.ResearchProgram).where(router.ResearchProgram.name == name))
+        exists = db.scalar(router.select(router.Research).where(router.Research.name == name))
         if not exists:
-            db.add(router.ResearchProgram(name=name, description=description, specs=specs))
+            db.add(router.Research(name=name, description=description, specs=specs))
     db.commit()
 
     for program_name, requester_name, co_observers, start, end, status, reviewer_notes in requests():
-        request = router.TimeRequest(
+        request = router.Request(
             research_program_id=program_id(program_name),
             requester_id=user_id(requester_name),
             co_observers=co_observers,

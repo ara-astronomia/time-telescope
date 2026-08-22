@@ -10,7 +10,7 @@ from conftest import REVIEWER, MEMBER, future_night, request_body
 def registered_users(client):
     import router
     with router.SessionLocal() as db:
-        records = db.scalars(router.select(router.UserRecord).order_by(router.UserRecord.id)).all()
+        records = db.scalars(router.select(router.User).order_by(router.User.id)).all()
         return [
             {"id": r.id, "username": r.username, "name": r.name, "email": r.email,
              "created_at": r.created_at, "updated_at": r.updated_at}
@@ -74,11 +74,11 @@ def test_multiple_users_without_email_are_allowed(client_authelia):
     """Needed for occasional co-observers whose contact info isn't known (#40)."""
     import router
     with router.SessionLocal() as db:
-        db.add(router.UserRecord(name="Guest One"))
-        db.add(router.UserRecord(name="Guest Two"))
+        db.add(router.User(name="Guest One"))
+        db.add(router.User(name="Guest Two"))
         db.commit()
         without_email = db.scalars(
-            router.select(router.UserRecord).where(router.UserRecord.email.is_(None))
+            router.select(router.User).where(router.User.email.is_(None))
         ).all()
         assert len(without_email) == 2
 
@@ -106,7 +106,7 @@ def test_the_requester_is_a_verified_user(client_authelia, research_program_auth
     import router
     create_request_as(client_authelia, MEMBER)
     with router.SessionLocal() as db:
-        request = db.scalars(router.select(router.TimeRequest)).first()
+        request = db.scalars(router.select(router.Request)).first()
         assert request.requester.username is not None
 
 
@@ -184,7 +184,7 @@ def test_login_promotes_an_existing_co_observer(client_authelia):
     observations they took part in stay theirs."""
     import router
     with router.SessionLocal() as db:
-        co_observer = router.UserRecord(name="M. Rossi", email="mario.rossi@example.test")
+        co_observer = router.User(name="M. Rossi", email="mario.rossi@example.test")
         db.add(co_observer)
         db.commit()
         id_before = co_observer.id

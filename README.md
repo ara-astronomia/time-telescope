@@ -99,8 +99,8 @@ uv run python seed.py
 
 It calls `init_db()` itself, so the database doesn't need to have been
 started first, and it works against whichever engine `DATABASE_URL` points
-at (SQLite by default, MariaDB too — see `docker-compose.yml`'s `mariadb`
-profile).
+at — SQLite outside Docker, MariaDB on Docker (see `docker-compose.yml`'s
+`mariadb` service, the default there).
 
 ---
 
@@ -132,7 +132,7 @@ docker compose logs -f
 # DB inspection — the image doesn't include sqlite3, use Python instead
 docker compose exec telescope_time python -c \
   "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
-   print(d.execute('SELECT id, requested_night, start, end, status FROM time_requests').fetchall())"
+   print(d.execute('SELECT id, requested_night, start, end, status FROM requests').fetchall())"
 
 # Sample data
 docker compose exec telescope_time python seed.py
@@ -391,8 +391,9 @@ uv run python seed.py
 ```
 
 Chiama `init_db()` da solo, quindi non serve aver avviato l'app prima, e
-funziona con qualunque motore punti `DATABASE_URL` (SQLite di default,
-anche MariaDB — vedi il profilo `mariadb` in `docker-compose.yml`).
+funziona con qualunque motore punti `DATABASE_URL` — SQLite fuori da
+Docker, MariaDB su Docker (vedi il servizio `mariadb` in
+`docker-compose.yml`, il default lì).
 
 ---
 
@@ -424,7 +425,7 @@ docker compose logs -f
 # Ispezione DB — l'immagine non contiene sqlite3, si passa da Python
 docker compose exec telescope_time python -c \
   "import sqlite3; d=sqlite3.connect('/data/telescope_time.db'); \
-   print(d.execute('SELECT id, requested_night, start, end, status FROM time_requests').fetchall())"
+   print(d.execute('SELECT id, requested_night, start, end, status FROM requests').fetchall())"
 
 # Dati di esempio
 docker compose exec telescope_time python seed.py
