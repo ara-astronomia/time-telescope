@@ -58,6 +58,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          # The Dockerfile's last stage is `dev` (Playwright + Chromium,
+          # for local testing only) — pinned to `base` explicitly so the
+          # published image never carries that test-only tooling.
+          target: base
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

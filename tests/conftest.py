@@ -92,9 +92,14 @@ def client(tmp_path, monkeypatch, isolated_database):
     AUTH_MODE=dev synthesizes the identity, so tests that aren't about
     authorization don't need to pass headers on every call; the ones that
     are use `client_authelia`.
+
+    AUTO_SEED=false: every test needs its database to start out actually
+    empty, not pre-filled with the same sample data AUTH_MODE=dev would
+    otherwise seed automatically.
     """
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "dev")
+    monkeypatch.setenv("AUTO_SEED", "false")
     import main
 
     with TestClient(main.app) as c:
@@ -209,6 +214,7 @@ def app_url(tmp_path_factory):
 
     os.environ["TELESCOPE_DB_PATH"] = str(tmp_path_factory.mktemp("db") / "frontend.db")
     os.environ["AUTH_MODE"] = "dev"
+    os.environ["AUTO_SEED"] = "false"
     import main
 
     socket_ = socket.socket()

@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.14-slim AS base
 
 # uv as installer: same versions as the lockfile, no resolution at build time
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
@@ -12,6 +12,7 @@ RUN uv sync --frozen --no-dev
 # Application code
 COPY main.py .
 COPY router.py .
+COPY seed.py .
 
 # Static HTML pages
 COPY static/ ./static/
@@ -41,3 +42,25 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8010
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010"]
+
+# ─── Dev stage ──────────────────────────────────────────────────────────────
+# Adds the `dev` dependency group (pytest, pytest-playwright, httpx2) and a
+# Chromium Playwright already knows how to drive — so `uv run pytest`
+# (including the *_frontend_* tests) works right after `docker compose up
+# --build`, without a manual `playwright install` step to remember every
+# time the container gets rebuilt. Selected by docker-compose.yml's `target:
+# dev`. Being the last stage in the file, it would also become the default
+# with no `target` specified at all — docker-build.yml pins `target: base`
+# explicitly so the image it pushes never carries this test-only tooling.
+FROM base AS dev
+
+USER root
+RUN uv sync --frozen
+# System libraries Chromium needs (fonts, X11, audio, ...): root-only, and
+# shared regardless of which user later launches the browser.
+RUN uv run playwright install-deps chromium
+
+USER app
+# The browser binary itself is cached per-user (~/.cache/ms-playwright),
+# hence installed as `app`, the user that will actually run the tests.
+RUN uv run playwright install chromium

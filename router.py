@@ -52,6 +52,14 @@ def auth_mode() -> str:
     """
     return os.environ.get("AUTH_MODE", "forward-auth")
 
+def auto_seed() -> bool:
+    """Whether an empty database gets sample data at startup — see
+    `seed.py` and `main.py`'s lifespan. On by default for `AUTH_MODE=dev`;
+    the test suite turns it off explicitly (its own fixtures need every
+    test to start from a database that's actually empty, not one already
+    holding sample data)."""
+    return os.environ.get("AUTO_SEED", "true") != "false"
+
 def dev_user() -> str:
     return os.environ.get("DEV_USER", "sviluppo")
 

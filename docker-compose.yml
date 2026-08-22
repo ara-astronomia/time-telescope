@@ -5,7 +5,11 @@
 # machine, not versioned here.
 services:
   telescope_time:
-    build: .
+    build:
+      context: .
+      # Includes Playwright + Chromium, so the *_frontend_* tests run
+      # right away — see the Dockerfile's `dev` stage.
+      target: dev
     container_name: telescope_time
     restart: unless-stopped
     depends_on:
