@@ -12,7 +12,8 @@ def registered_users(client):
     with router.SessionLocal() as db:
         records = db.scalars(router.select(router.UserRecord).order_by(router.UserRecord.id)).all()
         return [
-            {"id": r.id, "username": r.username, "name": r.name, "email": r.email, "created_at": r.created_at}
+            {"id": r.id, "username": r.username, "name": r.name, "email": r.email,
+             "created_at": r.created_at, "updated_at": r.updated_at}
             for r in records
         ]
 
@@ -54,6 +55,19 @@ def test_email_updates_when_it_changes_in_authelia(client_authelia):
     users = registered_users(client_authelia)
     assert len(users) == 1
     assert users[0]["email"] == "anna.nuova@example.test"
+
+
+def test_updated_at_is_null_until_the_registry_actually_changes(client_authelia):
+    for _ in range(3):
+        client_authelia.get("/telescope-time/me", headers=REVIEWER)
+    assert registered_users(client_authelia)[0]["updated_at"] is None
+
+
+def test_updated_at_is_set_when_the_registry_syncs(client_authelia):
+    client_authelia.get("/telescope-time/me", headers=REVIEWER)
+    updated = {**REVIEWER, "Remote-Email": "anna.nuova@example.test"}
+    client_authelia.get("/telescope-time/me", headers=updated)
+    assert registered_users(client_authelia)[0]["updated_at"] is not None
 
 
 def test_multiple_users_without_email_are_allowed(client_authelia):

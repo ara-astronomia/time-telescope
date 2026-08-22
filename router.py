@@ -157,6 +157,7 @@ class UserRecord(Base):
     # multiple rows can have it NULL.
     email: Mapped[Optional[str]] = mapped_column(unique=True, default=None)
     created_at: Mapped[str] = mapped_column(default=now_utc_string)
+    updated_at: Mapped[Optional[str]] = mapped_column(default=None, onupdate=now_utc_string)
 
 
 class TimeRequest(Base):
