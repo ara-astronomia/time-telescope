@@ -1,11 +1,13 @@
 import os
 import sys
 import time as time_module
+import uuid
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text as sql_text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -46,7 +48,42 @@ def observatory_far_ahead_of_the_system_clock():
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
+def isolated_database(monkeypatch):
+    """Every test gets its own database, recreated from scratch — for
+    SQLite that's a fresh `tmp_path` file (handled directly by `client`/
+    `client_authelia` below); against an external server (MariaDB, via
+    `DATABASE_URL` already set in the environment when the suite is
+    launched) a temp file isn't available, so this creates a
+    throwaway, uniquely-named database on that server instead and drops
+    it afterward — the same one-test-one-database isolation SQLite gets
+    for free.
+    """
+    template = os.environ.get("DATABASE_URL")
+    if not template or template.startswith("sqlite"):
+        yield
+        return
+
+    server_url = template.rsplit("/", 1)[0]
+    name = f"test_{uuid.uuid4().hex[:16]}"
+    admin_engine = create_engine(f"{server_url}/")
+    with admin_engine.connect() as conn:
+        conn.execute(sql_text(f"CREATE DATABASE {name}"))
+        conn.commit()
+    admin_engine.dispose()
+
+    monkeypatch.setenv("DATABASE_URL", f"{server_url}/{name}")
+    try:
+        yield
+    finally:
+        drop_engine = create_engine(f"{server_url}/")
+        with drop_engine.connect() as conn:
+            conn.execute(sql_text(f"DROP DATABASE {name}"))
+            conn.commit()
+        drop_engine.dispose()
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch, isolated_database):
     """Client on a temporary database, recreated from scratch for every test.
 
     The `with` is necessary: it runs the app's lifespan, which is where
@@ -65,7 +102,7 @@ def client(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client_authelia(tmp_path, monkeypatch):
+def client_authelia(tmp_path, monkeypatch, isolated_database):
     """Client in production mode: identity comes only from the headers."""
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "forward-auth")
@@ -147,9 +184,28 @@ def review(client, request_id, status="approved", notes=None):
 @pytest.fixture(scope="session")
 def app_url(tmp_path_factory):
     """Starts the app on a free port: the browser makes real HTTP requests,
-    so TestClient isn't enough."""
+    so TestClient isn't enough.
+
+    Session-scoped, so `isolated_database` (function-scoped) doesn't apply
+    here: if `DATABASE_URL` already points at an external server (MariaDB)
+    when the session starts, this creates one dedicated database for the
+    whole session instead — the concurrency tests all share this one app
+    instance regardless, same as they'd share a single SQLite file.
+    """
     import os, socket, threading, time
     import uvicorn
+
+    external_url = os.environ.get("DATABASE_URL")
+    if external_url and not external_url.startswith("sqlite"):
+        from sqlalchemy import create_engine, text as sql_text
+        server_url = external_url.rsplit("/", 1)[0]
+        name = f"test_session_{uuid.uuid4().hex[:16]}"
+        admin_engine = create_engine(f"{server_url}/")
+        with admin_engine.connect() as conn:
+            conn.execute(sql_text(f"CREATE DATABASE {name}"))
+            conn.commit()
+        admin_engine.dispose()
+        os.environ["DATABASE_URL"] = f"{server_url}/{name}"
 
     os.environ["TELESCOPE_DB_PATH"] = str(tmp_path_factory.mktemp("db") / "frontend.db")
     os.environ["AUTH_MODE"] = "dev"

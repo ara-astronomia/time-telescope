@@ -22,8 +22,8 @@ docker compose up -d --build
 docker compose logs -f
 docker compose exec telescope_time sqlite3 /data/telescope_time.db
 
-# Sample data (after the first startup, which creates the tables)
-sqlite3 telescope_time.db < seed.sql
+# Sample data — seed.py calls init_db() itself, no prior startup needed
+uv run python seed.py
 ```
 
 Pages: `http://localhost:8010/request.html` (also `dashboard.html`, `calendar.html`). Swagger at `/docs`. The root `/` returns 404: there's no `index.html`.
@@ -52,7 +52,7 @@ Every authenticated request is reconciled against the `users` table by `register
 
 Plain `sqlite3` (no ORM, WAL journaling), three tables: `research_programs` (`name` UNIQUE), `users` (registry, `username`/`email` UNIQUE but nullable), `time_requests` (FK to `research_programs` and `users`) plus `decision_log` (log of decisions and reschedules, a single event type per row with the other type's columns left NULL). Per-request connection via `Depends(get_db)` with `row_factory = sqlite3.Row`; functions return `dict(row)`.
 
-`telescope_time.db` is not versioned: it starts empty and is populated from `seed.sql`. Locally the default is `./telescope_time.db`; in Docker it's `TELESCOPE_DB_PATH=/data/telescope_time.db` on the `telescope_db` volume.
+`telescope_time.db` is not versioned: it starts empty and is populated by `seed.py`. Locally the default is `./telescope_time.db`; in Docker it's `TELESCOPE_DB_PATH=/data/telescope_time.db` on the `telescope_db` volume.
 
 Concurrent writes to `time_requests` (approval, reschedule) open `BEGIN IMMEDIATE` before reading the current state: without this, two simultaneous decisions would both cross the window between the conflict check and the `UPDATE`.
 
@@ -70,6 +70,6 @@ Request states: `pending` (default) → `approved` | `rejected`, via `PATCH /tel
 
 ## Conventions
 
-Code, docstrings, and identifiers (schema, endpoints, functions, HTML/test file names) are in **English**. User-facing messages stay in **Italian**: HTTP error details (`detail=...`), the text and comments in the `static/*.html` UI, and comments in infrastructure files (`docker-compose.yml`, `nginx_time_telescope.conf`). Don't mix the two: an Italian identifier or an English error message breaks this convention.
+Code, docstrings, identifiers (schema, endpoints, functions, HTML/test file names), and comments everywhere — including infrastructure files (`docker-compose.yml`, `nginx_time_telescope.conf`) — are in **English**. Italian is reserved for the user interface only: HTTP error details (`detail=...`) and the text in the `static/*.html` UI. Don't mix the two: an Italian identifier or comment outside the UI, or an English error message shown to a user, breaks this convention. A proper localization layer is planned for the future; until then, Italian stays hardcoded in those user-facing spots.
 
 **No comments in code** (`#`, `//`). If a line seems to need one, that's a signal to rewrite it instead — a clearer name, an extracted function, a better structure. A docstring is the only accepted fallback, and only when there's truly no other way to convey something (FastAPI route/model docstrings double as Swagger documentation, so those stay); it must describe the current behavior only, never an issue number, a past state, or "before X / after X" narrative — same rule for test docstrings and test names.

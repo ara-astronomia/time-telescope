@@ -4,20 +4,19 @@ A non-null `username` means a verified identity: only someone who has one
 can open a request. Name and email aren't typed in by hand.
 """
 
-import sqlite3
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from conftest import REVIEWER, MEMBER, future_night, request_body
 
 
 def registered_users(client):
-    """Reads the registry directly from the database the test uses."""
-    import os
-    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
-    conn.row_factory = sqlite3.Row
-    try:
-        return [dict(r) for r in conn.execute("SELECT * FROM users ORDER BY id")]
-    finally:
-        conn.close()
+    """Reads the registry directly from the database the test uses, via
+    the same engine the app is running on — portable across backends,
+    unlike a raw `sqlite3.connect()`."""
+    import router
+    with router.engine.connect() as conn:
+        return [dict(r) for r in conn.execute(text("SELECT * FROM users ORDER BY id")).mappings()]
 
 
 def create_request_as(client, headers, night=None, research_program_id=1):
@@ -60,35 +59,30 @@ def test_email_updates_when_it_changes_in_authelia(client_authelia):
 
 
 def test_email_is_unique_in_the_registry(client_authelia):
-    import os
+    import router
     client_authelia.get("/telescope-time/me", headers=REVIEWER)
-    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
-    try:
+    with router.engine.connect() as conn:
         try:
             conn.execute(
-                "INSERT INTO users (username, name, email) VALUES (?,?,?)",
-                ("other", "Other Name", "anna@example.test"),
+                text("INSERT INTO users (username, name, email, created_at) "
+                     "VALUES (:username, :name, :email, '2026-01-01T00:00:00Z')"),
+                {"username": "other", "name": "Other Name", "email": "anna@example.test"},
             )
             conn.commit()
             assert False, "two users with the same email: the UNIQUE constraint is missing"
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             pass
-    finally:
-        conn.close()
 
 
 def test_multiple_users_without_email_are_allowed(client_authelia):
     """Needed for occasional co-observers whose contact info isn't known (#40)."""
-    import os
-    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
-    try:
-        conn.execute("INSERT INTO users (name) VALUES ('Guest One')")
-        conn.execute("INSERT INTO users (name) VALUES ('Guest Two')")
+    import router
+    with router.engine.connect() as conn:
+        conn.execute(text("INSERT INTO users (name, created_at) VALUES ('Guest One', '2026-01-01T00:00:00Z')"))
+        conn.execute(text("INSERT INTO users (name, created_at) VALUES ('Guest Two', '2026-01-01T00:00:00Z')"))
         conn.commit()
-        without_email = conn.execute("SELECT COUNT(*) FROM users WHERE email IS NULL").fetchone()[0]
+        without_email = conn.execute(text("SELECT COUNT(*) FROM users WHERE email IS NULL")).scalar()
         assert without_email == 2
-    finally:
-        conn.close()
 
 
 # ─── The request doesn't ask who you are ──────────────────────────────────────
@@ -111,17 +105,13 @@ def test_observer_field_in_the_body_is_ignored(client_authelia, research_program
 
 
 def test_the_requester_is_a_verified_user(client_authelia, research_program_authelia):
-    import os
+    import router
     create_request_as(client_authelia, MEMBER)
-    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
-    conn.row_factory = sqlite3.Row
-    try:
-        row = conn.execute("""
+    with router.engine.connect() as conn:
+        row = conn.execute(text("""
             SELECT u.username FROM time_requests r JOIN users u ON u.id = r.requester_id
-        """).fetchone()
+        """)).mappings().fetchone()
         assert row["username"] is not None
-    finally:
-        conn.close()
 
 
 # ─── The outcome goes to whoever asked ─────────────────────────────────────────
@@ -196,16 +186,14 @@ def test_login_promotes_an_existing_co_observer(client_authelia):
     co-observer, #40) and that person logs in, the record gets promoted
     instead of a second one being created. It's the same person, and the
     observations they took part in stay theirs."""
-    import os
-    conn = sqlite3.connect(os.environ["TELESCOPE_DB_PATH"])
-    try:
-        conn.execute(
-            "INSERT INTO users (name, email) VALUES ('M. Rossi', 'mario.rossi@example.test')"
-        )
+    import router
+    with router.engine.connect() as conn:
+        conn.execute(text(
+            "INSERT INTO users (name, email, created_at) VALUES "
+            "('M. Rossi', 'mario.rossi@example.test', '2026-01-01T00:00:00Z')"
+        ))
         conn.commit()
-        id_before = conn.execute("SELECT id FROM users WHERE name = 'M. Rossi'").fetchone()[0]
-    finally:
-        conn.close()
+        id_before = conn.execute(text("SELECT id FROM users WHERE name = 'M. Rossi'")).scalar()
 
     client_authelia.get("/telescope-time/me", headers={
         "Remote-User": "mrossi",
