@@ -190,8 +190,8 @@ def test_the_default_month_is_the_observatorys_not_the_systems(client, monkeypat
     """"Today" for the default year/month must come from `now_at_observatory`,
     not the process's own idea of the clock — otherwise a night right
     around a day boundary can default to the wrong month."""
-    import router
-    monkeypatch.setattr(router, "now_at_observatory", lambda: datetime(2027, 1, 5, 3, 0))
+    import config
+    monkeypatch.setattr(config, "now_at_observatory", lambda: datetime(2027, 1, 5, 3, 0))
 
     res = client.get("/telescope-time/calendar")
 

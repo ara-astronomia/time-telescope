@@ -1,13 +1,15 @@
-"""ORM schema (SQLAlchemy) — kept separate from router.py so a mapped
-`User`/`Request` can't collide with the identically-named Pydantic models
-`router.py` uses for the API layer (the authenticated identity, the
-request bodies)."""
+"""ORM schema (SQLAlchemy) and engine/session lifecycle — kept separate from
+`auth.py`'s Pydantic `Identity` and `schemas.py`'s request/response models so
+a mapped `User`/`Request` can't collide with an identically-named API
+model."""
 
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, String, Text, create_engine, event
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+
+from config import database_url
 
 
 def now_utc_string() -> str:
@@ -91,3 +93,82 @@ class DecisionLog(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, default=None)
     decided_by: Mapped[Optional[str]] = mapped_column(default=None)
     decided_at: Mapped[str] = mapped_column(default=now_utc_string)
+
+
+engine = None
+SessionLocal = None
+_engine_url = None
+
+
+def _ensure_engine():
+    """(Re)builds the engine when `DATABASE_URL` has changed since the last
+    call — otherwise a no-op, reusing the existing engine/pool.
+
+    Rebuilding only on change, rather than once at startup, matters for
+    more than tidiness: the engine is a module-level global, shared by
+    every FastAPI app instance in the process — including a long-lived one
+    a test suite might keep running in a background thread (`app_url` in
+    conftest.py) alongside many short-lived ones on their own throwaway
+    databases. Building the engine once at startup and never again left
+    that background instance holding a stale engine pointed at a database
+    a later, unrelated test had already dropped — the same class of bug
+    the old `sqlite3.connect(db_path(), ...)` per-call design in `get_db()`
+    never had, because it read the environment fresh on every connection
+    instead of caching anything.
+    """
+    global engine, SessionLocal, _engine_url
+    url = database_url()
+    if url == _engine_url:
+        return
+
+    connect_args = {"check_same_thread": False, "timeout": 15} if url.startswith("sqlite") else {}
+    engine = create_engine(url, connect_args=connect_args)
+
+    if engine.dialect.name == "sqlite":
+        @event.listens_for(engine, "connect")
+        def _sqlite_connect(dbapi_connection, _):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys = ON")
+            cursor.execute("PRAGMA journal_mode = WAL")
+            cursor.close()
+
+    SessionLocal = sessionmaker(bind=engine)
+    _engine_url = url
+
+
+def init_db():
+    """Builds the engine from `DATABASE_URL` and creates the schema if
+    missing.
+
+    SQLite gets two PRAGMAs no other dialect needs, applied on every new
+    physical connection via the `connect` event (harmless to repeat,
+    unlike `journal_mode` which only truly needs setting once — simpler to
+    fold both into one place than to keep two separate mechanisms):
+    - `PRAGMA foreign_keys = ON`, off by default;
+    - `PRAGMA journal_mode = WAL`, so readers and the writer proceed in
+      parallel instead of blocking each other.
+
+    pysqlite's own implicit-transaction handling is left untouched
+    (unlike a common recipe that disables it to control `BEGIN` globally):
+    it only auto-opens a transaction before a write statement, never
+    before a plain read, which is exactly why `lock_for_write` (router.py)
+    can issue `BEGIN IMMEDIATE` itself as a plain statement — nothing has
+    opened a transaction yet at that point in the request. Overriding this
+    globally instead once made ordinary concurrent reads (`test_concurrency.py
+    ::test_simultaneous_calls_do_not_fail`) fail with "database is locked":
+    every read held an open transaction for the request's full duration
+    instead of releasing it right after the SELECT.
+    """
+    _ensure_engine()
+    Base.metadata.create_all(engine)
+
+
+def get_db():
+    """SQLAlchemy session private to a single HTTP request — same shape as
+    the SQLite connection it replaces: opened fresh, closed in `finally`."""
+    _ensure_engine()
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

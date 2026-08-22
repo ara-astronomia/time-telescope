@@ -20,7 +20,11 @@ one without needing to update this file.
 
 from datetime import date, datetime, time, timedelta
 
-import router
+from sqlalchemy import select
+
+from config import to_utc
+from models import Research, Request, User, SessionLocal, init_db, now_utc_string
+from schemas import night_of
 
 USERS = [
     ("gvernier",  "Giulia Vernier",  "giulia.vernier@example.test"),
@@ -104,50 +108,50 @@ def is_empty(db) -> bool:
     that has never been used, not just one with nothing left after
     everything got rejected/deleted."""
     return (
-        db.scalar(router.select(router.User.id).limit(1)) is None
-        and db.scalar(router.select(router.Research.id).limit(1)) is None
-        and db.scalar(router.select(router.Request.id).limit(1)) is None
+        db.scalar(select(User.id).limit(1)) is None
+        and db.scalar(select(Research.id).limit(1)) is None
+        and db.scalar(select(Request.id).limit(1)) is None
     )
 
 
 def seed(db) -> None:
     def user_id(name: str) -> int:
-        return db.scalar(router.select(router.User.id).where(router.User.name == name))
+        return db.scalar(select(User.id).where(User.name == name))
 
     def program_id(name: str) -> int:
-        return db.scalar(router.select(router.Research.id).where(router.Research.name == name))
+        return db.scalar(select(Research.id).where(Research.name == name))
 
     for username, name, email in USERS:
-        exists = db.scalar(router.select(router.User).where(router.User.username == username))
+        exists = db.scalar(select(User).where(User.username == username))
         if not exists:
-            db.add(router.User(username=username, name=name, email=email))
+            db.add(User(username=username, name=name, email=email))
     db.commit()
 
     for name, description, specs in RESEARCH_PROGRAMS:
-        exists = db.scalar(router.select(router.Research).where(router.Research.name == name))
+        exists = db.scalar(select(Research).where(Research.name == name))
         if not exists:
-            db.add(router.Research(name=name, description=description, specs=specs))
+            db.add(Research(name=name, description=description, specs=specs))
     db.commit()
 
     for program_name, requester_name, co_observers, start, end, status, reviewer_notes in requests():
-        request = router.Request(
+        request = Request(
             research_program_id=program_id(program_name),
             requester_id=user_id(requester_name),
             co_observers=co_observers,
-            requested_night=router.night_of(start),
-            start=router.to_utc(start),
-            end=router.to_utc(end),
+            requested_night=night_of(start),
+            start=to_utc(start),
+            end=to_utc(end),
             status=status,
             reviewer_notes=reviewer_notes,
         )
         if status != "pending":
-            request.updated_at = router.now_utc_string()
+            request.updated_at = now_utc_string()
         db.add(request)
     db.commit()
 
 
 if __name__ == "__main__":
-    router.init_db()
-    with router.SessionLocal() as db:
+    init_db()
+    with SessionLocal() as db:
         seed(db)
     print(f"Seed completato: {len(USERS)} utenti, {len(RESEARCH_PROGRAMS)} ricerche, {len(requests())} richieste.")
