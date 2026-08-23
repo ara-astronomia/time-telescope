@@ -155,6 +155,7 @@ def test_every_day_shows_the_full_darkness_window_even_without_requests(page, ap
     dusk = sun_times["dusk"][11:16]
     dawn = sun_times["dawn"][11:16]
 
+    page.wait_for_selector(f'.day-cell[data-date="{night.isoformat()}"] .day-twilight:not(:empty)')
     twilight = cell.locator(".day-twilight")
     twilight_text = twilight.inner_text()
     assert dusk in twilight_text
@@ -173,6 +174,7 @@ def test_day_detail_shows_the_same_sun_times_as_the_request_form(page, app_url):
     cell = open_calendar(page, app_url, night)
     cell.click()
     page.wait_for_selector("#overlay.open")
+    page.wait_for_selector("#dp-twilight:not(:empty)")
 
     detail = page.inner_text("#dp-twilight")
     assert sun_times["sunset"][11:16] in detail
