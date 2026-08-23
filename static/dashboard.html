@@ -670,7 +670,7 @@ async function loadTwilight(id) {
     const res = await fetch(`${API_BASE}/ephemeris?night=${request.requested_night}`);
     if (!res.ok) throw new Error('ephemeris non disponibile');
     const ephemeris = await res.json();
-    box.innerHTML = renderSunTimesBlock(ephemeris.sun);
+    await renderSunTimesBlock(box, ephemeris.sun);
   } catch(e) {
     box.textContent = 'Non disponibile.';
   }

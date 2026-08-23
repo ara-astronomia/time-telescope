@@ -576,7 +576,7 @@ function renderCalendar() {
 
     const sunTimes = sunTimesByDate[dateStr];
     if (sunTimes) {
-      html += `<div class="day-twilight" title="Crepuscolo astronomico">${renderDayTwilight(sunTimes)}</div>`;
+      html += `<div class="day-twilight" title="Crepuscolo astronomico"></div>`;
     }
 
     const approvedCount = info ? (info.approved_count || 0) : 0;
@@ -602,6 +602,10 @@ function renderCalendar() {
     }
 
     grid.appendChild(cell);
+
+    if (sunTimes) {
+      renderDayTwilight(cell.querySelector('.day-twilight'), sunTimes);
+    }
   }
 }
 
@@ -634,7 +638,12 @@ function openDetail(dateStr, status, info) {
   document.getElementById('dp-date').textContent = dateLabel;
 
   const sunTimes = sunTimesByDate[dateStr];
-  document.getElementById('dp-twilight').innerHTML = sunTimes ? renderSunTimesBlock(sunTimes) : '';
+  const dpTwilight = document.getElementById('dp-twilight');
+  if (sunTimes) {
+    renderSunTimesBlock(dpTwilight, sunTimes);
+  } else {
+    dpTwilight.innerHTML = '';
+  }
 
   const statusEl = document.getElementById('dp-status');
   const statusLabels = { booked: 'BLOCCATA', contested: 'CONTESA', pending: 'RICHIESTA', free: '' };

@@ -824,7 +824,7 @@ async function updateDarknessHint() {
     return;
   }
 
-  darknessHintText.innerHTML = renderSunTimesBlock(ephemeris.sun);
+  await renderSunTimesBlock(darknessHintText, ephemeris.sun);
   darknessHint.style.display = '';
 }
 
