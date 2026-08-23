@@ -166,6 +166,8 @@ Update the SSL paths in the .conf to match the other *.ara.roma.it services.
 | EMAIL_FROM           | crac@osservatorio.it           | Email sender               |
 | REVIEWER_EMAIL       | responsabile@osservatorio.it   | Notification recipient     |
 | TZ                   | (system timezone)              | Observatory timezone: time slots are local time |
+| OBSERVATORY_LAT      | (required)                     | Observatory latitude, degrees — for ephemeris |
+| OBSERVATORY_LON      | (required)                     | Observatory longitude, degrees — for ephemeris |
 | AUTH_MODE            | forward-auth                   | `forward-auth` or `dev`   |
 | DEV_USER             | sviluppo                       | Simulated user (AUTH_MODE=dev only) |
 | DEV_GROUPS           | telescope-responsabili         | Simulated groups (AUTH_MODE=dev only) |
@@ -460,6 +462,8 @@ con gli altri servizi *.ara.roma.it.
 | EMAIL_FROM           | crac@osservatorio.it           | Mittente email          |
 | REVIEWER_EMAIL       | responsabile@osservatorio.it   | Destinatario notifiche  |
 | TZ                   | (fuso del sistema)             | Fuso dell'osservatorio: le fasce orarie sono ora locale |
+| OBSERVATORY_LAT      | (obbligatoria)                 | Latitudine dell'osservatorio, gradi — per le effemeridi |
+| OBSERVATORY_LON      | (obbligatoria)                 | Longitudine dell'osservatorio, gradi — per le effemeridi |
 | AUTH_MODE            | forward-auth                   | `forward-auth` o `dev`  |
 | DEV_USER             | sviluppo                       | Utente simulato (solo AUTH_MODE=dev) |
 | DEV_GROUPS           | telescope-responsabili         | Gruppi simulati (solo AUTH_MODE=dev) |

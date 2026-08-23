@@ -43,6 +43,10 @@ services:
       # only let them drift apart by mistake, and complicate comparing
       # logs against saved timestamps when debugging.
       - TZ=Europe/Rome
+      # Placeholder coordinates (Rome centre) for the ephemeris endpoint —
+      # not the real observatory's, deliberately: see docs/piano-35-effemeridi.md.
+      - OBSERVATORY_LAT=41.9028
+      - OBSERVATORY_LON=12.4964
       # .pyc files written by the container would end up in the working copy.
       - PYTHONDONTWRITEBYTECODE=1
       # Simulated authentication: development doesn't need Authelia.

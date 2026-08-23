@@ -8,7 +8,9 @@ import os
 from fastapi.testclient import TestClient
 
 
-def test_dev_mode_seeds_an_empty_database_on_startup(tmp_path, monkeypatch, isolated_database):
+def test_dev_mode_seeds_an_empty_database_on_startup(
+    tmp_path, monkeypatch, isolated_database, observatory_coordinates
+):
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "dev")
     monkeypatch.delenv("AUTO_SEED", raising=False)
