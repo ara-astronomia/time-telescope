@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 import config
 from auth import Identity, registered_user, reviewers_only
+from ephemeris import classify_darkness, sun_times
 from models import Research, Request, DecisionLog, get_db
 from notifications import (
     readable_time_slot,
@@ -23,12 +24,14 @@ from notifications import (
     send_reschedule_email,
 )
 from schemas import (
+    EphemerisOut,
     LogEntryOut,
     ObservatoryOut,
     RescheduleRequest,
     ResearchProgramCreate,
     ResearchProgramOut,
     StatusUpdate,
+    SunTimesOut,
     TimeRequestCreate,
     TimeRequestOut,
 )
@@ -53,6 +56,22 @@ def observatory():
     same way the server does instead of using the visiting browser's own
     timezone."""
     return ObservatoryOut(timezone=config.observatory_tz())
+
+
+@router.get("/ephemeris", response_model=EphemerisOut)
+def ephemeris(night: date):
+    """Sun times for a night, so the frontend can show them while the
+    observer is still picking a time slot, before submitting (#35)."""
+    sun = sun_times(night)
+    return EphemerisOut(
+        night=night.isoformat(),
+        sun=SunTimesOut(
+            sunset=sun["sunset"].isoformat(),
+            dusk=sun["dusk"].isoformat(),
+            dawn=sun["dawn"].isoformat(),
+            sunrise=sun["sunrise"].isoformat(),
+        ),
+    )
 
 # ─── Research programs endpoints ───────────────────────────────────────────────
 
@@ -132,12 +151,31 @@ def read_request(db: Session, request_id: int) -> dict:
     return request_as_dict(get_request_or_404(db, request_id))
 
 
+def darkness_as_dict(start, end, night: date) -> dict:
+    classified = classify_darkness(start, end, night)
+    return {
+        "darkness": classified["darkness"],
+        "non_dark_intervals": [
+            {"start": interval["start"].isoformat(), "end": interval["end"].isoformat()}
+            for interval in classified["non_dark_intervals"]
+        ],
+    }
+
+
 def localized(request: dict) -> dict:
     """The request as the API exposes it: `start`/`end` in observatory
-    local time, not the UTC stored on the row. Kept out of `read_request`
-    itself, whose UTC values still feed `time_slot_conflict`."""
-    return {**request, "start": config.to_local(request["start"]).isoformat(),
-            "end": config.to_local(request["end"]).isoformat()}
+    local time, not the UTC stored on the row, plus how much of the slot
+    falls outside full darkness (#35). Kept out of `read_request` itself,
+    whose UTC values still feed `time_slot_conflict`."""
+    start = config.to_local(request["start"])
+    end = config.to_local(request["end"])
+    night = date.fromisoformat(request["requested_night"])
+    return {
+        **request,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "darkness": darkness_as_dict(start, end, night),
+    }
 
 
 def verify_request_exists(db: Session, request_id: int) -> None:

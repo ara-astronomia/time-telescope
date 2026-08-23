@@ -83,7 +83,16 @@ def isolated_database(monkeypatch):
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch, isolated_database):
+def observatory_coordinates(monkeypatch):
+    """Test-only coordinates (Rome), never the real observatory's — the
+    real ones were deliberately kept out of the codebase, see
+    docs/piano-35-crepuscolo.md."""
+    monkeypatch.setenv("OBSERVATORY_LAT", "41.9028")
+    monkeypatch.setenv("OBSERVATORY_LON", "12.4964")
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch, isolated_database, observatory_coordinates):
     """Client on a temporary database, recreated from scratch for every test.
 
     The `with` is necessary: it runs the app's lifespan, which is where
@@ -107,7 +116,7 @@ def client(tmp_path, monkeypatch, isolated_database):
 
 
 @pytest.fixture
-def client_authelia(tmp_path, monkeypatch, isolated_database):
+def client_authelia(tmp_path, monkeypatch, isolated_database, observatory_coordinates):
     """Client in production mode: identity comes only from the headers."""
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "forward-auth")
@@ -215,6 +224,8 @@ def app_url(tmp_path_factory):
     os.environ["TELESCOPE_DB_PATH"] = str(tmp_path_factory.mktemp("db") / "frontend.db")
     os.environ["AUTH_MODE"] = "dev"
     os.environ["AUTO_SEED"] = "false"
+    os.environ["OBSERVATORY_LAT"] = "41.9028"
+    os.environ["OBSERVATORY_LON"] = "12.4964"
     import main
 
     socket_ = socket.socket()
