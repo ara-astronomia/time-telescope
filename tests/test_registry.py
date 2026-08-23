@@ -4,13 +4,16 @@ A non-null `username` means a verified identity: only someone who has one
 can open a request. Name and email aren't typed in by hand.
 """
 
+from sqlalchemy import select
+
+import models
 from conftest import REVIEWER, MEMBER, future_night, request_body
+from models import Request, User
 
 
 def registered_users(client):
-    import router
-    with router.SessionLocal() as db:
-        records = db.scalars(router.select(router.User).order_by(router.User.id)).all()
+    with models.SessionLocal() as db:
+        records = db.scalars(select(User).order_by(User.id)).all()
         return [
             {"id": r.id, "username": r.username, "name": r.name, "email": r.email,
              "created_at": r.created_at, "updated_at": r.updated_at}
@@ -72,13 +75,12 @@ def test_updated_at_is_set_when_the_registry_syncs(client_authelia):
 
 def test_multiple_users_without_email_are_allowed(client_authelia):
     """Needed for occasional co-observers whose contact info isn't known (#40)."""
-    import router
-    with router.SessionLocal() as db:
-        db.add(router.User(name="Guest One"))
-        db.add(router.User(name="Guest Two"))
+    with models.SessionLocal() as db:
+        db.add(User(name="Guest One"))
+        db.add(User(name="Guest Two"))
         db.commit()
         without_email = db.scalars(
-            router.select(router.User).where(router.User.email.is_(None))
+            select(User).where(User.email.is_(None))
         ).all()
         assert len(without_email) == 2
 
@@ -103,19 +105,18 @@ def test_observer_field_in_the_body_is_ignored(client_authelia, research_program
 
 
 def test_the_requester_is_a_verified_user(client_authelia, research_program_authelia):
-    import router
     create_request_as(client_authelia, MEMBER)
-    with router.SessionLocal() as db:
-        request = db.scalars(router.select(router.Request)).first()
+    with models.SessionLocal() as db:
+        request = db.scalars(select(Request)).first()
         assert request.requester.username is not None
 
 
 # ─── The outcome goes to whoever asked ─────────────────────────────────────────
 
 def test_the_outcome_email_goes_to_the_requester(client_authelia, research_program_authelia, monkeypatch):
-    import router
+    import notifications
     sent = []
-    monkeypatch.setattr(router, "send_message", lambda recipient, subject, body: sent.append(recipient))
+    monkeypatch.setattr(notifications, "send_message", lambda recipient, subject, body: sent.append(recipient))
 
     create_request_as(client_authelia, MEMBER)
     sent.clear()          # creation notifies the reviewer: only the outcome matters here
@@ -126,9 +127,9 @@ def test_the_outcome_email_goes_to_the_requester(client_authelia, research_progr
 
 
 def test_without_an_email_the_outcome_goes_to_the_reviewer(client_authelia, research_program_authelia, monkeypatch):
-    import router
+    import notifications
     sent = []
-    monkeypatch.setattr(router, "send_message", lambda recipient, subject, body: sent.append(recipient))
+    monkeypatch.setattr(notifications, "send_message", lambda recipient, subject, body: sent.append(recipient))
 
     without_email = {"Remote-User": "guest", "Remote-Groups": "soci"}
     client_authelia.post("/telescope-time/requests",
@@ -138,7 +139,7 @@ def test_without_an_email_the_outcome_goes_to_the_reviewer(client_authelia, rese
     client_authelia.patch("/telescope-time/requests/1", json={"status": "approved"},
                           headers=REVIEWER)
 
-    assert sent == [router.REVIEWER_EMAIL]
+    assert sent == [notifications.REVIEWER_EMAIL]
 
 
 # ─── The name shown is the real one, not the username ─────────────────────────
@@ -182,9 +183,8 @@ def test_login_promotes_an_existing_co_observer(client_authelia):
     co-observer, #40) and that person logs in, the record gets promoted
     instead of a second one being created. It's the same person, and the
     observations they took part in stay theirs."""
-    import router
-    with router.SessionLocal() as db:
-        co_observer = router.User(name="M. Rossi", email="mario.rossi@example.test")
+    with models.SessionLocal() as db:
+        co_observer = User(name="M. Rossi", email="mario.rossi@example.test")
         db.add(co_observer)
         db.commit()
         id_before = co_observer.id
@@ -223,14 +223,14 @@ def test_two_authelia_accounts_with_the_same_email(client_authelia):
 def test_creating_a_request_notifies_the_reviewer(client_authelia, research_program_authelia, monkeypatch):
     """Every email goes through send_message: the notification of a new
     request goes to the reviewer, not to whoever submitted it."""
-    import router
+    import notifications
     sent = []
-    monkeypatch.setattr(router, "send_message",
+    monkeypatch.setattr(notifications, "send_message",
                         lambda recipient, subject, body: sent.append((recipient, subject)))
 
     create_request_as(client_authelia, MEMBER)
 
     assert len(sent) == 1
     recipient, subject = sent[0]
-    assert recipient == router.REVIEWER_EMAIL
+    assert recipient == notifications.REVIEWER_EMAIL
     assert "Nuova richiesta" in subject

@@ -352,10 +352,10 @@ def test_a_reschedule_with_unchanged_times_is_not_recorded(client, time_request,
 
 @pytest.fixture
 def email(monkeypatch):
-    import router
+    import notifications
     sent = []
     monkeypatch.setattr(
-        router, "send_message",
+        notifications, "send_message",
         lambda recipient, subject, body: sent.append((recipient, subject, body)),
     )
     return sent
