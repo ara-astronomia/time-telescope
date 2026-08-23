@@ -229,6 +229,7 @@ curl -X PATCH localhost:8010/telescope-time/requests/1 \
 | GET    | /telescope-time/requests/{id}/history | Decisions and reschedules on the request |
 | GET    | /telescope-time/me               | Identity of the connected user    |
 | GET    | /telescope-time/statistics      | Aggregate statistics              |
+| GET    | /telescope-time/ephemeris       | Sun times for a night (?night=YYYY-MM-DD) |
 
 Interactive docs: /docs (Swagger UI)
 
@@ -524,6 +525,7 @@ curl -X PATCH localhost:8010/telescope-time/requests/1 \
 | GET    | /telescope-time/requests/{id}/history | Decisioni e spostamenti sulla richiesta |
 | GET    | /telescope-time/me               | Identità dell'utente collegato    |
 | GET    | /telescope-time/statistics      | Statistiche aggregate             |
+| GET    | /telescope-time/ephemeris       | Orari solari per una notte (?night=YYYY-MM-DD) |
 
 Documentazione interattiva: /docs (Swagger UI)
 
