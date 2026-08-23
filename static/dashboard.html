@@ -458,6 +458,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="twilight.js"></script>
 <script>
 const API_BASE = '/telescope-time';
 
@@ -600,6 +601,10 @@ function renderList() {
             <div class="dl">NOTE RESPONSABILE</div>
             <div class="dv">${escHtml(r.reviewer_notes)}</div>
           </div>` : ''}
+          <div class="detail-item" style="grid-column:1/-1">
+            <div class="dl">CREPUSCOLO DELLA NOTTE</div>
+            <div class="dv" id="twilight-${r.id}">Caricamento…</div>
+          </div>
         </div>
 
         <div class="history-box">
@@ -654,6 +659,21 @@ function showDetail(id, open) {
   // has changed. Only for requests that actually get opened — loading it
   // for every row in the list would mean one call per row.
   if (open) loadHistory(id);
+  if (open) loadTwilight(id);
+}
+
+async function loadTwilight(id) {
+  const box = document.getElementById(`twilight-${id}`);
+  const request = allRequests.find(r => r.id === id);
+  if (!request) return;
+  try {
+    const res = await fetch(`${API_BASE}/ephemeris?night=${request.requested_night}`);
+    if (!res.ok) throw new Error('ephemeris non disponibile');
+    const ephemeris = await res.json();
+    box.innerHTML = renderSunTimesBlock(ephemeris.sun);
+  } catch(e) {
+    box.textContent = 'Non disponibile.';
+  }
 }
 
 function openDetailIds() {

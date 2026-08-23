@@ -677,3 +677,23 @@ def test_the_owner_does_not_see_the_reschedule_on_their_own_approved_request(pag
     open_card(page, app_url, request["id"])
 
     assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 0
+
+
+# ─── Twilight in the expanded request (#35) ────────────────────────────────
+
+def test_expanding_a_request_shows_the_nights_sun_times(page, app_url):
+    day = date.today() + timedelta(days=80)
+    request = create_request_with_slot(page, app_url, "Crepuscolo test", day, hour=22, duration=2)
+
+    sun = page.request.get(
+        f"{app_url}/telescope-time/ephemeris?night={request['requested_night']}"
+    ).json()["sun"]
+
+    open_card(page, app_url, request["id"])
+    page.wait_for_selector(f"#twilight-{request['id']}:not(:has-text('Caricamento'))")
+    twilight = page.inner_text(f"#twilight-{request['id']}")
+
+    assert sun["sunset"][11:16] in twilight
+    assert sun["dusk"][11:16] in twilight
+    assert sun["dawn"][11:16] in twilight
+    assert sun["sunrise"][11:16] in twilight

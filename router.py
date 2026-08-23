@@ -8,7 +8,7 @@ To include in the main CRaC server with:
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, List
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from sqlalchemy import text, select, func, case
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -450,6 +450,26 @@ def record_overlaps(requests: List[dict], nights: dict) -> set:
     return contested
 
 
+def month_sun_times(first: str, last: str) -> dict:
+    """Sunset/dusk/dawn/sunrise for every day in [first, last], not just
+    nights with a request — the calendar shows them on every cell.
+    Negligible cost (well under a millisecond per day: pure arithmetic,
+    no I/O), no caching needed."""
+    result = {}
+    day = date.fromisoformat(first)
+    end = date.fromisoformat(last)
+    while day <= end:
+        times = sun_times(day)
+        result[day.isoformat()] = {
+            "sunset": times["sunset"].isoformat(),
+            "dusk": times["dusk"].isoformat(),
+            "dawn": times["dawn"].isoformat(),
+            "sunrise": times["sunrise"].isoformat(),
+        }
+        day += timedelta(days=1)
+    return result
+
+
 def calendar_entry_as_dict(request: Request) -> dict:
     return {
         "id": request.id,
@@ -520,7 +540,7 @@ def calendar(
         elif key in contested:
             night["night_status"] = "contested"
 
-    return {"year": year, "month": month, "nights": nights}
+    return {"year": year, "month": month, "nights": nights, "sun_times": month_sun_times(first, last)}
 
 
 @router.get("/statistics")

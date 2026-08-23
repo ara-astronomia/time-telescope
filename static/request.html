@@ -519,6 +519,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="twilight.js"></script>
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = '/telescope-time';
@@ -798,10 +799,6 @@ async function loadObservatory() {
 const darknessHint     = document.getElementById('darkness-hint');
 const darknessHintText = document.getElementById('darkness-hint-text');
 
-function formatTime(instant) {
-  return instant.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-}
-
 /** YYYY-MM-DD for the `night` query param, from a Date already set to
  * that night's local midnight (see nightOf()) — toISOString() would shift
  * it to UTC and risk landing on the wrong calendar date. */
@@ -827,15 +824,7 @@ async function updateDarknessHint() {
     return;
   }
 
-  const sunset  = new Date(ephemeris.sun.sunset);
-  const dusk    = new Date(ephemeris.sun.dusk);
-  const dawn    = new Date(ephemeris.sun.dawn);
-  const sunrise = new Date(ephemeris.sun.sunrise);
-
-  darknessHintText.innerHTML =
-    `Tramonto: ore ${formatTime(sunset)}<br>` +
-    `Crepuscolo astronomico: tra le ${formatTime(dusk)} e le ${formatTime(dawn)}<br>` +
-    `Alba: ore ${formatTime(sunrise)}`;
+  darknessHintText.innerHTML = renderSunTimesBlock(ephemeris.sun);
   darknessHint.style.display = '';
 }
 
