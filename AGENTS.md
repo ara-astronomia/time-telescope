@@ -12,15 +12,22 @@ uv run uvicorn main:app --reload --port 8010
 # From another device on the LAN (without Nginx/Authelia in front, dev mode is required)
 AUTH_MODE=dev uv run uvicorn main:app --reload --host 0.0.0.0 --port 8010
 
-# Tests (pytest + pytest-playwright on Chromium for frontend tests)
-uv run pytest -v --tb=short
-uv run pytest tests/test_calendar.py -v        # a single file
-uv run playwright install --with-deps chromium # required once for the *_frontend_* tests
+# Tests — backend/API tests run directly on the host (SQLite, no browser needed)
+uv run pytest -v --tb=short --ignore-glob='tests/test_frontend_*.py'
+uv run pytest tests/test_calendar.py -v        # a single non-frontend file
 
 # Deploy — MariaDB is the default backend on Docker (SQLite only outside it)
 docker compose up -d --build
 docker compose logs -f
 docker compose exec mariadb mariadb -uroot -pdev telescope_time
+
+# Frontend tests (pytest-playwright on Chromium) run inside the dev container, not
+# on the host: its `dev` stage already has Chromium installed, so results don't
+# depend on whatever is or isn't cached on the host machine
+docker compose exec telescope_time uv run pytest tests/test_frontend_*.py -v --tb=short
+
+# Full suite (backend + frontend), also via the container
+docker compose exec telescope_time uv run pytest -v --tb=short
 
 # Sample data — seed.py calls init_db() itself, no prior startup needed
 uv run python seed.py

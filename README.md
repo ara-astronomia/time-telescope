@@ -107,13 +107,23 @@ at — SQLite outside Docker, MariaDB on Docker (see `docker-compose.yml`'s
 ### Tests
 
 ```bash
-uv run pytest                              # the whole suite
-uv run pytest tests/test_calendar.py       # a single file
-uv run pytest -k rejected                  # a single test by name
+uv run pytest --ignore-glob='tests/test_frontend_*.py'   # backend/API tests
+uv run pytest tests/test_calendar.py                     # a single non-frontend file
+uv run pytest -k rejected                                # a single test by name
 ```
 
 `uv run` installs whatever's missing on its own, including the `dev` group's
 dependencies: no separate install step needed.
+
+Frontend tests (`tests/test_frontend_*.py`, Playwright on Chromium) run inside
+the dev container instead, whose `dev` stage already has Chromium installed —
+results don't depend on whatever is or isn't cached on the host machine:
+
+```bash
+docker compose up -d --build
+docker compose exec telescope_time uv run pytest tests/test_frontend_*.py
+docker compose exec telescope_time uv run pytest                         # the whole suite
+```
 
 Every test runs on a fresh temporary database: the suite never touches
 `telescope_time.db`.
@@ -400,13 +410,24 @@ Docker, MariaDB su Docker (vedi il servizio `mariadb` in
 ### Test
 
 ```bash
-uv run pytest                              # tutta la suite
-uv run pytest tests/test_calendar.py       # un singolo file
-uv run pytest -k rejected                  # un singolo test per nome
+uv run pytest --ignore-glob='tests/test_frontend_*.py'   # test backend/API
+uv run pytest tests/test_calendar.py                     # un singolo file non-frontend
+uv run pytest -k rejected                                # un singolo test per nome
 ```
 
 `uv run` installa da solo quel che manca, incluse le dipendenze del
 gruppo `dev`: non serve un passo di installazione separato.
+
+I test frontend (`tests/test_frontend_*.py`, Playwright su Chromium) girano
+invece dentro il container di sviluppo, il cui stage `dev` ha già Chromium
+installato — il risultato non dipende da cosa c'è o non c'è in cache sulla
+macchina host:
+
+```bash
+docker compose up -d --build
+docker compose exec telescope_time uv run pytest tests/test_frontend_*.py
+docker compose exec telescope_time uv run pytest                         # tutta la suite
+```
 
 Ogni test gira su un database temporaneo creato da zero: la suite non
 tocca `telescope_time.db`.
