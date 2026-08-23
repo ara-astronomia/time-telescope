@@ -9,10 +9,10 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
-# Application code
-COPY main.py .
-COPY router.py .
-COPY seed.py .
+# Application code — every top-level module, not one COPY per file: the
+# router.py split (#71) already showed how easily a new module gets left
+# out and only breaks at container startup, not at build time.
+COPY *.py ./
 
 # Static HTML pages
 COPY static/ ./static/
