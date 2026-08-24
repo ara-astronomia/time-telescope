@@ -38,7 +38,7 @@ jobs:
         run: uv run pytest -v --tb=short
         timeout-minutes: 10
 
-  # MariaDB: the production engine (#15) — same suite, same test files,
+  # MariaDB: the production engine — same suite, same test files,
   # just pointed at a different DATABASE_URL. A GitHub Actions service
   # container, not the project's own docker-compose.yml: this job doesn't
   # use Docker Compose at all, so it needs its own equivalent of the

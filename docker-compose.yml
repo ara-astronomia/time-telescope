@@ -62,9 +62,9 @@ services:
       # - EMAIL_FROM=crac@osservatorio.it
       # - REVIEWER_EMAIL=responsabile@osservatorio.it
 
-  # Default backend on Docker (#15): the same engine as production.
-  # Fixed dev password: no production data here, ever (see #65/#15 —
-  # there's no real data to protect).
+  # Default backend on Docker: the same engine as production.
+  # Fixed dev password: no production data here, ever — there's no real
+  # data to protect.
   mariadb:
     image: mariadb:11
     container_name: telescope_time_mariadb
