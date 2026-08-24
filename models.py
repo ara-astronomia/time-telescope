@@ -42,10 +42,10 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     # non-null username = identity verified by Authelia.
-    # NULL for someone known only by name (co-observers, #40).
+    # NULL for someone known only by name (co-observers).
     username: Mapped[Optional[str]] = mapped_column(unique=True, default=None)
     name: Mapped[str]
-    # key used to recognize a person already in the registry (#40);
+    # key used to recognize a person already in the registry;
     # multiple rows can have it NULL.
     email: Mapped[Optional[str]] = mapped_column(unique=True, default=None)
     created_at: Mapped[str] = mapped_column(default=now_utc_string)
