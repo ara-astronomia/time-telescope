@@ -679,7 +679,7 @@ def test_the_owner_does_not_see_the_reschedule_on_their_own_approved_request(pag
     assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 0
 
 
-# ─── Twilight in the expanded request (#35) ────────────────────────────────
+# ─── Twilight in the expanded request ───────────────────────────────────────
 
 def test_expanding_a_request_shows_the_nights_sun_times(page, app_url):
     day = date.today() + timedelta(days=80)

@@ -1,5 +1,5 @@
 """GET /telescope-time/ephemeris: sun times for a given night, for the
-frontend to show while the observer is still picking a time slot (#35).
+frontend to show while the observer is still picking a time slot.
 """
 
 from conftest import MEMBER

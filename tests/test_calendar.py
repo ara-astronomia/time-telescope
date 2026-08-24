@@ -198,7 +198,7 @@ def test_the_default_month_is_the_observatorys_not_the_systems(client, monkeypat
     assert (res.json()["year"], res.json()["month"]) == (2027, 1)
 
 
-# ─── Sun times for every day (#35) ─────────────────────────────────────────────
+# ─── Sun times for every day ─────────────────────────────────────────────────────
 
 def test_sun_times_are_present_for_every_day_of_the_month_even_without_requests(client, month):
     res = client.get(

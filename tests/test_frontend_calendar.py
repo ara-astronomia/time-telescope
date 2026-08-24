@@ -143,7 +143,7 @@ def test_links_to_dashboard_and_request_form_are_present(page, app_url):
     assert page.locator('a[href="dashboard.html"]').count() == 1
 
 
-# ─── Twilight on every day (#35) ────────────────────────────────────────────
+# ─── Twilight on every day ───────────────────────────────────────────────────
 
 def test_every_day_shows_the_full_darkness_window_even_without_requests(page, app_url):
     night = next_month()

@@ -1,4 +1,4 @@
-// Shared sun/twilight fragments (#35) — one source of truth for
+// Shared sun/twilight fragments — one source of truth for
 // request.html, calendar.html and dashboard.html, which all show the same
 // data (a night's sunset/dusk/dawn/sunrise, as returned by
 // GET /telescope-time/ephemeris) in slightly different places.

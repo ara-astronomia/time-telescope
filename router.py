@@ -61,7 +61,7 @@ def observatory():
 @router.get("/ephemeris", response_model=EphemerisOut)
 def ephemeris(night: date):
     """Sun times for a night, so the frontend can show them while the
-    observer is still picking a time slot, before submitting (#35)."""
+    observer is still picking a time slot, before submitting."""
     sun = sun_times(night)
     return EphemerisOut(
         night=night.isoformat(),
@@ -165,7 +165,7 @@ def darkness_as_dict(start, end, night: date) -> dict:
 def localized(request: dict) -> dict:
     """The request as the API exposes it: `start`/`end` in observatory
     local time, not the UTC stored on the row, plus how much of the slot
-    falls outside full darkness (#35). Kept out of `read_request` itself,
+    falls outside full darkness. Kept out of `read_request` itself,
     whose UTC values still feed `time_slot_conflict`."""
     start = config.to_local(request["start"])
     end = config.to_local(request["end"])

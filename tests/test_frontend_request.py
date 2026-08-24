@@ -207,7 +207,7 @@ def test_the_start_minimum_reflects_the_observatory_not_the_browser(browser, app
         context.close()
 
 
-# ─── Ephemeris (#35) ────────────────────────────────────────────────────────
+# ─── Ephemeris ───────────────────────────────────────────────────────────────
 
 def ephemeris_for(page, app_url, night):
     return page.request.get(f"{app_url}/telescope-time/ephemeris?night={night.isoformat()}").json()
