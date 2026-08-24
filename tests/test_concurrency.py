@@ -18,7 +18,7 @@ def test_simultaneous_calls_do_not_fail(app_url):
     assert set(outcomes) == {200}, f"unexpected outcomes: {sorted(set(outcomes))}"
 
 
-# ─── The overlap constraint holds under concurrency (#33, #34) ────────────────
+# ─── The overlap constraint holds under concurrency ─────────────────────────────
 
 def test_two_simultaneous_approvals_do_not_create_an_overlap(app_url, monkeypatch):
     """There's a window between the conflict check and the write: without an

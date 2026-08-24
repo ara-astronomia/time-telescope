@@ -503,6 +503,10 @@
       <div class="field" id="night-hint" style="display:none">
         <small style="color:var(--text-dim)">Notte del <span id="night-hint-date"></span></small>
       </div>
+
+      <div class="field" id="darkness-hint" style="display:none">
+        <small id="darkness-hint-text" style="color:var(--text-dim)"></small>
+      </div>
     </div>
 
     <button class="btn-submit" id="btn-submit" onclick="submitRequest()">
@@ -515,6 +519,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="twilight.js"></script>
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = '/telescope-time';
@@ -790,6 +795,39 @@ async function loadObservatory() {
     `Orari in ora locale dell'osservatorio — ${observatoryTz}.`;
 }
 
+// ─── Darkness ────────────────────────────────────────────────────────────────
+const darknessHint     = document.getElementById('darkness-hint');
+const darknessHintText = document.getElementById('darkness-hint-text');
+
+/** YYYY-MM-DD for the `night` query param, from a Date already set to
+ * that night's local midnight (see nightOf()) — toISOString() would shift
+ * it to UTC and risk landing on the wrong calendar date. */
+function isoDate(instant) {
+  return instant.toLocaleDateString('sv-SE');
+}
+
+async function updateDarknessHint() {
+  if (!startField.value) {
+    darknessHint.style.display = 'none';
+    return;
+  }
+
+  const start = new Date(startField.value);
+  let ephemeris;
+  try {
+    const res = await fetch(`${API_BASE}/ephemeris?night=${isoDate(nightOf(start))}`);
+    if (!res.ok) throw new Error('ephemeris non disponibile');
+    ephemeris = await res.json();
+  } catch (e) {
+    console.error('Errore caricamento effemeridi:', e);
+    darknessHint.style.display = 'none';
+    return;
+  }
+
+  await renderSunTimesBlock(darknessHintText, ephemeris.sun);
+  darknessHint.style.display = '';
+}
+
 startField.addEventListener('input', () => {
   updateEndConstraints();
   if (startField.value && !endField.value) {
@@ -798,6 +836,7 @@ startField.addEventListener('input', () => {
     endField.value = localIsoWithTimezone(end);
   }
   updateNightHint();
+  updateDarknessHint();
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

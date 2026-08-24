@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import models
-from config import auth_mode, auto_seed, dev_user, dev_groups, observatory_tz
+from config import auth_mode, auto_seed, dev_user, dev_groups, observatory_lat, observatory_lon, observatory_tz
 from models import init_db
 from router import router
 import os
@@ -27,6 +27,14 @@ async def lifespan(app: FastAPI):
         ZoneInfo(observatory_tz())
     except ZoneInfoNotFoundError as error:
         raise RuntimeError(f"TZ non valido: '{observatory_tz()}'.") from error
+
+    try:
+        observatory_lat()
+        observatory_lon()
+    except (KeyError, ValueError) as error:
+        raise RuntimeError(
+            "OBSERVATORY_LAT/OBSERVATORY_LON non impostate o non numeriche."
+        ) from error
 
     if auth_mode() == "dev":
         print(

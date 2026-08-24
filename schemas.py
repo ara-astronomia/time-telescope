@@ -128,6 +128,19 @@ class LogEntryOut(BaseModel):
     decided_at: str
 
 
+class DarknessInterval(BaseModel):
+    start: str
+    end: str
+
+
+class DarknessOut(BaseModel):
+    """How much of a time slot falls outside full darkness (dusk to dawn)
+    — an advisory, not a constraint: observing in twilight or daylight is
+    legitimate (flats, focusing, bright planets)."""
+    darkness: Literal["full", "partial", "none"]
+    non_dark_intervals: List[DarknessInterval]
+
+
 class TimeRequestOut(BaseModel):
     id: int
     research_program_id: int
@@ -142,7 +155,20 @@ class TimeRequestOut(BaseModel):
     reviewer_notes: Optional[str]
     created_at: str
     updated_at: Optional[str]
+    darkness: DarknessOut
 
 
 class ObservatoryOut(BaseModel):
     timezone: str
+
+
+class SunTimesOut(BaseModel):
+    sunset: str
+    dusk: str
+    dawn: str
+    sunrise: str
+
+
+class EphemerisOut(BaseModel):
+    night: str
+    sun: SunTimesOut

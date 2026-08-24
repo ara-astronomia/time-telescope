@@ -1,4 +1,4 @@
-"""Timestamps are written in UTC: they must say so (#7).
+"""Timestamps are written in UTC: they must say so.
 
 SQLite's `datetime('now')` produces '2026-08-17 06:30:00', which isn't valid
 ISO 8601 — a space instead of T, no timezone — and browsers interpret it as

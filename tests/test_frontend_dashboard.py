@@ -1,5 +1,5 @@
 """The dashboard shows the time a request came in: it must be the local
-time of whoever is looking, not UTC passed off as local (#7)."""
+time of whoever is looking, not UTC passed off as local."""
 
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -86,7 +86,7 @@ def test_utc_offset_does_not_appear(page, app_url):
         )
 
 
-# ─── A slot conflict must be reported, not hidden (#33) ───────────────────────
+# ─── A slot conflict must be reported, not hidden ──────────────────────────────
 
 def test_slot_conflict_is_shown_to_the_user(page, app_url):
     """The 409 names the conflicting request: if the dashboard flattens it
@@ -129,7 +129,7 @@ def test_the_conflicting_request_stays_pending(page, app_url):
     assert after["status"] == "pending"
 
 
-# ─── Rescheduling date and times from the dashboard (#34) ─────────────────────
+# ─── Rescheduling date and times from the dashboard ─────────────────────────────
 
 def times_of(page, app_url, request_id):
     r = page.request.get(f"{app_url}/telescope-time/requests/{request_id}").json()
@@ -268,7 +268,7 @@ def test_slot_conflict_blocks_the_reschedule(page, app_url):
     assert f"#{occupied['id']}" in text, text
 
 
-# ─── Changing a decision already made (#45) ────────────────────────────────────
+# ─── Changing a decision already made ───────────────────────────────────────────
 
 def decided(page, app_url, name, days_ahead, status, hour=21):
     day = date.today() + timedelta(days=days_ahead)
@@ -677,3 +677,23 @@ def test_the_owner_does_not_see_the_reschedule_on_their_own_approved_request(pag
     open_card(page, app_url, request["id"])
 
     assert page.locator(f"#detail-{request['id']} .reschedule-area").count() == 0
+
+
+# ─── Twilight in the expanded request ───────────────────────────────────────
+
+def test_expanding_a_request_shows_the_nights_sun_times(page, app_url):
+    day = date.today() + timedelta(days=80)
+    request = create_request_with_slot(page, app_url, "Crepuscolo test", day, hour=22, duration=2)
+
+    sun = page.request.get(
+        f"{app_url}/telescope-time/ephemeris?night={request['requested_night']}"
+    ).json()["sun"]
+
+    open_card(page, app_url, request["id"])
+    page.wait_for_selector(f"#twilight-{request['id']}:not(:has-text('Caricamento'))")
+    twilight = page.inner_text(f"#twilight-{request['id']}")
+
+    assert sun["sunset"][11:16] in twilight
+    assert sun["dusk"][11:16] in twilight
+    assert sun["dawn"][11:16] in twilight
+    assert sun["sunrise"][11:16] in twilight

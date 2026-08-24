@@ -34,7 +34,7 @@ def prepare(page, app_url):
 
 
 def fill_form(page, start, end):
-    """The observer's name isn't filled in: it comes from Authelia (#5)."""
+    """The observer's name isn't filled in: it comes from Authelia."""
     page.select_option("#research_program_id", index=1)
     page.fill("#start", start)
     page.fill("#end", end)
@@ -86,7 +86,7 @@ def test_end_before_start_is_not_submitted(page, app_url):
     assert submitted_starts(page, app_url) == [] or f"{end}:00" not in submitted_starts(page, app_url)
 
 
-# ─── End past the night of the start (#59) ─────────────────────────────────────
+# ─── End past the night of the start ────────────────────────────────────────────
 
 def test_end_past_the_night_is_flagged_to_the_user(page, app_url):
     """`max` on #end follows the night of #start."""
@@ -146,7 +146,7 @@ def test_server_validation_error_shown_to_the_user(page, app_url):
     assert "orario" in toast_text or "fascia" in toast_text, f"the message doesn't name the field: {toast_text!r}"
 
 
-# ─── Identity is no longer typed (#5) ──────────────────────────────────────────
+# ─── Identity is no longer typed ─────────────────────────────────────────────────
 
 def test_the_name_is_not_typed_anymore(page, app_url):
     prepare(page, app_url)
@@ -205,3 +205,35 @@ def test_the_start_minimum_reflects_the_observatory_not_the_browser(browser, app
         assert "Europe/Rome" in note
     finally:
         context.close()
+
+
+# ─── Ephemeris ───────────────────────────────────────────────────────────────
+
+def ephemeris_for(page, app_url, night):
+    return page.request.get(f"{app_url}/telescope-time/ephemeris?night={night.isoformat()}").json()
+
+
+def test_choosing_a_start_shows_the_nights_sun_times(page, app_url):
+    """Purely informational, not tied to the chosen end: sunset, the
+    astronomical-twilight window (full darkness), and sunrise for the
+    night the chosen start falls in."""
+    night = date.today() + timedelta(days=5)
+    sun = ephemeris_for(page, app_url, night)["sun"]
+    sunset = datetime.fromisoformat(sun["sunset"])
+    dusk = datetime.fromisoformat(sun["dusk"])
+    dawn = datetime.fromisoformat(sun["dawn"])
+    sunrise = datetime.fromisoformat(sun["sunrise"])
+
+    prepare(page, app_url)
+    page.fill("#start", datetime.combine(night, time(22)).strftime(FORMAT))
+
+    page.wait_for_selector("#darkness-hint:visible")
+    hint = page.locator("#darkness-hint-text").inner_text()
+    assert f"Tramonto: ore {sunset:%H:%M}" in hint
+    assert f"Crepuscolo astronomico: tra le {dusk:%H:%M} e le {dawn:%H:%M}" in hint
+    assert f"Alba: ore {sunrise:%H:%M}" in hint
+
+
+def test_no_start_hides_the_hint(page, app_url):
+    prepare(page, app_url)
+    assert not page.is_visible("#darkness-hint")

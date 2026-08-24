@@ -196,3 +196,32 @@ def test_the_default_month_is_the_observatorys_not_the_systems(client, monkeypat
     res = client.get("/telescope-time/calendar")
 
     assert (res.json()["year"], res.json()["month"]) == (2027, 1)
+
+
+# ─── Sun times for every day ─────────────────────────────────────────────────────
+
+def test_sun_times_are_present_for_every_day_of_the_month_even_without_requests(client, month):
+    res = client.get(
+        "/telescope-time/calendar", params={"year": month.year, "month": month.month}
+    )
+    assert res.status_code == 200
+    sun_times = res.json()["sun_times"]
+
+    days_in_month = monthrange(month.year, month.month)[1]
+    assert len(sun_times) == days_in_month
+    assert set(sun_times.keys()) == {
+        date(month.year, month.month, day).isoformat() for day in range(1, days_in_month + 1)
+    }
+
+
+def test_sun_times_match_the_ephemeris_module_directly(client, month):
+    from ephemeris import sun_times as compute_sun_times
+
+    res = client.get(
+        "/telescope-time/calendar", params={"year": month.year, "month": month.month}
+    )
+    reported = res.json()["sun_times"][month.isoformat()]
+    expected = compute_sun_times(month)
+
+    assert reported["dusk"] == expected["dusk"].isoformat()
+    assert reported["dawn"] == expected["dawn"].isoformat()

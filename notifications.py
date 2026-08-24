@@ -22,7 +22,7 @@ def send_message(recipient: str, subject: str, body: str):
 
     Isolating it here makes it possible to verify *to whom* a message is
     sent without a mail server, and it's the spot to touch when sending
-    moves to BackgroundTasks (#8).
+    moves to BackgroundTasks.
     """
     if not SMTP_HOST or not SMTP_USER:
         print(f"[SMTP non configurato] a {recipient}: {subject}", flush=True)

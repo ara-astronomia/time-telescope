@@ -101,3 +101,15 @@ def to_local(instant: str) -> datetime:
 
 def reviewers_group() -> str:
     return os.environ.get("REVIEWERS_GROUP", "telescope-responsabili")
+
+
+def observatory_lat() -> float:
+    """Observatory latitude, degrees. No default: unlike TZ, there's no
+    reasonable stand-in for a real position — the service could be
+    deployed for a different observatory entirely."""
+    return float(os.environ["OBSERVATORY_LAT"])
+
+
+def observatory_lon() -> float:
+    """Observatory longitude, degrees. See observatory_lat()."""
+    return float(os.environ["OBSERVATORY_LON"])

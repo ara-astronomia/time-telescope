@@ -1,6 +1,6 @@
 """The calendar must make visible when multiple observations share the same
-night (#4), and distinguish a night that's merely requested from one that's
-truly contested (#33)."""
+night, and distinguish a night that's merely requested from one that's
+truly contested."""
 
 from datetime import date, datetime, time, timedelta
 
@@ -49,7 +49,7 @@ def css_class(cell):
     return cell.get_attribute("class") or ""
 
 
-# ─── Multiple programs sharing a night (#4) ────────────────────────────────────
+# ─── Multiple programs sharing a night ──────────────────────────────────────────
 
 def test_night_with_two_programs_flagged_in_grid(page, app_url):
     night = next_month().replace(day=11)
@@ -70,7 +70,7 @@ def test_night_with_a_single_program_not_flagged(page, app_url):
     assert "booked" in css_class(cell)
 
 
-# ─── Requested ≠ contested (#33, absorbs #42) ──────────────────────────────────
+# ─── Requested ≠ contested ───────────────────────────────────────────────────────
 
 def test_a_single_request_does_not_color_the_night_as_contested(page, app_url):
     night = next_month().replace(day=13)
@@ -141,3 +141,43 @@ def test_links_to_dashboard_and_request_form_are_present(page, app_url):
     page.goto(f"{app_url}{PAGE}")
     assert page.locator('a[href="request.html"]').count() == 1
     assert page.locator('a[href="dashboard.html"]').count() == 1
+
+
+# ─── Twilight on every day ───────────────────────────────────────────────────
+
+def test_every_day_shows_the_full_darkness_window_even_without_requests(page, app_url):
+    night = next_month()
+    cell = open_calendar(page, app_url, night)
+
+    sun_times = page.request.get(
+        f"{app_url}/telescope-time/calendar?year={night.year}&month={night.month}"
+    ).json()["sun_times"][night.isoformat()]
+    dusk = sun_times["dusk"][11:16]
+    dawn = sun_times["dawn"][11:16]
+
+    page.wait_for_selector(f'.day-cell[data-date="{night.isoformat()}"] .day-twilight:not(:empty)')
+    twilight = cell.locator(".day-twilight")
+    twilight_text = twilight.inner_text()
+    assert dusk in twilight_text
+    assert dawn in twilight_text
+    assert twilight.get_attribute("title") == "Crepuscolo astronomico"
+
+
+def test_day_detail_shows_the_same_sun_times_as_the_request_form(page, app_url):
+    night = next_month().replace(day=17)
+    create_request(page, app_url, night, hour=21, duration=3)
+
+    sun_times = page.request.get(
+        f"{app_url}/telescope-time/calendar?year={night.year}&month={night.month}"
+    ).json()["sun_times"][night.isoformat()]
+
+    cell = open_calendar(page, app_url, night)
+    cell.click()
+    page.wait_for_selector("#overlay.open")
+    page.wait_for_selector("#dp-twilight:not(:empty)")
+
+    detail = page.inner_text("#dp-twilight")
+    assert sun_times["sunset"][11:16] in detail
+    assert sun_times["dusk"][11:16] in detail
+    assert sun_times["dawn"][11:16] in detail
+    assert sun_times["sunrise"][11:16] in detail
