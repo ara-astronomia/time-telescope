@@ -240,6 +240,11 @@
   }
   .day-cell.today .day-num { color: #fff; }
 
+  .day-twilight {
+    font-family: var(--mono); font-size: .58rem; color: var(--text-dim);
+    white-space: nowrap;
+  }
+
   .day-pills { margin-top: .35rem; display: flex; flex-direction: column; gap: .22rem; }
   .multi-program-badge {
     margin-top: .3rem; padding: .1rem .3rem; border-radius: 4px;
@@ -286,6 +291,11 @@
   .dp-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 1.2rem;
+  }
+  .dp-twilight {
+    font-family: var(--mono); font-size: .74rem; color: var(--text-dim);
+    line-height: 1.6; margin-bottom: 1.2rem; padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
   }
   .dp-date {
     font-family: var(--mono); font-size: .95rem; font-weight: 700;
@@ -435,10 +445,12 @@
         <button class="dp-close" onclick="closeDetail()">×</button>
       </div>
     </div>
+    <div class="dp-twilight" id="dp-twilight"></div>
     <div id="dp-content"></div>
   </div>
 </div>
 
+<script src="twilight.js"></script>
 <script>
 const API_BASE = '/telescope-time';
 
@@ -456,6 +468,10 @@ let currentMonth = humanMonth(today);
 
 // nightsByDate: { "YYYY-MM-DD": { night_status, approved_count, pending_count, overlaps[], requests[] } }
 let nightsByDate = {};
+
+// sunTimesByDate: { "YYYY-MM-DD": { sunset, dusk, dawn, sunrise } } — every
+// day of the month, whether or not it has any request.
+let sunTimesByDate = {};
 
 // ─── Navigation ─────────────────────────────────────────────────────────────
 function changeMonth(delta) {
@@ -495,6 +511,7 @@ async function loadMonth() {
     const res = await fetch(`${API_BASE}/calendar?year=${currentYear}&month=${currentMonth}`);
     const data = await res.json();
     nightsByDate = data.nights || {};
+    sunTimesByDate = data.sun_times || {};
     renderCalendar();
   } catch(e) {
     console.error('Errore caricamento calendario:', e);
@@ -557,6 +574,11 @@ function renderCalendar() {
 
     let html = `<div class="day-num">${day}</div>`;
 
+    const sunTimes = sunTimesByDate[dateStr];
+    if (sunTimes) {
+      html += `<div class="day-twilight" title="Crepuscolo astronomico"></div>`;
+    }
+
     const approvedCount = info ? (info.approved_count || 0) : 0;
     html += multiProgramBadge(approvedCount);
 
@@ -580,6 +602,10 @@ function renderCalendar() {
     }
 
     grid.appendChild(cell);
+
+    if (sunTimes) {
+      renderDayTwilight(cell.querySelector('.day-twilight'), sunTimes);
+    }
   }
 }
 
@@ -610,6 +636,14 @@ function openDetail(dateStr, status, info) {
   const dateLabel = `${parseInt(d)} ${MONTH_NAMES_IT[parseInt(m)-1]} ${y}`;
 
   document.getElementById('dp-date').textContent = dateLabel;
+
+  const sunTimes = sunTimesByDate[dateStr];
+  const dpTwilight = document.getElementById('dp-twilight');
+  if (sunTimes) {
+    renderSunTimesBlock(dpTwilight, sunTimes);
+  } else {
+    dpTwilight.innerHTML = '';
+  }
 
   const statusEl = document.getElementById('dp-status');
   const statusLabels = { booked: 'BLOCCATA', contested: 'CONTESA', pending: 'RICHIESTA', free: '' };

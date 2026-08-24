@@ -166,6 +166,8 @@ Update the SSL paths in the .conf to match the other *.ara.roma.it services.
 | EMAIL_FROM           | crac@osservatorio.it           | Email sender               |
 | REVIEWER_EMAIL       | responsabile@osservatorio.it   | Notification recipient     |
 | TZ                   | (system timezone)              | Observatory timezone: time slots are local time |
+| OBSERVATORY_LAT      | (required)                     | Observatory latitude, degrees — for ephemeris |
+| OBSERVATORY_LON      | (required)                     | Observatory longitude, degrees — for ephemeris |
 | AUTH_MODE            | forward-auth                   | `forward-auth` or `dev`   |
 | DEV_USER             | sviluppo                       | Simulated user (AUTH_MODE=dev only) |
 | DEV_GROUPS           | telescope-responsabili         | Simulated groups (AUTH_MODE=dev only) |
@@ -227,6 +229,7 @@ curl -X PATCH localhost:8010/telescope-time/requests/1 \
 | GET    | /telescope-time/requests/{id}/history | Decisions and reschedules on the request |
 | GET    | /telescope-time/me               | Identity of the connected user    |
 | GET    | /telescope-time/statistics      | Aggregate statistics              |
+| GET    | /telescope-time/ephemeris       | Sun times for a night (?night=YYYY-MM-DD) |
 
 Interactive docs: /docs (Swagger UI)
 
@@ -460,6 +463,8 @@ con gli altri servizi *.ara.roma.it.
 | EMAIL_FROM           | crac@osservatorio.it           | Mittente email          |
 | REVIEWER_EMAIL       | responsabile@osservatorio.it   | Destinatario notifiche  |
 | TZ                   | (fuso del sistema)             | Fuso dell'osservatorio: le fasce orarie sono ora locale |
+| OBSERVATORY_LAT      | (obbligatoria)                 | Latitudine dell'osservatorio, gradi — per le effemeridi |
+| OBSERVATORY_LON      | (obbligatoria)                 | Longitudine dell'osservatorio, gradi — per le effemeridi |
 | AUTH_MODE            | forward-auth                   | `forward-auth` o `dev`  |
 | DEV_USER             | sviluppo                       | Utente simulato (solo AUTH_MODE=dev) |
 | DEV_GROUPS           | telescope-responsabili         | Gruppi simulati (solo AUTH_MODE=dev) |
@@ -520,6 +525,7 @@ curl -X PATCH localhost:8010/telescope-time/requests/1 \
 | GET    | /telescope-time/requests/{id}/history | Decisioni e spostamenti sulla richiesta |
 | GET    | /telescope-time/me               | Identità dell'utente collegato    |
 | GET    | /telescope-time/statistics      | Statistiche aggregate             |
+| GET    | /telescope-time/ephemeris       | Orari solari per una notte (?night=YYYY-MM-DD) |
 
 Documentazione interattiva: /docs (Swagger UI)
 
