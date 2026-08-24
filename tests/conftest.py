@@ -85,8 +85,7 @@ def isolated_database(monkeypatch):
 @pytest.fixture
 def observatory_coordinates(monkeypatch):
     """Test-only coordinates (Rome), never the real observatory's — the
-    real ones were deliberately kept out of the codebase, see
-    docs/piano-35-crepuscolo.md."""
+    real ones were deliberately kept out of the codebase."""
     monkeypatch.setenv("OBSERVATORY_LAT", "41.9028")
     monkeypatch.setenv("OBSERVATORY_LON", "12.4964")
 

@@ -57,8 +57,8 @@ def test_an_invalid_timezone_fails_the_app_at_startup(tmp_path, monkeypatch):
 
 def test_missing_observatory_coordinates_fail_the_app_at_startup(tmp_path, monkeypatch):
     """Same reasoning as TZ above: OBSERVATORY_LAT/OBSERVATORY_LON have no
-    safe default (see docs/piano-35-crepuscolo.md), so a deploy that
-    forgets them must fail at boot, not on the first ephemeris request."""
+    safe default, so a deploy that forgets them must fail at boot, not on
+    the first ephemeris request."""
     monkeypatch.setenv("TELESCOPE_DB_PATH", str(tmp_path / "telescope_test.db"))
     monkeypatch.setenv("AUTH_MODE", "dev")
     monkeypatch.delenv("OBSERVATORY_LAT", raising=False)

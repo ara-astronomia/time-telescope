@@ -1,7 +1,6 @@
 """ephemeris.py: sun times and darkness classification for a night, via
 astral. Coordinates come from OBSERVATORY_LAT/OBSERVATORY_LON — the test
-fixtures below use Rome's, matching the numbers astral itself was verified
-against while designing this module (see docs/piano-35-crepuscolo.md).
+fixtures below use Rome's.
 """
 
 from datetime import date, datetime, timedelta
