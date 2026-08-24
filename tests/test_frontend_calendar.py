@@ -1,6 +1,6 @@
 """The calendar must make visible when multiple observations share the same
-night (#4), and distinguish a night that's merely requested from one that's
-truly contested (#33)."""
+night, and distinguish a night that's merely requested from one that's
+truly contested."""
 
 from datetime import date, datetime, time, timedelta
 
@@ -49,7 +49,7 @@ def css_class(cell):
     return cell.get_attribute("class") or ""
 
 
-# ─── Multiple programs sharing a night (#4) ────────────────────────────────────
+# ─── Multiple programs sharing a night ──────────────────────────────────────────
 
 def test_night_with_two_programs_flagged_in_grid(page, app_url):
     night = next_month().replace(day=11)
@@ -70,7 +70,7 @@ def test_night_with_a_single_program_not_flagged(page, app_url):
     assert "booked" in css_class(cell)
 
 
-# ─── Requested ≠ contested (#33, absorbs #42) ──────────────────────────────────
+# ─── Requested ≠ contested ───────────────────────────────────────────────────────
 
 def test_a_single_request_does_not_color_the_night_as_contested(page, app_url):
     night = next_month().replace(day=13)

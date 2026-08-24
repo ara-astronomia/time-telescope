@@ -1,4 +1,4 @@
-"""User registry: identity comes from Authelia, not from the request body (#5).
+"""User registry: identity comes from Authelia, not from the request body.
 
 A non-null `username` means a verified identity: only someone who has one
 can open a request. Name and email aren't typed in by hand.
@@ -74,7 +74,7 @@ def test_updated_at_is_set_when_the_registry_syncs(client_authelia):
 
 
 def test_multiple_users_without_email_are_allowed(client_authelia):
-    """Needed for occasional co-observers whose contact info isn't known (#40)."""
+    """Needed for occasional co-observers whose contact info isn't known."""
     with models.SessionLocal() as db:
         db.add(User(name="Guest One"))
         db.add(User(name="Guest Two"))

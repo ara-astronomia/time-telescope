@@ -1,4 +1,4 @@
-"""Decision history (#9) and multiple concurrent observations (#4)."""
+"""Decision history and multiple concurrent observations."""
 
 import pytest
 
