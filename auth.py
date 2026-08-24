@@ -118,7 +118,7 @@ def _reconcile_after_registry_conflict(db: Session, user: "Identity") -> int:
 
 
 def _promote_co_observer(db: Session, user_id: int, user: "Identity") -> int:
-    """A co-observer entered by hand (#40), now recognized by email: the
+    """A co-observer entered by hand, now recognized by email: the
     record gets updated instead of duplicated, so the observations they
     already took part in stay linked to them."""
     record = db.get(User, user_id)

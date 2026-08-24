@@ -34,7 +34,7 @@ def prepare(page, app_url):
 
 
 def fill_form(page, start, end):
-    """The observer's name isn't filled in: it comes from Authelia (#5)."""
+    """The observer's name isn't filled in: it comes from Authelia."""
     page.select_option("#research_program_id", index=1)
     page.fill("#start", start)
     page.fill("#end", end)
@@ -86,7 +86,7 @@ def test_end_before_start_is_not_submitted(page, app_url):
     assert submitted_starts(page, app_url) == [] or f"{end}:00" not in submitted_starts(page, app_url)
 
 
-# ─── End past the night of the start (#59) ─────────────────────────────────────
+# ─── End past the night of the start ────────────────────────────────────────────
 
 def test_end_past_the_night_is_flagged_to_the_user(page, app_url):
     """`max` on #end follows the night of #start."""
@@ -146,7 +146,7 @@ def test_server_validation_error_shown_to_the_user(page, app_url):
     assert "orario" in toast_text or "fascia" in toast_text, f"the message doesn't name the field: {toast_text!r}"
 
 
-# ─── Identity is no longer typed (#5) ──────────────────────────────────────────
+# ─── Identity is no longer typed ─────────────────────────────────────────────────
 
 def test_the_name_is_not_typed_anymore(page, app_url):
     prepare(page, app_url)
