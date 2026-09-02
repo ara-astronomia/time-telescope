@@ -17,5 +17,4 @@ __pycache__/
 .github/
 README.md
 CLAUDE.md
-nginx_time_telescope.conf
 docker-compose.yml

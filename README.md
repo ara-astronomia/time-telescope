@@ -8,7 +8,8 @@
 ## English
 
 Service for managing telescope time requests.
-Served at `time_telescope.ara.roma.it`.
+Served in production behind Nginx, with Authelia handling authentication
+via ForwardAuth.
 
 ### Structure
 
@@ -23,7 +24,6 @@ time-telescope/
 ├── tests/                          ← pytest suite
 ├── Dockerfile
 ├── docker-compose.yml
-├── nginx_time_telescope.conf       ← Nginx block to copy
 ├── static/                         ← HTML pages
 │   ├── request.html
 │   ├── dashboard.html
@@ -154,13 +154,50 @@ The database persists in the `telescope_db` Docker volume.
 
 ### Nginx configuration
 
-```bash
-cp nginx_time_telescope.conf /etc/nginx/sites-available/time_telescope
-ln -s /etc/nginx/sites-available/time_telescope /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-```
+Production ingress isn't configured in this repo. Example server block for
+Nginx with Authelia in ForwardAuth (adapt the domain, certificate paths and
+Authelia address to your own setup):
 
-Update the SSL paths in the .conf to match the other *.ara.roma.it services.
+```nginx
+server {
+    listen 443 ssl;
+    server_name time-telescope.example.com;
+
+    ssl_certificate     /etc/ssl/certs/example.com.crt;
+    ssl_certificate_key /etc/ssl/private/example.com.key;
+
+    location /internal/authelia {
+        internal;
+        proxy_pass              http://127.0.0.1:9091/api/authz/forward-auth;
+        proxy_set_header        X-Original-URL $scheme://$http_host$request_uri;
+        proxy_set_header        Content-Length "";
+        proxy_pass_request_body off;
+    }
+
+    location / {
+        auth_request     /internal/authelia;
+        auth_request_set $auth_user   $upstream_http_remote_user;
+        auth_request_set $auth_name   $upstream_http_remote_name;
+        auth_request_set $auth_groups $upstream_http_remote_groups;
+        auth_request_set $auth_email  $upstream_http_remote_email;
+
+        # Always overwritten with the values Authelia verified: this is
+        # also what stops a client from injecting these headers itself.
+        proxy_set_header Remote-User   $auth_user;
+        proxy_set_header Remote-Name   $auth_name;
+        proxy_set_header Remote-Groups $auth_groups;
+        proxy_set_header Remote-Email  $auth_email;
+
+        error_page 401 =302 https://auth.example.com/?rd=$scheme://$http_host$request_uri;
+
+        proxy_pass         http://127.0.0.1:8010;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 ---
 
@@ -190,7 +227,7 @@ Update the SSL paths in the .conf to match the other *.ara.roma.it services.
 Users are Authelia's: the service doesn't handle login, sessions, or
 passwords. Nginx verifies the session (`auth_request`) and passes the
 identity to the app in the `Remote-User`, `Remote-Groups` and
-`Remote-Email` headers — see `nginx_time_telescope.conf`.
+`Remote-Email` headers — see the example in "Nginx configuration" above.
 
 Approving or rejecting a request requires membership in the
 `REVIEWERS_GROUP` group; the other endpoints are open to anyone
@@ -314,7 +351,8 @@ approval.
 ## Italiano
 
 Servizio per la gestione delle richieste di tempo telescopio.
-Accessibile su `time_telescope.ara.roma.it`.
+Accessibile in produzione dietro Nginx, con Authelia che gestisce
+l'autenticazione via ForwardAuth.
 
 ### Struttura
 
@@ -329,7 +367,6 @@ time-telescope/
 ├── tests/                          ← suite pytest
 ├── Dockerfile
 ├── docker-compose.yml
-├── nginx_time_telescope.conf       ← blocco Nginx da copiare
 ├── static/                         ← pagine HTML
 │   ├── request.html
 │   ├── dashboard.html
@@ -461,14 +498,50 @@ Il database è persistente nel volume Docker `telescope_db`.
 
 ### Configurazione Nginx
 
-```bash
-cp nginx_time_telescope.conf /etc/nginx/sites-available/time_telescope
-ln -s /etc/nginx/sites-available/time_telescope /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-```
+L'ingress di produzione non è configurato in questo repo. Esempio di blocco
+server Nginx con Authelia in ForwardAuth (da adattare con il proprio
+dominio, i propri certificati e l'indirizzo della propria Authelia):
 
-Aggiornare i percorsi SSL nel .conf in modo coerente
-con gli altri servizi *.ara.roma.it.
+```nginx
+server {
+    listen 443 ssl;
+    server_name time-telescope.example.com;
+
+    ssl_certificate     /etc/ssl/certs/example.com.crt;
+    ssl_certificate_key /etc/ssl/private/example.com.key;
+
+    location /internal/authelia {
+        internal;
+        proxy_pass              http://127.0.0.1:9091/api/authz/forward-auth;
+        proxy_set_header        X-Original-URL $scheme://$http_host$request_uri;
+        proxy_set_header        Content-Length "";
+        proxy_pass_request_body off;
+    }
+
+    location / {
+        auth_request     /internal/authelia;
+        auth_request_set $auth_user   $upstream_http_remote_user;
+        auth_request_set $auth_name   $upstream_http_remote_name;
+        auth_request_set $auth_groups $upstream_http_remote_groups;
+        auth_request_set $auth_email  $upstream_http_remote_email;
+
+        # Sempre sovrascritti con i valori verificati da Authelia: è anche
+        # cio' che impedisce a un client di iniettare questi header da solo.
+        proxy_set_header Remote-User   $auth_user;
+        proxy_set_header Remote-Name   $auth_name;
+        proxy_set_header Remote-Groups $auth_groups;
+        proxy_set_header Remote-Email  $auth_email;
+
+        error_page 401 =302 https://auth.example.com/?rd=$scheme://$http_host$request_uri;
+
+        proxy_pass         http://127.0.0.1:8010;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 ---
 
@@ -498,7 +571,7 @@ con gli altri servizi *.ara.roma.it.
 Gli utenti sono quelli di Authelia: il servizio non gestisce login, sessioni
 né password. Nginx verifica la sessione (`auth_request`) e passa l'identità
 all'applicazione negli header `Remote-User`, `Remote-Groups` e `Remote-Email`
-— vedi `nginx_time_telescope.conf`.
+— vedi l'esempio in "Configurazione Nginx" più sopra.
 
 Approvare o rifiutare una richiesta richiede l'appartenenza al gruppo
 `REVIEWERS_GROUP`; gli altri endpoint sono aperti a tutti gli
