@@ -41,7 +41,7 @@ CI (`.github/workflows/`): `tests.yml` runs `pytest` on every push/PR to `main`;
 
 ## Architecture
 
-Monolithic FastAPI service (3 Python modules + 3 HTML pages) for managing CRaC telescope time requests, exposed at `time_telescope.ara.roma.it` via Nginx (with Authelia in ForwardAuth) → container on :8010.
+Monolithic FastAPI service (3 Python modules + 3 HTML pages) for managing CRaC telescope time requests, exposed in production via Nginx (with Authelia in ForwardAuth) → container on :8010. Production ingress isn't configured in this repo — see the example in README.md's "Nginx configuration" section.
 
 - `main.py` — the FastAPI app. `init_db()` runs in the `lifespan`, not at import. Includes `router` then mounts `static/` on `/` with `html=True`: order matters, the `/` mount is catch-all and must stay last. Also seeds an empty database automatically in `AUTH_MODE=dev` (see `seed.py`).
 - `models.py` — the SQLAlchemy ORM schema (`Research`, `User`, `Request`, `DecisionLog`), kept separate from `router.py` so a mapped `User`/`Request` can't collide with the identically-named Pydantic models the API layer uses.
@@ -79,6 +79,6 @@ Request states: `pending` (default) → `approved` | `rejected`, via `PATCH /tel
 
 ## Conventions
 
-Code, docstrings, identifiers (schema, endpoints, functions, HTML/test file names), and comments everywhere — including infrastructure files (`docker-compose.yml`, `nginx_time_telescope.conf`) — are in **English**. Italian is reserved for the user interface only: HTTP error details (`detail=...`) and the text in the `static/*.html` UI. Don't mix the two: an Italian identifier or comment outside the UI, or an English error message shown to a user, breaks this convention. A proper localization layer is planned for the future; until then, Italian stays hardcoded in those user-facing spots.
+Code, docstrings, identifiers (schema, endpoints, functions, HTML/test file names), and comments everywhere — including infrastructure files (`docker-compose.yml`) — are in **English**. Italian is reserved for the user interface only: HTTP error details (`detail=...`) and the text in the `static/*.html` UI. Don't mix the two: an Italian identifier or comment outside the UI, or an English error message shown to a user, breaks this convention. A proper localization layer is planned for the future; until then, Italian stays hardcoded in those user-facing spots.
 
 **No comments in code** (`#`, `//`), with two tolerated exceptions. A docstring, only when there's truly no other way to convey something (FastAPI route/model docstrings double as Swagger documentation, so those stay); it must describe the current behavior only, never an issue number, a past state, a reference to a story's uncommitted plan file (`docs/piano-*.md`, see the `my-plan` skill — that file never reaches anyone else's checkout), or "before X / after X" narrative — same rule for test docstrings and test names. And a section-header comment (`# ─── ... ───`), purely as a visual divider between blocks of related endpoints/tests — never an issue number there either: once merged, a section is just what it is, not evidence of which story added it. If a line seems to need any other comment, that's a signal to rewrite it instead — a clearer name, an extracted function, a better structure.
